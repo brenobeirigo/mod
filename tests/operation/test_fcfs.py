@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.amod import Amod, StepLog
+from mod.env.amod import Amod
 from mod.env.config import Config, ConfigStandard
 from mod.env.match import fcfs
 from mod.env.trip import get_random_trips
+from mod.env.visual import StepLog
 
 
 def test_fcfs_random_trips(amod, show_stats=False):
@@ -48,6 +49,7 @@ if __name__ == "__main__":
 
     config = ConfigStandard()
     amod = Amod(config)
+    amod.print_dimension(amod.config.max_trips, amod.config.time_steps)
     #amod.print_environment()
 
     test_fcfs_random_trips(amod)

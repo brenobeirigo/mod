@@ -34,8 +34,10 @@ class Car:
         # Vehicle starts free to operate
         self.status = Car.IDLE
         self.current_trip = None
-        self.update_attribute()
-    
+
+    def attribute(self, level=0):
+        return (self.point.id_level(level), self.battery_level)
+
     @property
     def busy(self):
         #print("busy check", self.status)
@@ -58,14 +60,11 @@ class Car:
             f' - Traveled: {self.distance_traveled:>6.2f}'
             f' - Revenue: {self.revenue:>6.2f}'
             f' - #Trips: {self.n_trips:>3}'
-            f' - Attribute: {self.attribute}'
+            f' - Attribute: ({self.point},{self.battery_level})'
             f'{trip}'
             
         )
         return status
-
-    def update_attribute(self):
-        self.attribute = (self.point.id, self.battery_level)
 
     def need_recharge(self,threshold):
         battery_ratio = self.battery_level_miles/self.battery_level_miles_max
@@ -156,8 +155,6 @@ class Car:
         self.n_trips+=1
 
         self.trip = trip
-        
-        self.update_attribute()
 
     def get_full_recharging_miles(self):
 
@@ -196,8 +193,6 @@ class Car:
         self.status = Car.RECHARGING
         
         self.recharge_count+=1
-        
-        self.update_attribute()
     
     def reset(self, battery_level):
         self.point = self.origin
@@ -205,7 +200,6 @@ class Car:
         self.revenue = 0
         self.distance_traveled = 0
         self.battery_level = battery_level
-        self.attribute = (self.origin.id, battery_level)
         self.trip = None
         self.current_trip = None
         self.n_trips = 0
@@ -219,4 +213,4 @@ class Car:
         return f'V{self.id}[{self.battery_level}] - {self.point}'
     
     def __repr__(self):
-        return f'Car{{id={self.id:02}, (point, battery)={self.attribute}}}'
+        return f'Car{{id={self.id:02}, (point, battery)=({self.point},{self.battery_level})}}'

@@ -10,11 +10,11 @@ class Trip:
         self.d = d
         self.time = time
         self.id = Trip.trip_count
-        self.attribute = (self.o.id,
-                          self.d.id)
         Trip.trip_count +=1
         self.picked_by = None
-        
+    
+    def attribute(self, level):
+        return (self.o.id_level(level), self.d.id_level(level))
     def __str__(self):
         return f'T{self.id:02}({self.o},{self.d})'
     
@@ -22,10 +22,10 @@ class Trip:
 
         return (
             f'Trip{{'
-            'id={self.id:03},'
-            'o={self.o.id:03},'
-            'd={self.d.id:03},'
-            'time={self.time:03}}}'
+            f'id={self.id:03},'
+            f'o={self.o.level_ids},'
+            f'd={self.d.level_ids},'
+            f'time={self.time:03}}}'
         )
 
 ####################################################################

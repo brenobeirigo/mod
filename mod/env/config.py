@@ -1,3 +1,13 @@
+import os
+import sys
+
+# Adding project folder to import modules
+root = os.getcwd().replace("\\", "/")
+sys.path.append(root)
+
+# Trip data to group in steps
+NY_TRIPS_EXCERPT_DAY = root + '/data/input/32874_samples_01_feb_2011_NY.csv'
+
 class Config:
 
     def __init__(self, config):
@@ -129,17 +139,24 @@ class Config:
     @property
     def rows(self):
         """Number of rows in zone"""
-        return self.config['N_ZONE_ROWS']
+        return self.config['ROWS']
+    
 
     @property
     def cols(self):
         """Number of colums in zone"""
-        return self.config['N_ZONE_COLS']
+        return self.config['COLS']
 
     @property
     def fleet_size(self):
         """Number of cars"""
         return self.config['FLEET_SIZE']
+
+    @property
+    def aggregation_levels(self):
+        """Number of aggregation levels"""
+        return self.config['AGGREGATION_LEVELS']
+
 
     ################################################################
     ### Demand #####################################################
@@ -171,8 +188,8 @@ class Config:
     def resize_zones(self, factor):
         # Each zone has width = 0.5 miles
         self.config['ZONE_WIDTH'] = int(self.config['ZONE_WIDTH']*factor)
-        self.config['N_ZONE_ROWS'] = int(self.config['N_ZONE_ROWS']*factor)
-        self.config['N_ZONE_COLS'] = int(self.config['N_ZONE_COLS']*factor)
+        self.config['ROWS'] = int(self.config['ROWS']*factor)
+        self.config['COLS'] = int(self.config['COLS']*factor)
         self.config['VALID_ZONES'] = int(self.config['VALID_ZONES']*(factor*factor))
 
     def __str__(self):
@@ -180,6 +197,9 @@ class Config:
 
     def calculate_fare(self, distance_trip):
         return self.config['TRIP_BASE_FARE'] + self.config['TRIP_COST_MILE']*distance_trip
+
+    def update(self,dict_update):
+        self.config.update(dict_update)
 
 class ConfigStandard(Config):
 
@@ -241,14 +261,18 @@ class ConfigStandard(Config):
         # How many surrounding zones cars check for new costumers
         self.config['PICKUP_ZONE_RANGE'] = 2
 
+        # How many aggregation levels (level 0, i.e., no aggregation)
+        # included
+        self.config['AGGREGATION_LEVELS'] = 5
+
         # Each zone has width = 0.5 miles
         self.config['ZONE_WIDTH'] = 0.5
 
         # The New Jersey is divided into 201 bt 304 rectangular
         # zones of width 0.5 miles with 21634 valid zones
         self.config['VALID_ZONES'] = 21634
-        self.config['N_ZONE_ROWS'] = 201
-        self.config['N_ZONE_COLS'] = 304
+        self.config['ROWS'] = 201
+        self.config['COLS'] = 304
 
     
         self.config['RECHARGE_THRESHOLD'] = 0.1 # 10%

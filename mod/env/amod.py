@@ -86,43 +86,6 @@ class ActionSpace(object):
         return actions
 
     @staticmethod
-    def get_decision(car):
-        """Return the decision tuple derived from car.
-        
-
-        Arguments:
-            car {Car} -- Vehicle after decision is made
-        
-        Returns:
-            tuple -- decision code, from zone, to zone
-
-        E.g.:
-        decision (0, 1, 2) - Car is servicing customer (flag=0)
-        going from zone 1 to zone 2
-        """
-
-        if car.status == Car.IDLE:
-            decision = (
-                Amod.TRIP_STAY_DECISION,
-                car.point.id,
-                car.point.id
-            )
-        elif car.status == Car.ASSIGN:
-            decision = (
-                Amod.TRIP_STAY_DECISION,
-                car.trip.o.id,
-                car.trip.d.id
-            )
-        elif car.status == Car.RECHARGING or car.status == Car.REBALANCE:
-            decision = (
-                Amod.RECHARGE_REBALANCE_DECISION,
-                car.previous.id,
-                car.point.id
-            )
-        return decision
-
-
-    @staticmethod
     def read_single_action_tuple(action):
         car_attribute, decision, number_time_decision = action
         # Car attributes
@@ -178,8 +141,13 @@ class Amod:
         zones = np.arange(self.n_zones)
         self.zones = zones.reshape((self.config.rows, self.config.cols))
         
-        # Defining map points
-        self.points = get_point_list(self.config.rows,self.config.cols)
+        # Defining map points with aggregation_levels
+        self.points = get_point_list(
+            self.config.rows,
+            self.config.cols,
+            levels=self.config.aggregation_levels
+        )
+
         self.point_list_ids = [l.id for l in self.points]
         
         # Battery levels -- l^{d}
@@ -420,6 +388,42 @@ class Amod:
  
         return actions
 
+    @staticmethod
+    def get_decision(car):
+        """Return the decision tuple derived from car.
+        
+
+        Arguments:
+            car {Car} -- Vehicle after decision is made
+        
+        Returns:
+            tuple -- decision code, from zone, to zone
+
+        E.g.:
+        decision (0, 1, 2) - Car is servicing customer (flag=0)
+        going from zone 1 to zone 2
+        """
+
+        if car.status == Car.IDLE:
+            decision = (
+                Amod.TRIP_STAY_DECISION,
+                car.point.id,
+                car.point.id
+            )
+        elif car.status == Car.ASSIGN:
+            decision = (
+                Amod.TRIP_STAY_DECISION,
+                car.trip.o.id,
+                car.trip.d.id
+            )
+        elif car.status == Car.RECHARGING or car.status == Car.REBALANCE:
+            decision = (
+                Amod.RECHARGE_REBALANCE_DECISION,
+                car.previous.id,
+                car.point.id
+            )
+        return decision
+        
     def get_trip_state_vector(self, trips_t):
         """Get trip state vector from list of trips.
         
@@ -626,9 +630,9 @@ class Amod:
 
         print(
             '##### Problem dimension ############################################'
-            f'\n - Number of zones (A): {n_zones}'
-            f'\n - Car attributes (A): {car_attributes}'
-            f'\n - Trip attributes (B): {trip_attributes}' 
+            f'\n - Number of zones (|Z|): {n_zones}'
+            f'\n - Car attributes (|A|): {car_attributes}'
+            f'\n - Trip attributes (|B|): {trip_attributes}' 
             f'\n - Resource state vector (Rt): {physical_state_count}'
             f'\n - Trip state vector (Dt): {trips_per_attribute}'
             f'\n - Physical state (St): {physical_state_count}'
@@ -856,9 +860,7 @@ class Amod:
         denied = list()
 
         for a in action:
-
             
-        
             car_attribute, decision, number_time_decision = a
             
             # Decision attributes
@@ -925,106 +927,6 @@ class Amod:
             cars_with_attribute = cars_with_attribute[number_time_decision:]
 
         return total_reward, serviced, list(it.chain.from_iterable(trips_per_attribute.values()))
-
-
-class StepLog:
-    def __init__(self, env):
-        self.env = env
-        self.reward_list = list()
-        self.serviced_list = list()
-        self.rejected_list = list()
-        self.total_list = list()
-        self.car_statuses = defaultdict(list)
-        self.total_battery = list()
-        self.n = 0
-
-    def add_record(self, reward, serviced, rejected):
-        self.n +=1
-        self.reward_list.append(reward)
-        self.serviced_list.append(len(serviced))
-        self.rejected_list.append(len(rejected))
-        total = len(serviced) + len(rejected)
-        self.total_list.append(total)
-
-        # Get number of cars per status in a time step 
-        # and aggregate battery level
-        dict_status, battery_level =  self.env.get_fleet_status()
-        
-        # Fleet aggregate battery level
-        self.total_battery.append(battery_level)
-
-        # Number of vehicles per status
-        for k in Car.status_list:
-            self.car_statuses[k].append(dict_status.get(k,0))
-        
-    def overall_log(self):
-
-        # Get number of times recharging for each vehicle
-        recharge_list = []
-        for c in self.env.cars:
-            recharge_list.append(c.recharge_count)
-
-        s = sum(self.serviced_list)
-        t = sum(self.total_list)
-        print(f'        Service rate: {s}/{t} ({s/t:.2%})')
-        print(f'Fleet recharge count: {sum(recharge_list)}')
-
-        
-    def plot_timestep_status(self):
-        steps = np.arange(self.n)
-        k, s = list(zip(*self.car_statuses.items()))
-        plt.stackplot(steps, s, labels=k)
-        # for k, s in self.car_statuses.items():
-        #     plt.stackplot(np.arange(self.n), s, label=k)
-        plt.legend()
-        plt.show()
-    
-    def plot_trip_coverage_battery_level(self):
-        
-        max_battery_level = (
-            len(self.env.cars)
-            *(self.env.cars[0].battery_level_miles_max
-            *self.env.config.battery_size_kwh_mile)
-        )
-
-        # Closest power of 10
-        max_battery_level_10 =  10**round(np.math.log10(max_battery_level))
-
-
-        list_battery_level_kwh = (
-            np.array(self.total_battery)*self.env.config.battery_size_kwh_mile
-        )
-
-        steps = np.arange(self.n)
-
-        fig, ax1 = plt.subplots()
-        ax1.set_xlabel('Time (15min)')
-        ax1.set_ylabel('Trips')
-        ax1.plot(steps, self.total_list, label='Trips Requested', color='b')
-        ax1.plot(steps, self.serviced_list, label='Trips Taken', color='g')
-        ax1.legend()
-        ax2 = ax1.twinx()
-        ax2.plot(steps,  list_battery_level_kwh, label = 'Battery Level', color='r')
-        ax2.set_ylabel('Total Battery Level (KWh)')
-        
-        # Configure ticks x axis
-        x_ticks = 6
-        x_stride = 20
-        max_x = np.math.ceil(self.n/x_stride)*x_stride
-        xticks = np.arange(0, max_x + x_stride, x_stride)
-        #print(self.n, xticks)
-        plt.xticks(xticks)
-
-        # Configure ticks y axis (battery level)
-        y_ticks = 5 # apart from 0
-        y_stride = max_battery_level_10/y_ticks
-        yticks = np.arange(0, max_battery_level_10 + y_stride, y_stride)
-        plt.yticks(yticks)
-
-        plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
-        
-        ax2.legend()
-        plt.show()
     
     
         

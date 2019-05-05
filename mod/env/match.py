@@ -3,7 +3,6 @@
 from collections import defaultdict
 import mod.env.network as nw
 
-
 def fcfs(env, trips, time_step, charge = True):
     """First Come First Serve
     
@@ -78,7 +77,7 @@ def fcfs(env, trips, time_step, charge = True):
             
             for z in nearby_zones:
                 for trip in dict_zone_trips[z]:
-                    d, t, r = env.pickup2(trip, car)
+                    d, t, r = env.pickup(trip, car)
 
                     if best_reward < r:
                         if not car.has_power(t):

@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 
+
 class Trip:
     trip_count = 0
     def __init__(self, o, d, time):
@@ -71,3 +72,36 @@ def get_random_trips(locations_list, time_step, min_trips, max_trips):
             trips.append(Trip(o, d, time_step))
 
     return trips
+
+def get_trip_list_step(
+        points, n_steps, min_trips, max_trips,
+        offset_start=0, offset_end=0):
+    
+    # Populate first steps with empty lists
+    step_trip_list = [[]]*offset_start
+
+    if min_trips and max_trips:
+        step_trip_list.extend([
+        get_random_trips(points, t, min_trips,  max_trips)
+        for t in n_steps])
+
+    # Populate last steps with empty lists
+    step_trip_list.extend([[]]*offset_end)
+    
+    return step_trip_list
+
+def get_trips_random_ods(
+        points, step_trip_count,
+        offset_start=0, offset_end=0):
+    
+    # Populate first steps with empty lists
+    step_trip_list = [[]]*offset_start
+
+    step_trip_list.extend([
+    get_random_trips(points, t, n_trips,  n_trips)
+    for t, n_trips in enumerate(step_trip_count)])
+
+    # Populate last steps with empty lists
+    step_trip_list.extend([[]]*offset_end)
+    
+    return step_trip_list

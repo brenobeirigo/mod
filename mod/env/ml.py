@@ -13,17 +13,17 @@ class ActionSpace(object):
         self.get_decision = get_decision
     
     
-    def get_action(self, cars):
+    def get_action(self, cars, level):
 
         actions = defaultdict(int)
 
         for c in cars:
 
             # What is the decision taken by vehicle c
-            decision = self.get_decision(c)
+            decision = self.get_decision(c, level)
 
             # TODO is it really previous???
-            actions[((c.previous.id, c.previous_battery_level), decision)]+=1
+            actions[((c.previous.id_level(level), c.previous_battery_level), decision)]+=1
 
         comb = tuple([a+(v,) for a,v in actions.items()])
         return comb
@@ -179,10 +179,9 @@ def get_state(time_step, cars, trips, level=0):
     if not car_state:
         return None, None, None
     
-    return (time_step, car_state, trip_state), cars_per_attribute, trips_per_attribute
+    return (car_state, trip_state), cars_per_attribute, trips_per_attribute
 
 class Adp:
-
     
     def print_dimension(self, max_number_trips, total_time_steps):
         """Print problem's dimension in terms of number of states and actions.
@@ -192,7 +191,6 @@ class Adp:
                 a time step. 
             total_time_steps {int} -- The duration of an episode
         """
-
 
         n_zones = self.mod.config.rows*self.mod.config.cols
 
@@ -233,7 +231,7 @@ class Adp:
 
     def iterate(self, step, trips, epsilon = 0.1, gamma = 0.8, alpha = 0.1):
 
-        g = 0
+        
         """Service all trips in a given step, update the environment
         and store the iteration result in the 'step_log' object.
         
@@ -249,36 +247,65 @@ class Adp:
         # print(
         #     f'---- Time step {step:>4} '
         #     f'---- # Trips = {len(trips):>4} '
-        #     f'---- # States visited:{len(amod.Q.keys())}'
+        #     #f'---- # States visited:{len(amod.Q.keys())}'
         # )
-        
-        # Current state, return None if all cars are busy or there are no trips
-        state, dict_car_attribute, dict_trip_attribute = get_state(
-            step,
-            self.mod.cars,
-            trips
-        )
-        
-        action = self.action_space.get_action(self.mod.cars)
 
+        states_visited = dict()
+        
+        for g in range(self.mod.config.aggregation_levels):
+
+            # Current state, return None if all cars are busy or there are no trips
+            state, dict_car_attribute, dict_trip_attribute = get_state(
+                step,
+                self.mod.cars,
+                trips,
+                level=g
+            )
+            
+            if not state:
+                continue
+            
+            if state in self.state_count[g].keys():
+                print(f'Revisiting state in [level={g}] - times={self.state_count[g][state]}', )
+
+            # Account for new visit
+            self.state_count[g][state]+=1
+            states_visited[g] = state
+
+        # Execute optimization method
         reward, list_serviced, list_rejected = fcfs(
             self.mod,
             trips,
             step
         )
-        
-        # Get the best action so far
-        # Get actions taken from current state
-        action_dict = self.table[g].get(state, None)
-        
-        # Update the new value
-        self.table[g][state][action] = (
-            (1 - alpha) * reward
-            + alpha * (
-                self.table[g][state].get(action, 0)
-                if state in self.table[g] else 0
-            )
-        )
+
+        # Here we have the post-decision state
+
+        if reward > 0:
+
+            for g, state in states_visited.items():
+
+                action = self.action_space.get_action(self.mod.cars, g)
+
+                # print(f'{g} - Action: {action}')
+
+                # print(f'# {g} - Reward: {reward}')
+                
+                # Get the best action so far
+                # Get actions taken from current state
+                action_dict = self.table[g].get(state, None)
+                
+                # Update the new value
+                # self.table[g][state][action] = (
+                #     (1 - alpha) * reward
+                #     + alpha * (
+                #         self.table[g][state].get(action, 0)
+                #         if state in self.table[g] else 0
+                #     )
+                # )
+
+                # Update the new value
+                self.table[g][state][action] = reward
 
         return reward, list_serviced, list_rejected
 
@@ -293,6 +320,12 @@ class Adp:
             for g in range(self.mod.config.aggregation_levels)
         ]
 
+        # How many times states were accessed
+        self.state_count = [
+            defaultdict(int)
+            for g in range(self.mod.config.aggregation_levels)
+        ]
+
         self.action_space = ActionSpace(Amod.get_decision)
         
     def value(self, state, action, level=0):
@@ -300,3 +333,27 @@ class Adp:
     
     def set_value(self, state, action, value, level=0):
         self.table[level][state][action]=value
+
+    def stats(self):
+        
+        for g, state_dic in enumerate(self.state_count):
+            total_count = np.average(list(state_dic.values()))
+            print(f'# Aggregation level {g} - mean visit = {total_count:>4.2f}')
+            # print(f'# Aggregation level {g} - state dic = {state_dic.values()}')
+
+    def print_table(self):
+        for g, table in enumerate(self.table):
+            print(f'\n###### Aggregation level - {g} || [states={len(table):>4}] #####################')
+
+            for state, action_dict in table.items():
+                
+
+                if len(action_dict.keys()) > 1:
+                # if state[0] == 3:
+                    #continue
+                    #print(f' - {hash(state)} = {len(action_dict)}')
+                    #print(f' - {state} = {len(action_dict)}')
+                    #print(f' - [{state[0]}] {hash(state)} (len={len(str(state))})= {len(action_dict.keys())} - {action_dict.value()}')
+                    #print(f' - [{state[0]}] {state} (len={len(str(state))})= {len(action_dict.keys())} - {action_dict.values()}')
+                    print(f' - [{state[0]}] (len={len(str(state))}) - #actions={len(action_dict.keys())} - action values={action_dict.values()}')
+                    # print(f' - {state} = {len(action_dict.keys())}')

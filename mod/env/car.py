@@ -47,7 +47,7 @@ class Car:
 
     def status_log(self):
         trip = (
-            f' - Trip: [{self.trip.o.id},{self.trip.d.id}]'
+            f' - Trip: [{self.trip.o.level_ids},{self.trip.d.level_ids}]'
             if self.trip is not None else ''
         )
         status = (

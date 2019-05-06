@@ -24,6 +24,38 @@ class Amod:
     #  - recharge in zone z1 = z2
     RECHARGE_REBALANCE_DECISION = 1
 
+    def cost_func(self, action, o, d):
+        
+        if action == Amod.TRIP_STAY_DECISION:
+
+            # Stay
+            if o == d:
+                return 0
+            
+            # Pick up
+            else:
+                distance_trip = self.get_distance(self.points[o],self.points[d])
+
+                reward = self.config.calculate_fare(distance_trip)
+
+                return reward
+
+        elif action == Amod.RECHARGE_REBALANCE_DECISION:
+            
+            # Rebalance
+            if o == d:
+                return 0
+
+            # Recharge
+            cost = self.config.calculate_cost_recharge(
+                self.config.time_increment
+            )
+
+            return cost
+
+    def get_point_by_id(self, point_id, level=0):
+        return self.dict_points[level][point_id]
+
     def __init__(
         self, config, car_positions = []):
         """Start AMoD environment
@@ -51,6 +83,11 @@ class Amod:
             levels=self.config.aggregation_levels
         )
 
+        self.dict_points = defaultdict(dict)
+        for p in self.points:
+            for g in range(self.config.aggregation_levels):
+                self.dict_points[g][p.id_level(g)] = p
+        
         # Battery levels -- l^{d}
         self.battery_levels = config.battery_levels
         self.battery_size_miles = config.battery_size_miles
@@ -164,6 +201,10 @@ class Amod:
         # )
 
         return duration_min, total_distance, reward
+    
+    def cars_idle(self):
+        return [c for c in self.cars if not c.busy]
+
 
     def full_recharge(self, car):
         """Recharge car fully and update its parameters.

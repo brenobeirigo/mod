@@ -94,8 +94,8 @@ if __name__ == "__main__":
         #     }
         # )
 
-        # step_log.plot_timestep_status()
-        # step_log.plot_trip_coverage_battery_level()
-        # step_log.overall_log()
+        step_log.plot_timestep_status()
+        step_log.plot_trip_coverage_battery_level()
+        step_log.overall_log()
 
         print(n, total_reward)

@@ -170,6 +170,14 @@ def get_fleet_state(cars, level=0):
 
     return tuple(car_state_tuple), car_per_attribute
 
+def get_post_decision_state(time_step, cars, level=0):
+
+    car_state, cars_per_attribute = get_fleet_state(cars, level)
+    if not car_state:
+        return None, None, None
+    
+    return (time_step, car_state), cars_per_attribute
+
 def get_state(time_step, cars, trips, level=0):
     trip_state, trips_per_attribute = get_demand_state(trips, level)
     if not trip_state:
@@ -255,10 +263,17 @@ class Adp:
         for g in range(self.mod.config.aggregation_levels):
 
             # Current state, return None if all cars are busy or there are no trips
-            state, dict_car_attribute, dict_trip_attribute = get_state(
+            # state, dict_car_attribute, dict_trip_attribute = get_state(
+            #     step,
+            #     self.mod.cars,
+            #     demand=trips,
+            #     level=g
+            # )
+
+            # Current state, return None if all cars are busy
+            state, dict_car_attribute = get_post_decision_state(
                 step,
                 self.mod.cars,
-                trips,
                 level=g
             )
             
@@ -266,7 +281,10 @@ class Adp:
                 continue
             
             if state in self.state_count[g].keys():
-                print(f'Revisiting state in [level={g}] - times={self.state_count[g][state]}', )
+                print(
+                    f'Revisiting state in [level={g}]'
+                    f' - times={self.state_count[g][state]}'
+                )
 
             # Account for new visit
             self.state_count[g][state]+=1
@@ -287,7 +305,7 @@ class Adp:
 
                 action = self.action_space.get_action(self.mod.cars, g)
 
-                # print(f'{g} - Action: {action}')
+                print(f'{g} - Action: {action}')
 
                 # print(f'# {g} - Reward: {reward}')
                 

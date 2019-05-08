@@ -1,153 +1,302 @@
 from collections import defaultdict, Counter
 import mod.env.network as nw
-from gurobipy import *
+from gurobipy import tuplelist, GRB, Model, quicksum
 from pprint import pprint
 from mod.env.amod import Amod
-#from mod.env.ml import get_dict_cars_per_attribute
+
+# from mod.env.ml import get_dict_cars_per_attribute
 
 
-def myopic(env, trips, time_step, charge = True):
+def get_dict_cars_per_attribute(cars, level=0):
+
+    dict_cars_per_attribute = defaultdict(list)
+
+    for c in cars:
+        dict_cars_per_attribute[c.attribute(level)].append(c)
+
+    return dict_cars_per_attribute
+
+
+def extract_duals(flow_cars, car_attributes):
+    duals = dict()
+    for o, l in car_attributes:
+        c = flow_cars[o, l]
+        if c.pi > 0:
+            # pi = The constraint dual value in the current solution
+            # (also known as the shadow price).
+            duals[(o, l)] = c.pi
+        # print(f'The dual value of {c.constrName} : {c.pi}')
+    return duals
+
+
+def extract_decisions(var_list):
+    decisions = list()
+    for k, var in var_list.items():
+        action, point, level, o, d = k
+
+        if var.x > 0.0001:
+            decisions.append((action, point, level, o, d, int(var.x)))
+
+            # print(f'v.varName:{v.varName}={v.x}')
+    return decisions
+
+
+def myopic(env, trips, time_step, charge=True):
 
     level = 0
-    
-    # Idle car attributes
-    cars_idle = env.cars_idle()
-    
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    # How many cars per attribute
+    cars_with_attribute = defaultdict(list)
+
+    # Which positions are surrounding each car position
+    dict_car_position_neighbors = dict()
+
+    # Reachable points
+    rechable_points = set()
+
+    for car in env.cars:
+
+        # Check if vehicles finished their tasks
+        car.update(time_step, time_increment=env.config.time_increment)
+
+        # Discard busy vehicles
+        if car.busy:
+            continue
+
+        # List of cars with the same attribute (pos, battery level)
+        cars_with_attribute[car.attribute(level)].append(car)
+
+        # Was this position already processed?
+        car_pos_id = car.point.id_level(level)
+        if car_pos_id not in dict_car_position_neighbors:
+
+            # Get zones around current car regions
+            nearby_zones = nw.get_neighbor_zones(
+                car.point, env.config.pickup_zone_range, env.zones
+            )
+
+            # Update set of points cars can reach
+            rechable_points.update(nearby_zones)
+
+            dict_car_position_neighbors[car_pos_id] = nearby_zones
+
+    # ##################################################################
+    # SORT TRIPS #######################################################
+    # ##################################################################
+
     # Trip ods
     trip_ods = [(t.o.id_level(level), t.d.id_level(level)) for t in trips]
 
-    # How many cars per attribute (pos, battery)
-    car_count_attribute = Counter([c.attribute(level) for c in cars_idle])
-    
-    # How many trips per attribute (o,d)
-    trip_count_attribute = Counter([t for t in trip_ods])
-    
+    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+    trips_with_attribute = defaultdict(list)
+
+    # Trips that cannot be picked up
+    rejected = list()
+    for t in trips:
+        o, d = t.o.id_level(level), t.d.id_level(level)
+
+        if o in rechable_points:
+            trips_with_attribute[(o, d)].append(t)
+
+        # If no vehicle can reach the trip, it is immediately rejected
+        else:
+            rejected.append(t)
+
+    # ##################################################################
+    # VARIABLES ########################################################
+    # ##################################################################
+
+    car_attributes = cars_with_attribute.keys()
+
     x_stay = [
-        (Amod.TRIP_STAY_DECISION,)+c+(c[0],)+(c[0],)
-        for c in list(car_count_attribute.keys())
+        (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
+        for c in car_attributes
     ]
 
     x_pickup = [
-        (Amod.TRIP_STAY_DECISION,)+c+(o,)+(d,)
-        for o,d in trip_ods
-        for c in list(car_count_attribute.keys())
-        if o in nw.get_neighbor_zones(
-            env.get_point_by_id(c[0]),
-            env.config.pickup_zone_range,
-            env.zones
-        )
+        (Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,)
+        for o, d in trip_ods
+        for c in car_attributes
+        if o in dict_car_position_neighbors[c[0]]
     ]
 
     x_recharge = [
-        (Amod.RECHARGE_REBALANCE_DECISION,)+c+(c[0],)+(c[0],)
-        for c in list(car_count_attribute.keys())
+        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
+        for c in car_attributes
     ]
 
     x_rebalance = [
-        (Amod.RECHARGE_REBALANCE_DECISION,)+c+(c[0],)+(z,)
-        for c in list(car_count_attribute.keys())
-        for z in nw.get_neighbor_zones(
-            env.get_point_by_id(c[0]),
-            env.config.pickup_zone_range,
-            env.zones
-        )
+        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
+        for c in car_attributes
+        for z in dict_car_position_neighbors[c[0]]
         if c[0] != z
     ]
 
-    print("REBALANCE (action, point, level, o, d)")
-    pprint(x_rebalance)
-
-    print("STAY (action, point, level, o, d)")
-    pprint(x_stay)
-
-    print("PICKUP (action, point, level, o, d)")
-    pprint(x_stay)
-
-    print("RECHARGE (action, point, level, o, d)")
-    pprint(x_recharge)
-
-    print(
-        f'#Pickup: {len(x_pickup)}'
-        f' - #Stay: {len(x_stay)}'
-        f' - #Recharge: {len(x_recharge)}'
-        f' - #Rebalance: {len(x_rebalance)}'
-    )
-    
-    # Variables
-    x_var = tuplelist(set(x_pickup + x_stay + x_rebalance + x_recharge))
-
-    print(
-        f'#Pickup: {len(x_pickup)}'
-        f' - #Stay: {len(x_stay)}'
-        f' - #Recharge: {len(x_recharge)}'
-        f' - #Rebalance: {len(x_rebalance)}'
-        f' - #Total: {len(x_var)}'
+    # Enumerated list of decisions
+    all_decisions = tuplelist(
+        set(x_pickup + x_stay + x_rebalance + x_recharge)
     )
 
-    # Model
+    # print("REBALANCE (action, point, level, o, d)")
+    # pprint(x_rebalance)
+
+    # print("STAY (action, point, level, o, d)")
+    # pprint(x_stay)
+
+    # print("PICKUP (action, point, level, o, d)")
+    # pprint(x_pickup)
+
+    # print("RECHARGE (action, point, level, o, d)")
+    # pprint(x_recharge)
+
+    # print(f"#Pickup: {len(x_pickup)}"
+    #       f" - #Stay: {len(x_stay)}"
+    #       f" - #Recharge: {len(x_recharge)}"
+    #       f" - #Rebalance: {len(x_rebalance)}"
+    #       f" - #Total: {len(all_decisions)}")
+
+    # ##################################################################
+    # MODEL ############################################################
+    # ##################################################################
+
     m = Model("assignment")
 
-    # Assignment variables: x[w,s] == 1 if worker w is assigned to shift s.
-    # Since an assignment model always produces integer solutions, we use
-    # continuous variables and solve as an LP.
-    x_var = m.addVars(x_var, name="x")
+    # if log_path:
+    #         m.Params.LogFile = "{}/region_centers_{}.log".format(
+    #             log_path, max_delay
+    #         )
+
+    #         m.Params.ResultFile = "{}/region_centers_{}.lp".format(
+    #             log_path, max_delay
+    #         )
+
+    # How many vehice
+    x_var = m.addVars(all_decisions, name="x")
 
     # The objective is to minimize the total pay costs
     m.setObjective(
         quicksum(
-            env.cost_func(a,o,d)*x_var[a,pos,battery,o,d]
-            for a,pos,battery,o,d in x_var
-            ),
-            GRB.MAXIMIZE
+            env.cost_func(a, o, d) * x_var[a, pos, battery, o, d]
+            + env.get_value((pos, battery))
+            for a, pos, battery, o, d in x_var
+        ),
+        GRB.MAXIMIZE,
     )
 
     # Car flow conservation
     flow_cars = m.addConstrs(
         (
-            x_var.sum('*',o,d,'*','*') == car_count_attribute[(o, d)]
-            for o,d in car_count_attribute.keys()
+            x_var.sum("*", point, level, "*", "*")
+            == len(cars_with_attribute[(point, level)])
+            for point, level in car_attributes
         ),
-        "CAR_FLOW"
+        "CAR_FLOW",
     )
 
     # Trip flow conservation
     flow_trips = m.addConstrs(
         (
-            x_var.sum('*',o,d,'*','*') <= trip_count_attribute[(o, d)]
-            for o,d in trip_count_attribute.keys()
+            x_var.sum(Amod.TRIP_STAY_DECISION, "*", "*", o, d)
+            <= len(trips_with_attribute[(o, d)])
+            for o, d in trips_with_attribute.keys()
         ),
-        "TRIP_FLOW"
+        "TRIP_FLOW",
     )
 
+    # flow_trips = m.addConstrs(
+    #     (x_var.sum(Amod.TRIP_STAY_DECISION, point, level, o, d) <= len(
+    #         trips_with_attribute[(o, d)])
+    #      for o, d in trips_with_attribute.keys()
+    #      for point, level in car_attributes
+    #      if o in dict_car_position_neighbors[point]),
+    #     "TRIP_FLOW",
+    # )
+
+    # # Battery
+    recharge = m.addConstrs(
+        (
+            x_var[(action, pos, level, o, d)]
+            == len(cars_with_attribute[(pos, level)])
+            for action, pos, level, o, d in x_var
+            if level <= env.config.min_battery_level
+            and action == Amod.RECHARGE_REBALANCE_DECISION
+            and o == d
+        ),
+        "RECHARGE",
+    )
     # Save model
-    #m.write('myopic.lp')
+    # m.write('myopic.lp')
+    # Disables all logging (file and console)
+    m.setParam("OutputFlag", 0)
+    # m.setParam('logFile', "")
+    # m.setParam('OutputConsole', 0)
 
     # Optimize
     m.optimize()
-    status = m.status
-    if status == GRB.Status.UNBOUNDED:
-        print('The model cannot be solved because it is unbounded')
-        exit(0)
-    if status == GRB.Status.OPTIMAL:
-        print('The optimal objective is %g' % m.objVal)
-        exit(0)
-    if status != GRB.Status.INF_OR_UNBD and status != GRB.Status.INFEASIBLE:
-        print('Optimization was stopped with status %d' % status)
-        exit(0)
+
+    if m.status == GRB.Status.UNBOUNDED:
+        print("The model cannot be solved because it is unbounded")
+
+    if m.status == GRB.Status.OPTIMAL:
+
+        # Get decision tuples associated to positive values
+        best_decisions = extract_decisions(x_var)
+
+        # Dictionary car atribute (pos, battery) -> Shadow price
+        duals = extract_duals(flow_cars, car_attributes)
+
+        for (pos, battery), shadow_price in duals.items():
+            # Get point object associated to position
+            point = env.dict_points[0][pos]
+
+            for g in range(env.config.aggregation_levels):
+                pos_g = point.id_level(g)
+                attribute_g = (pos_g, battery)
+                env.values[g][attribute_g].append(shadow_price)
+
+        # print("############# DUALS #################")
+        # pprint(env.values)
+
+        reward, serviced, denied = env.realize_decision(
+            time_step,
+            best_decisions,
+            trips_with_attribute,
+            cars_with_attribute,
+        )
+        # print(f"Objective Function - {m.objVal:6.2f} X
+        # {reward:6.2f} - Decision reward")
+
+        # Update list of rejected orders
+        rejected.extend(denied)
+
+        return reward, serviced, rejected
+
+        # exit(0)
+    if (
+        m.status != GRB.Status.INF_OR_UNBD
+        and m.status != GRB.Status.INFEASIBLE
+    ):
+        print("Optimization was stopped with status %d" % m.status)
+        # exit(0)
 
     # do IIS
-    print('The model is infeasible; computing IIS')
+    print("The model is infeasible; computing IIS")
+
     m.computeIIS()
     if m.IISMinimal:
-        print('IIS is minimal\n')
+        print("IIS is minimal\n")
     else:
-        print('IIS is not minimal\n')
-        print('\nThe following constraint(s) cannot be satisfied:')
+        print("IIS is not minimal\n")
+        print("\nThe following constraint(s) cannot be satisfied:")
     for c in m.getConstrs():
         if c.IISConstr:
-            print('%s' % c.constrName)
+            print("%s" % c.constrName)
 
-def fcfs(env, trips, time_step, charge = True):
+
+def fcfs(env, trips, time_step, charge=True):
     """First Come First Serve
     
     Arguments:
@@ -164,7 +313,7 @@ def fcfs(env, trips, time_step, charge = True):
     # trips_zone_dict = get_trips_zone_dict(trips)
     # print("Trip zone dict:")
     # print(trips_zone_dict)
-    
+
     total_contribution = 0
 
     # Available cars to service passengers
@@ -181,26 +330,27 @@ def fcfs(env, trips, time_step, charge = True):
     for car in env.cars:
 
         # Check if vehicles finished their tasks
-        #print("Updating status all vehicles")
+        # print("Updating status all vehicles")
         car.update(time_step, time_increment=env.config.time_increment)
 
         # Only available vehicles can be recharged or assigned
         if car.busy:
-            #print(f'car {car.id} is busy until {car.arrival_time}')
+            # print(f'car {car.id} is busy until {car.arrival_time}')
             continue
 
-        #print(f'car {car.id} is free')
+        # print(f'car {car.id} is free')
 
         # Recharge vehicles about to run out of power
         if charge and car.need_recharge(env.config.recharge_threshold):
-            
-            #print(f' - it needs RECHARGE')
+
+            # print(f' - it needs RECHARGE')
             # Recharge vehicle
-            cost_recharging = env.full_recharge(car)
-            
+            # cost_recharging = env.full_recharge(car)
+            cost_recharging = env.recharge(car, env.config.time_increment)
+
             # Subtract cost of recharging
-            total_contribution-=cost_recharging
-        
+            total_contribution -= cost_recharging
+
         else:
             # Get trips car can pickup
 
@@ -208,9 +358,7 @@ def fcfs(env, trips, time_step, charge = True):
 
             # Get zones around current car regions
             nearby_zones = nw.get_neighbor_zones(
-                car.point,
-                env.config.pickup_zone_range,
-                env.zones
+                car.point, env.config.pickup_zone_range, env.zones
             )
 
             best_trip = None
@@ -218,7 +366,7 @@ def fcfs(env, trips, time_step, charge = True):
             duration_min = None
             total_distance = None
             z_best = None
-            
+
             for z in nearby_zones:
                 for trip in dict_zone_trips[z]:
                     d, t, r = env.pickup(trip, car)
@@ -227,26 +375,22 @@ def fcfs(env, trips, time_step, charge = True):
                         if not car.has_power(t):
                             continue
 
-                        duration_min, total_distance, best_reward = d,t,r
+                        duration_min, total_distance, best_reward = d, t, r
                         best_trip = trip
                         z_best = z
-            
+
             if best_trip is not None:
-                
+
                 # Update car data
                 car.update_trip(
-                    duration_min,
-                    total_distance,
-                    best_reward,
-                    best_trip
+                    duration_min, total_distance, best_reward, best_trip
                 )
 
                 serviced.add(best_trip)
 
-                total_contribution+=best_reward
+                total_contribution += best_reward
 
                 dict_zone_trips[z_best].remove(best_trip)
-            
 
     for rejected_trip_set in dict_zone_trips.values():
         rejected.update(rejected_trip_set)

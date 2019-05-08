@@ -1,4 +1,15 @@
 # Log files
 *.log
-*.lp
 
+# Gurobi models
+.lp
+
+# Python Cache
+**/__pycache__
+
+# IDE
+.vscode/
+
+# Images
+.png
+.jpg

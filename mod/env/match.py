@@ -44,6 +44,7 @@ def extract_decisions(var_list):
 def myopic(env, trips, time_step, charge=True):
 
     level = 0
+    agg_level = 3
     # ##################################################################
     # SORT CARS ########################################################
     # ##################################################################
@@ -60,6 +61,7 @@ def myopic(env, trips, time_step, charge=True):
     for car in env.cars:
 
         # Check if vehicles finished their tasks
+        # Where are the cars? What are they doing at the current step?
         car.update(time_step, time_increment=env.config.time_increment)
 
         # Discard busy vehicles
@@ -177,14 +179,17 @@ def myopic(env, trips, time_step, charge=True):
     x_var = m.addVars(all_decisions, name="x")
 
     # The objective is to minimize the total pay costs
-    m.setObjective(
-        quicksum(
-            env.cost_func(a, o, d) * x_var[a, pos, battery, o, d]
-            + env.get_value((pos, battery))
-            for a, pos, battery, o, d in x_var
-        ),
-        GRB.MAXIMIZE,
+
+    value_func = quicksum(
+        (env.get_value(time_step, d, level=agg_level) * x_var[d])
+        for d in x_var
     )
+
+    cost_func = quicksum(
+        env.cost_func(d[0], d[3], d[4]) * x_var[d] for d in x_var
+    )
+
+    m.setObjective(cost_func + value_func, GRB.MAXIMIZE)
 
     # Car flow conservation
     flow_cars = m.addConstrs(
@@ -215,19 +220,20 @@ def myopic(env, trips, time_step, charge=True):
     #     "TRIP_FLOW",
     # )
 
-    # # Battery
-    recharge = m.addConstrs(
-        (
-            x_var[(action, pos, level, o, d)]
-            == len(cars_with_attribute[(pos, level)])
-            for action, pos, level, o, d in x_var
-            if level <= env.config.min_battery_level
-            and action == Amod.RECHARGE_REBALANCE_DECISION
-            and o == d
-        ),
-        "RECHARGE",
-    )
-    # Save model
+    if charge:
+        # Battery
+        recharge = m.addConstrs(
+            (
+                x_var[(action, pos, level, o, d)]
+                == len(cars_with_attribute[(pos, level)])
+                for action, pos, level, o, d in x_var
+                if level <= env.config.min_battery_level
+                and action == Amod.RECHARGE_REBALANCE_DECISION
+                and o == d
+            ),
+            "RECHARGE",
+        )
+        # Save model
     # m.write('myopic.lp')
     # Disables all logging (file and console)
     m.setParam("OutputFlag", 0)
@@ -248,17 +254,7 @@ def myopic(env, trips, time_step, charge=True):
         # Dictionary car atribute (pos, battery) -> Shadow price
         duals = extract_duals(flow_cars, car_attributes)
 
-        for (pos, battery), shadow_price in duals.items():
-            # Get point object associated to position
-            point = env.dict_points[0][pos]
-
-            for g in range(env.config.aggregation_levels):
-                pos_g = point.id_level(g)
-                attribute_g = (pos_g, battery)
-                env.values[g][attribute_g].append(shadow_price)
-
-        # print("############# DUALS #################")
-        # pprint(env.values)
+        env.update_values(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,
@@ -281,19 +277,23 @@ def myopic(env, trips, time_step, charge=True):
     ):
         print("Optimization was stopped with status %d" % m.status)
         # exit(0)
+    if m.status == GRB.Status.INFEASIBLE:
+        # do IIS
+        print("The model is infeasible; computing IIS")
 
-    # do IIS
-    print("The model is infeasible; computing IIS")
+        # Save model
+        m.write("myopic.lp")
 
-    m.computeIIS()
-    if m.IISMinimal:
-        print("IIS is minimal\n")
-    else:
-        print("IIS is not minimal\n")
-        print("\nThe following constraint(s) cannot be satisfied:")
-    for c in m.getConstrs():
-        if c.IISConstr:
-            print("%s" % c.constrName)
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)
 
 
 def fcfs(env, trips, time_step, charge=True):

@@ -1,13 +1,12 @@
-
 import numpy as np
 from random import choices, choice
 from collections import defaultdict
 import itertools
 from scipy.stats import truncnorm
 
-class Point:
 
-    def __init__(self, x, y, point_id, level_ids = None):
+class Point:
+    def __init__(self, x, y, point_id, level_ids=None):
         self.x = x
         self.y = y
         if level_ids:
@@ -20,11 +19,11 @@ class Point:
         return self.level_ids[0]
 
     def __str__(self):
-        return f'{self.level_ids}'
-    
+        return f"{self.level_ids}"
+
     def __repr__(self):
-        return f'Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})'
-    
+        return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
+
     def __hash__(self):
         return hash((self.x, self.y))
 
@@ -33,7 +32,7 @@ class Point:
             return self.level_ids[i]
         except:
             raise IndexError(f'Point {self} has no level "{i}".')
-    
+
 
 def get_point_list(rows, cols, levels=None):
 
@@ -43,9 +42,7 @@ def get_point_list(rows, cols, levels=None):
         point_list = [
             Point(*pos, pos_id, level_ids=point_level_ids[pos_id])
             for pos_id, pos in enumerate(
-                [
-                    (i,j) for i in range(rows) for j in range(cols)
-                ]
+                [(i, j) for i in range(rows) for j in range(cols)]
             )
         ]
     else:
@@ -53,18 +50,15 @@ def get_point_list(rows, cols, levels=None):
         point_list = [
             Point(*pos, pos_id)
             for pos_id, pos in enumerate(
-                [
-                    (i,j) for i in range(rows) for j in range(cols)
-                ]
+                [(i, j) for i in range(rows) for j in range(cols)]
             )
         ]
 
     return point_list
 
 
-
 def get_neighbor_zones(center, max_range, zone_grid):
-    #get_pep.cache_info()
+    # get_pep.cache_info()
     """[summary]
     
     Arguments:
@@ -76,25 +70,25 @@ def get_neighbor_zones(center, max_range, zone_grid):
     Returns:
         list -- Ids of neighboring zones in max_range
     """
-    
+
     # Derive rows and columns from numpy array
     rows, cols = zone_grid.shape
 
     # Garantee feasible bounderies
     min_x, max_x = (
         max(0, center.x - max_range),
-        min(rows-1, center.x + max_range)
+        min(rows - 1, center.x + max_range),
     )
     min_y, max_y = (
         max(0, center.y - max_range),
-        min(cols-1, center.y + max_range)
+        min(cols - 1, center.y + max_range),
     )
 
-    #print("X:", min_x, max_x)
-    #print("Y:", min_y, max_y)
-    
+    # print("X:", min_x, max_x)
+    # print("Y:", min_y, max_y)
+
     # Slice zone_grid to extract neighboring zones around center
-    neighbors =  zone_grid[min_x:max_x+1,min_y:max_y+1]
+    neighbors = zone_grid[min_x : max_x + 1, min_y : max_y + 1]
 
     # Return list of neighbor zones
     return np.ravel(neighbors)
@@ -119,25 +113,22 @@ def get_aggregated_zones(rows, cols, n_levels):
     """
 
     if n_levels <= 0:
-        raise(Exception('Aggregation levels have to be higher than 0.'))
-    
+        raise (Exception("Aggregation levels have to be higher than 0."))
+
     if rows <= 0:
-        raise(Exception('Number of rows have to be higher than 0.'))
-    
+        raise (Exception("Number of rows have to be higher than 0."))
+
     if cols <= 0:
-        raise(Exception('Number of columns have to be higher than 0.'))
-    
-    
+        raise (Exception("Number of columns have to be higher than 0."))
 
     level_grid_list = list()
 
     for g in range(n_levels):
 
-
-        area_dim = 2**g
+        area_dim = 2 ** g
         grid = np.zeros((rows, cols), dtype=int)
-        area_row_count = np.math.ceil(rows/area_dim)
-        area_col_count = np.math.ceil(cols/area_dim)
+        area_row_count = np.math.ceil(rows / area_dim)
+        area_col_count = np.math.ceil(cols / area_dim)
 
         # print(
         #     f'\n################# Areas of size {area_dim}X{area_dim} ############'
@@ -146,25 +137,26 @@ def get_aggregated_zones(rows, cols, n_levels):
         #     f'\n - Cols [count={area_col_count:>4},'
         #     f' total={area_col_count*area_dim:>4}]'
         # )
-        
+
         area_id = 0
-        
+
         # Loop all areas
         for r in range(area_row_count):
             for c in range(area_col_count):
 
                 # Limits area and assign area id
-                from_x, to_x = area_dim*(r),min(rows,area_dim*(r+1))
-                from_y, to_y = area_dim*(c),min(cols,area_dim*(c+1))
+                from_x, to_x = area_dim * (r), min(rows, area_dim * (r + 1))
+                from_y, to_y = area_dim * (c), min(cols, area_dim * (c + 1))
                 grid[from_x:to_x, from_y:to_y] = area_id
-                area_id+=1
-        
+                area_id += 1
+
         # List of zones per aggregate level g
         level_grid_list.append(grid)
-        
+
         # print(grid)
 
     return level_grid_list
+
 
 def get_cell_level_zone_ids(rows, cols, n_levels):
     """For each cell in a gridmap, associate a tuple with

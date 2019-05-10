@@ -48,7 +48,8 @@ def test_matching_methods(
         print(
             f"### Time step: {time_step+1:>3}"
             f" ### Profit: {revenue:>10.2f}"
-            f" ### Service level: {len(serviced)/max(1,len(rejected)):>6.2%}"
+            f" ### Service level: {len(serviced)/max(1,len(rejected)):>7.2%}"
+            f" ### Trips: {len(trips):>3}"
             " ###"
         )
 
@@ -96,6 +97,6 @@ if __name__ == "__main__":
             show_stats=False,
         )
 
-        step_log.plot_timestep_status()
-        step_log.plot_trip_coverage_battery_level()
+        step_log.plot_fleet_status()
+        step_log.plot_service_status()
         step_log.overall_log(label=label)

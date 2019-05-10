@@ -2,6 +2,7 @@ import random
 import pandas as pd
 import numpy as np
 from collections import defaultdict
+import mod.env.network as nw
 
 
 class Trip:
@@ -50,22 +51,27 @@ def get_trip_count_step(path, step=15, multiply_for=1):
     return trip_count_step
 
 
-def get_random_trips(locations_list, time_step, min_trips, max_trips):
+def get_random_trips(
+    locations_list, time_step, min_trips, max_trips, origins=None
+):
     """ Return a random number of trips
     """
     trips = list()
-    weights = np.zeros(len(locations_list))
-    weights[0] = 1
+    # weights = np.zeros(len(locations_list))
+    # weights[0] = 1
+
     # Choose random location
     from_locations = random.choices(
-        locations_list,
-        weights=weights,
+        (origins if origins else locations_list),
+        # weights=weights,
         k=(
             min_trips
             if min_trips == max_trips
             else random.randint(min_trips, max_trips)
         ),
     )
+
+    # from_locations = [locations_list[0]] * random.randint(min_trips, max_trips)
 
     for o in from_locations:
         # Choose random destination
@@ -99,7 +105,7 @@ def get_trip_list_step(
 
 
 def get_trips_random_ods(
-    points, step_trip_count, offset_start=0, offset_end=0
+    points, step_trip_count, offset_start=0, offset_end=0, origins=None
 ):
 
     # Populate first steps with empty lists
@@ -107,7 +113,7 @@ def get_trips_random_ods(
 
     step_trip_list.extend(
         [
-            get_random_trips(points, t, n_trips, n_trips)
+            get_random_trips(points, t, n_trips, n_trips, origins=origins)
             for t, n_trips in enumerate(step_trip_count)
         ]
     )

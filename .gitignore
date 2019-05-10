@@ -4,6 +4,9 @@
 # Gurobi models
 .lp
 
+# Episode track
+.npy
+
 # Python Cache
 **/__pycache__
 

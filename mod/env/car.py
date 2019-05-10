@@ -111,6 +111,62 @@ class Car:
         """
         return self.battery_level_miles - distance > 0
 
+    def move(
+        self,
+        duration_service,
+        distance_traveled,
+        revenue,
+        destination,
+        trip=None,
+        time_increment=15,
+    ):
+        """Update car settings after being matched with a passenger.
+        
+        Arguments:
+            duration_service {int} -- How long to pick up and deliver
+            distance_traveled {float} -- Total distance to pickup and deliver
+            revenue {float} -- Revenue accrued by doing task
+            trip {Trip} -- Trip car is servicing
+        """
+
+        self.previous = self.point
+
+        self.previous_battery_level = self.battery_level
+
+        self.point = destination
+
+        self.battery_level_miles -= distance_traveled
+
+        self.distance_traveled += distance_traveled
+
+        self.revenue += revenue
+
+        self.arrival_time += duration_service
+
+        self.step += int(duration_service / time_increment)
+
+        self.battery_level = int(
+            round(
+                self.battery_level_miles
+                / self.battery_level_miles_max
+                * self.battery_level_max
+            )
+        )
+
+        self.previous_battery_level = self.battery_level
+        # Cars that are busy fulfilling trips or recharging
+        # are not considered to be reassigned for a decision
+
+        if self.trip:
+
+            self.status = Car.ASSIGN
+
+            self.n_trips += 1
+
+            self.trip = trip
+        else:
+            self.status = Car.REBALANCE
+
     def update_trip(
         self,
         duration_service,

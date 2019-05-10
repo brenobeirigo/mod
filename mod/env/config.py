@@ -8,6 +8,11 @@ sys.path.append(root)
 # Trip data to group in steps
 NY_TRIPS_EXCERPT_DAY = root + "/data/input/32874_samples_01_feb_2011_NY.csv"
 
+# Plot folders
+FOLDER_SERVICE_PLOT = root + "/data/output/service_plot/"
+FOLDER_FLEET_PLOT = root + "/data/output/fleet_plot/"
+FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
+
 
 class Config:
 
@@ -17,6 +22,7 @@ class Config:
     BATTERY_SIZE = "BATTERY_SIZE"
     BATTERY_LEVELS = "BATTERY_LEVELS"
     BATTERY_SIZE_KWH_MILE = "BATTERY_SIZE_KWH_MILE"
+    BATTERY_MILES_LEVEL = "BATTERY_MILES_LEVEL"
     MEAN_TRIP_DISTANCE = "MEAN_TRIP_DISTANCE"
     SD_TRIP_DISTANCE = "SD_TRIP_DISTANCE"
     MINIMUM_TRIP_DISTANCE = "MINIMUM_TRIP_DISTANCE"
@@ -27,7 +33,12 @@ class Config:
     MIN_TRIPS = "MIN_TRIPS"
     MAX_TRIPS = "MAX_TRIPS"
     PICKUP_ZONE_RANGE = "PICKUP_ZONE_RANGE"
+
+    # In general, aggregation of attribute vectors is performed using a
+    # collection of aggregation functions, G(g) : A → A(g), where A(g)
+    # represents the gth level of aggregation of the attribute space A.
     AGGREGATION_LEVELS = "AGGREGATION_LEVELS"
+
     ZONE_WIDTH = "ZONE_WIDTH"
     VALID_ZONES = "VALID_ZONES"
     ROWS = "ROWS"
@@ -41,6 +52,17 @@ class Config:
     OFFSET_REPOSIONING = "OFFSET_REPOSIONING"
     OFFSET_TERMINATION = "OFFSET_TERMINATION"
     TIME_PERIODS = "TIME_PERIODS"
+
+    @property
+    def label(self):
+        return (
+            f"{self.config[Config.ROWS]:04}_"
+            f"{self.config[Config.COLS]:04}_"
+            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
+            f"{self.config[Config.AGGREGATION_LEVELS]}_"
+            f"{self.config[Config.FLEET_SIZE]:04}_"
+            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+        )
 
     def __init__(self, config):
 
@@ -127,6 +149,11 @@ class Config:
     def battery_levels(self):
         """Number of discrete levels"""
         return self.config["BATTERY_LEVELS"]
+
+    @property
+    def battery_miles_level(self):
+        """Number of discrete levels"""
+        return self.config[Config.BATTERY_MILES_LEVEL]
 
     @property
     def battery_size_kwh_mile(self):
@@ -239,6 +266,22 @@ class Config:
     def update(self, dict_update):
         self.config.update(dict_update)
 
+        self.config["BATTERY_SIZE_KWH_MILE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_MILE"]
+        )
+
+        # Total number of time periods
+        self.config["TIME_PERIODS"] = int(
+            self.config["OFFSET_REPOSIONING"]
+            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+            + self.config["OFFSET_TERMINATION"]
+        )
+
+        self.config[Config.BATTERY_MILES_LEVEL] = (
+            self.config[Config.BATTERY_SIZE_MILE]
+            / self.config[Config.BATTERY_LEVELS]
+        )
+
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -270,6 +313,12 @@ class ConfigStandard(Config):
         # How many KWh per mile?
         self.config["BATTERY_SIZE_KWH_MILE"] = (
             self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_MILE"]
+        )
+
+        # How many miles each level has?
+        self.config[Config.BATTERY_MILES_LEVEL] = (
+            self.config[Config.BATTERY_SIZE_MILE]
+            / self.config[Config.BATTERY_LEVELS]
         )
 
         ############################################################

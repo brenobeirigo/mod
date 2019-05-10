@@ -2,6 +2,7 @@ from collections import defaultdict
 from mod.env.car import Car
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 
 class EpisodeLog:
@@ -10,6 +11,12 @@ class EpisodeLog:
         self.reward = list()
         self.service_rate = list()
 
+    def last_episode_stats(self):
+        try:
+            return f"({self.reward[-1]:15.2f}, {self.service_rate[-1]:6.2%})"
+        except:
+            return f"(0, 00.00%)"
+
     def add_record(self, reward, service_rate):
         self.n += 1
         self.reward.append(reward)
@@ -17,7 +24,7 @@ class EpisodeLog:
 
     def plot_reward(self, scale="linear"):
 
-        plt.plot(np.arange(self.n), self.reward, color="r")
+        plt.plot(np.arange(self.n), self.reward, color="r", linewidth=0.5)
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Reward")
@@ -71,7 +78,10 @@ class StepLog:
     def service_rate(self):
         s = sum(self.serviced_list)
         t = sum(self.total_list)
-        return s / t
+        try:
+            return s / t
+        except ZeroDivisionError:
+            return 0
 
     def overall_log(self, label="Operational"):
 
@@ -89,9 +99,9 @@ class StepLog:
             f"        Total profit: {self.total_reward:.2f}"
         )
 
-    def plot_timestep_status(self):
+    def plot_fleet_status(self, file_path=None, file_format="png", dpi=150):
         steps = np.arange(self.n)
-        # status_labels, status_count_step = list(zip(*self.car_statuses.items()))
+
         for status_label, status_count_step in self.car_statuses.items():
             plt.plot(steps, status_count_step, label=status_label)
 
@@ -111,9 +121,14 @@ class StepLog:
         plt.ylabel("# Cars")
 
         plt.legend()
-        plt.show()
 
-    def plot_trip_coverage_battery_level(self):
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+        else:
+            plt.show()
+        plt.close()
+
+    def plot_service_status(self, file_path=None, file_format="png", dpi=150):
 
         max_battery_level = len(self.env.cars) * (
             self.env.cars[0].battery_level_miles_max
@@ -158,4 +173,9 @@ class StepLog:
         plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
 
         ax2.legend()
-        plt.show()
+
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+        else:
+            plt.show()
+        plt.close()

@@ -3,6 +3,7 @@ import mod.env.network as nw
 from gurobipy import tuplelist, GRB, Model, quicksum
 from pprint import pprint
 from mod.env.amod import Amod
+import time
 
 # from mod.env.ml import get_dict_cars_per_attribute
 
@@ -41,6 +42,28 @@ def extract_decisions(var_list):
     return decisions
 
 
+def extract_answer(var_list, flow_cars):
+    decisions = list()
+    duals = dict()
+    # k = action, point, level, o, d
+    for decision, var in var_list.items():
+        # action, point, level, o, d = decision
+
+        if var.x > 0.0001:
+            decisions.append(decision + (int(var.x),))
+
+            # FIll out duals
+            car_attribute = (decision[1], decision[2])
+            if car_attribute not in duals:
+                # pi = The constraint dual value in the current solution
+                # (also known as the shadow price).
+                c = flow_cars[car_attribute].pi
+                if c > 0:
+                    duals[car_attribute] = c
+
+    return decisions, duals
+
+
 def myopic(env, trips, time_step, charge=True):
 
     level = 0
@@ -76,9 +99,7 @@ def myopic(env, trips, time_step, charge=True):
         if car_pos_id not in dict_car_position_neighbors:
 
             # Get zones around current car regions
-            nearby_zones = nw.get_neighbor_zones(
-                car.point, env.config.pickup_zone_range, env.zones
-            )
+            nearby_zones = env.get_neighbors(car.point)
 
             # Update set of points cars can reach
             rechable_points.update(nearby_zones)
@@ -113,6 +134,36 @@ def myopic(env, trips, time_step, charge=True):
 
     car_attributes = cars_with_attribute.keys()
 
+    # start_time1 = time.time()
+    # all_decisions_set = []
+    # for c in car_attributes:
+    #     # STAY
+    #     all_decisions_set.append(
+    #         (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
+    #     )
+    #     # RECHARGE
+    #     all_decisions_set.append(
+    #         (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
+    #     )
+
+    #     # PICKUP
+    #     for o, d in trip_ods:
+    #         if o in dict_car_position_neighbors[c[0]]:
+    #             all_decisions_set.append(
+    #                 (Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,)
+    #             )
+
+    #     # REBALANCE
+    #     for z in dict_car_position_neighbors[c[0]]:
+    #         if c[0] != z:
+    #             all_decisions_set.append(
+    #                 (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
+    #             )
+
+    # all_decisions2 = tuplelist(all_decisions_set)
+
+    # start_time2 = time.time()
+
     x_stay = [
         (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
         for c in car_attributes
@@ -142,6 +193,10 @@ def myopic(env, trips, time_step, charge=True):
         set(x_pickup + x_stay + x_rebalance + x_recharge)
     )
 
+    # start_time3 = time.time()
+    # print("\ntogether:", start_time2 - start_time1)
+    # print("separate:", start_time3 - start_time2)
+
     # print("REBALANCE (action, point, level, o, d)")
     # pprint(x_rebalance)
 
@@ -165,6 +220,13 @@ def myopic(env, trips, time_step, charge=True):
     # ##################################################################
 
     m = Model("assignment")
+    # Save model
+    # m.write('myopic.lp')
+
+    # Disables all logging (file and console)
+    m.setParam("OutputFlag", 0)
+    m.setParam('LogFile', "")
+    m.setParam('LogToConsole', 0)
 
     # if log_path:
     #         m.Params.LogFile = "{}/region_centers_{}.log".format(
@@ -233,12 +295,6 @@ def myopic(env, trips, time_step, charge=True):
             ),
             "RECHARGE",
         )
-        # Save model
-    # m.write('myopic.lp')
-    # Disables all logging (file and console)
-    m.setParam("OutputFlag", 0)
-    # m.setParam('logFile', "")
-    # m.setParam('OutputConsole', 0)
 
     # Optimize
     m.optimize()
@@ -248,11 +304,9 @@ def myopic(env, trips, time_step, charge=True):
 
     if m.status == GRB.Status.OPTIMAL:
 
-        # Get decision tuples associated to positive values
-        best_decisions = extract_decisions(x_var)
-
-        # Dictionary car atribute (pos, battery) -> Shadow price
-        duals = extract_duals(flow_cars, car_attributes)
+        # best_decisions = tuples associated to positive values
+        # duals = dictionary car atribute (pos, battery) -> Shadow price
+        best_decisions, duals = extract_answer(x_var, flow_cars)
 
         env.update_values(time_step, duals)
 

@@ -53,8 +53,8 @@ if __name__ == "__main__":
     config.update(
         {
             ConfigStandard.FLEET_SIZE: 250,
-            ConfigStandard.ROWS: 64,
-            ConfigStandard.COLS: 64,
+            ConfigStandard.ROWS: 32,
+            ConfigStandard.COLS: 32,
             ConfigStandard.BATTERY_LEVELS: 20,
             ConfigStandard.PICKUP_ZONE_RANGE: 2,
             ConfigStandard.AGGREGATION_LEVELS: 4,
@@ -172,21 +172,18 @@ if __name__ == "__main__":
             dpi=150,
         )
 
-        # Pick last
-        # amod.save(path=FOLDER_EPISODE_TRACK + config.label + f"{n:04}")
-        # self.values[step][g][attribute_g]
-        # path = FOLDER_EPISODE_TRACK + config.label + f"{n:04}.npy"
-        path = FOLDER_EPISODE_TRACK + config.label + ".npy"
-        np.save(
-            path,
-            {
-                t: {
-                    g: {a: value for a, value in a_value.items()}
-                    for g, a_value in g_a.items()
-                }
-                for t, g_a in amod.values.items()
-            },
-        )
+        # # Saving last episode
+        # path = FOLDER_EPISODE_TRACK + config.label + ".npy"
+        # np.save(
+        #     path,
+        #     {
+        #         t: {
+        #             g: {a: value for a, value in a_value.items()}
+        #             for g, a_value in g_a.items()
+        #         }
+        #         for t, g_a in amod.values.items()
+        #     },
+        # )
 
     episodeLog.plot_reward(scale="linear")
     episodeLog.plot_service_rate()

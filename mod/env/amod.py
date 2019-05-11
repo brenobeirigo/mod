@@ -1,6 +1,6 @@
 from mod.env.car import Car
 from mod.env.trip import Trip
-from mod.env.network import Point, get_point_list
+from mod.env.network import Point, get_point_list, get_neighbor_zones
 import itertools as it
 from bidict import bidict
 import matplotlib.pyplot as plt
@@ -11,6 +11,8 @@ import numpy as np
 import random
 from pprint import pprint
 import pickle
+from mod.env.config import FOLDER_EPISODE_TRACK
+from functools import lru_cache
 
 
 class Amod:
@@ -25,9 +27,9 @@ class Amod:
     #  - rebalance from z1 to z2
     #  - recharge in zone z1 = z2
     RECHARGE_REBALANCE_DECISION = 1
-    
+
     @staticmethod
-    def load(path=None, mode='rb'):
+    def load(path=None, mode="rb"):
         f = open(path, mode)
         amod = pickle.load(f)
         f.close()
@@ -67,6 +69,22 @@ class Amod:
     def get_point_by_id(self, point_id, level=0):
         return self.dict_points[level][point_id]
 
+    def load_episode(self, path):
+        """Load .npy dictionary containing value functions of last
+        episode.
+        
+        Arguments:
+            path {str} -- File with saved value functions
+        """
+        values_old = np.load(
+            FOLDER_EPISODE_TRACK + self.config.label + ".npy"
+        ).item()
+        # print(values_old)
+        for t, g_a in values_old.items():
+            for g, a_value in g_a.items():
+                for a, value in a_value.items():
+                    self.values[t][g][a] = value
+
     def __init__(self, config, car_positions=[]):
         """Start AMoD environment
 
@@ -92,10 +110,13 @@ class Amod:
             self.config.cols,
             levels=self.config.aggregation_levels,
         )
-
+        # What is the value of a car attribute assuming aggregation
+        # level and time steps
         self.values = defaultdict(
             lambda: defaultdict(lambda: defaultdict(float))
         )
+        # How many times a cell was actually accessed by a vehicle in
+        # a certain region, aggregation level, and time
         self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
         # aggregation level -> point id -> point object
@@ -134,7 +155,12 @@ class Amod:
                 for point in car_positions
             ]
 
-        
+    @lru_cache(maxsize=None)
+    def get_neighbors(self, center):
+        return get_neighbor_zones(
+            center, self.config.pickup_zone_range, self.zones
+        )
+
     def update_values(self, step, duals):
 
         for (pos, battery), new_vf_0 in duals.items():
@@ -199,8 +225,8 @@ class Amod:
         f = open(path, "wb")
         pickle.dump(self.values, f)
         f.close()
-
-
+    
+    # @lru_cache(maxsize=None)
     def get_value(self, step, decision, level=0):
 
         # Target attribute if decision was taken
@@ -429,8 +455,7 @@ class Amod:
         for c in cars:
 
             if c.status == Car.IDLE:
-                decision = (Amod.TRIP_STAY_DECISION,
-                            c.point.id, c.point.id)
+                decision = (Amod.TRIP_STAY_DECISION, c.point.id, c.point.id)
 
             elif c.status == Car.ASSIGN:
                 decision = (Amod.TRIP_STAY_DECISION, c.trip.o.id, c.trip.d.id)

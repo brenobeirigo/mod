@@ -58,8 +58,8 @@ def get_point_list(rows, cols, levels=None):
 
 
 def get_neighbor_zones(center, max_range, zone_grid):
-    # get_pep.cache_info()
-    """[summary]
+    """Find all grid ids surrounding center in grid zone at a
+    "max_range" distance. 
     
     Arguments:
         center {Point} -- Center point

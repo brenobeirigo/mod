@@ -2,7 +2,7 @@
 *.log
 
 # Gurobi models
-.lp
+*.lp
 
 # Episode track
 .npy
@@ -14,5 +14,5 @@
 .vscode/
 
 # Images
-.png
-.jpg
+*.png
+*.jpg

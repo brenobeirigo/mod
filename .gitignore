@@ -5,7 +5,7 @@
 *.lp
 
 # Episode track
-.npy
+*.npy
 
 # Python Cache
 **/__pycache__

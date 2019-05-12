@@ -8,6 +8,9 @@ sys.path.append(root)
 # Trip data to group in steps
 NY_TRIPS_EXCERPT_DAY = root + "/data/input/32874_samples_01_feb_2011_NY.csv"
 
+# Output folder
+FOLDER_OUTPUT = root + "/data/output/"
+
 # Plot folders
 FOLDER_SERVICE_PLOT = root + "/data/output/service_plot/"
 FOLDER_FLEET_PLOT = root + "/data/output/fleet_plot/"
@@ -47,6 +50,7 @@ class Config:
     RECHARGE_BASE_FARE = "RECHARGE_BASE_FARE"
     RECHARGE_COST_MILE = "RECHARGE_COST_MILE"
     RECHARGE_RATE = "RECHARGE_RATE"
+    COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
     TOTAL_TIME = "TOTAL_TIME"
     OFFSET_REPOSIONING = "OFFSET_REPOSIONING"
@@ -61,7 +65,7 @@ class Config:
             f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             f"{self.config[Config.AGGREGATION_LEVELS]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
-            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"{self.config[Config.BATTERY_LEVELS]:04}"
         )
 
     def __init__(self, config):
@@ -93,6 +97,11 @@ class Config:
     def recharge_rate(self):
         """Trip base fare in dollars"""
         return self.config["RECHARGE_RATE"]
+
+    @property
+    def cost_recharge_sigle_increment(self):
+        """Trip base fare in dollars"""
+        return self.config[Config.COST_RECHARGE_SINGLE_INCREMENT]
 
     @property
     def recharge_threshold(self):
@@ -282,6 +291,10 @@ class Config:
             / self.config[Config.BATTERY_LEVELS]
         )
 
+        self.config[
+            Config.COST_RECHARGE_SINGLE_INCREMENT
+        ] = self.calculate_cost_recharge(self.time_increment)
+
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -341,6 +354,28 @@ class ConfigStandard(Config):
         self.config["TOTAL_TRIPS"] = 32874
         self.config["MIN_TRIPS"] = 40
         self.config["MAX_TRIPS"] = 640
+        ############################################################
+        # Time  ####################################################
+        ############################################################
+
+        # Lenght of time incremnts (min) - default is 15min
+        self.config["TIME_INCREMENT"] = 15
+
+        # Total horizon (h)
+        self.config["TOTAL_TIME"] = 24
+
+        # Offset at the beginning to reposition vehicles
+        self.config["OFFSET_REPOSIONING"] = 3
+
+        # Offset at the end to guarantee trips terminate
+        self.config["OFFSET_TERMINATION"] = 11
+
+        # Total number of time periods
+        self.config["TIME_PERIODS"] = int(
+            self.config["OFFSET_REPOSIONING"]
+            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+            + self.config["OFFSET_TERMINATION"]
+        )
 
         ############################################################
         # Map settings #############################################
@@ -366,26 +401,7 @@ class ConfigStandard(Config):
         self.config["RECHARGE_BASE_FARE"] = 1  # dollar
         self.config["RECHARGE_COST_MILE"] = 0.1  # dollar
         self.config["RECHARGE_RATE"] = 300  # miles/hour
+        self.config[
+            Config.COST_RECHARGE_SINGLE_INCREMENT
+        ] = self.calculate_cost_recharge(self.time_increment)
 
-        ############################################################
-        # Time  ####################################################
-        ############################################################
-
-        # Lenght of time incremnts (min) - default is 15min
-        self.config["TIME_INCREMENT"] = 15
-
-        # Total horizon (h)
-        self.config["TOTAL_TIME"] = 24
-
-        # Offset at the beginning to reposition vehicles
-        self.config["OFFSET_REPOSIONING"] = 3
-
-        # Offset at the end to guarantee trips terminate
-        self.config["OFFSET_TERMINATION"] = 11
-
-        # Total number of time periods
-        self.config["TIME_PERIODS"] = int(
-            self.config["OFFSET_REPOSIONING"]
-            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
-            + self.config["OFFSET_TERMINATION"]
-        )

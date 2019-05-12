@@ -88,7 +88,7 @@ def get_neighbor_zones(center, max_range, zone_grid):
     # print("Y:", min_y, max_y)
 
     # Slice zone_grid to extract neighboring zones around center
-    neighbors = zone_grid[min_x: max_x + 1, min_y: max_y + 1]
+    neighbors = zone_grid[min_x : max_x + 1, min_y : max_y + 1]
 
     # Return list of neighbor zones
     return np.ravel(neighbors)
@@ -178,3 +178,29 @@ def get_cell_level_zone_ids(rows, cols, n_levels):
     cell_level_zone_ids = list(zip(*level_cell_zone_ids))
 
     return cell_level_zone_ids
+
+
+def get_demand_origin_centers(points, grid_area, n_centers, zone_size):
+    """From a a list of points distributed in a grid area, choose a
+    number of centers to be the demand origins. Requests can also depart
+    from nodes in the neighboring zones of each center.
+    
+    Arguments:
+        points {list} -- List of Point objects
+        grid_area {narray} -- Grid area with point ids
+        n_centers {int} -- How many centers to create
+        zone_size {int} -- How many neighboring levels surrounding
+            a center.
+    
+    Returns:
+        list -- Origin points
+    """
+
+    # Choose random location
+    random_centers = choices(points, k=n_centers)
+
+    nodes = []
+    for c in random_centers:
+        nodes.extend(get_neighbor_zones(c, zone_size, grid_area))
+
+    return [points[n] for n in nodes]

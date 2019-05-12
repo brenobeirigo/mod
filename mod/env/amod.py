@@ -83,7 +83,7 @@ class Amod:
                 for point in self.car_origin_points
             ]
         else:
-            # Creating random fleet starting from random points
+            # Creating fleet starting from pre-determined positions
             self.cars = [
                 Car(
                     point,
@@ -120,9 +120,7 @@ class Amod:
 
             # Recharge
             if o == d:
-                cost = self.config.calculate_cost_recharge(
-                    self.config.time_increment
-                )
+                cost = self.config.cost_recharge_sigle_increment
 
                 return -cost
             # Rebalance
@@ -134,7 +132,7 @@ class Amod:
         # Target attribute if decision was taken
         d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
 
-        # Point associated to position
+        # Point associated to position at disaggregate level
         point = self.dict_points[0][d_pos]
 
         # Attribute considering aggregation level

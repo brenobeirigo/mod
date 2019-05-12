@@ -2,13 +2,39 @@ from collections import defaultdict
 from mod.env.car import Car
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+from mod.env.config import FOLDER_OUTPUT
+import os
+
+sns.set(style="ticks")
+sns.set_context("paper")
 
 
 class EpisodeLog:
-    def __init__(self):
+    def __init__(self, config=None):
         self.n = 0
         self.reward = list()
         self.service_rate = list()
+
+        # If config is not None, then the experiments should be saved
+        if config:
+            self.output_path = FOLDER_OUTPUT + config.label
+            self.output_folder_fleet = self.output_path + "/fleet/"
+            self.output_folder_service = self.output_path + "/service/"
+
+            # Creating folders to log episodes
+            if not os.path.exists(self.output_path):
+
+                os.makedirs(self.output_folder_fleet)
+                os.makedirs(self.output_folder_service)
+
+                print(
+                    f"\n### Saving episodes at:"
+                    f"\n - {self.output_path}"
+                    f"\n### Saving plots at:"
+                    f"\n - {self.output_folder_fleet}"
+                    f"\n - {self.output_folder_service}"
+                )
 
     def last_episode_stats(self):
         try:
@@ -16,27 +42,137 @@ class EpisodeLog:
         except:
             return f"(0, 00.00%)"
 
-    def add_record(self, reward, service_rate):
+    def compute_learning(self):
+
+        # Reward over the course of the whole experiment
+        self.plot_reward(
+            file_path=self.output_path + f"/reward_{self.n:04}_episodes",
+            file_format="png",
+            dpi=150,
+            scale="linear",
+        )
+
+        # Service rate over the course of the whole experiment
+        self.plot_service_rate(
+            file_path=self.output_path + f"/service_rate_{self.n:04}_episodes",
+            file_format="png",
+            dpi=150,
+        )
+
+    def compute_episode(self, step_log, plots=True, progress=False):
+
+        # Increment number of episodes
         self.n += 1
-        self.reward.append(reward)
-        self.service_rate.append(service_rate)
 
-    def plot_reward(self, scale="linear"):
+        # Update reward and service rate tracks
+        self.reward.append(step_log.total_reward)
+        self.service_rate.append(step_log.service_rate)
 
-        plt.plot(np.arange(self.n), self.reward, color="r", linewidth=0.5)
+        # Save intermediate plots
+        if plots:
+
+            # Fleet status (idle, recharging, rebalancing, servicing)
+            step_log.plot_fleet_status(
+                file_path=self.output_folder_fleet + f"{self.n:04}",
+                file_format="png",
+                dpi=150,
+            )
+
+            # Service status (battery level, demand, serviced demand)
+            step_log.plot_service_status(
+                file_path=self.output_folder_service + f"{self.n:04}",
+                file_format="png",
+                dpi=150,
+            )
+
+        # Save what was learned so far
+        if progress:
+
+            path = self.output_path + "/progress.npy"
+
+            # For each:
+            # - Time step t,
+            # - Aggregation level g,
+            #  -Attribute a
+            #  Save (value, count) tuple
+
+            np.save(
+                path,
+                {
+                    "episodes": self.n,
+                    "reward": self.reward,
+                    "service_rate": self.service_rate,
+                    "progress": {
+                        t: {
+                            g: {
+                                a: (value, step_log.env.count[t][g][a])
+                                for a, value in a_value.items()
+                            }
+                            for g, a_value in g_a.items()
+                        }
+                        for t, g_a in step_log.env.values.items()
+                    },
+                },
+            )
+
+    def load(self):
+        """Load episodes learned so far
+        
+        Returns:
+            [type] -- [description]
+        """
+
+        # try:
+        path = self.output_path + "/progress.npy"
+
+        progress = np.load(path).item()
+
+        self.n = progress["episodes"]
+        self.reward = progress["reward"]
+        self.service_rate = progress["service_rate"]
+
+        values = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+        counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
+        for t, g_a in progress["progress"].items():
+            for g, a_value in g_a.items():
+                for a, value_count in a_value.items():
+                    v, c = value_count
+                    values[t][g][a] = v
+                    counts[t][g][a] = c
+        return values, counts
+
+        # except AttributeError:
+        #     print("Output path not defined. Start with a 'Config' object.")
+
+    def plot_reward(
+        self, file_path=None, file_format="png", dpi=150, scale="linear"
+    ):
+
+        plt.plot(np.arange(self.n), self.reward, color="r")
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Reward")
-        plt.legend()
-        plt.show()
 
-    def plot_service_rate(self):
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+        else:
+            plt.show()
+
+        plt.close()
+
+    def plot_service_rate(self, file_path=None, file_format="png", dpi=150):
 
         plt.plot(np.arange(self.n), self.service_rate, color="b")
         plt.xlabel("Episodes")
         plt.ylabel("Service rate (%)")
-        plt.legend()
-        plt.show()
+
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+        else:
+            plt.show()
+
+        plt.close()
 
 
 class StepLog:
@@ -100,6 +236,11 @@ class StepLog:
         )
 
     def overall_log(self, label="Operational"):
+        """Show service rate, recharge count, and total profit.
+        
+        Keyword Arguments:
+            label {str} -- Experiment lable (default: {"Operational"})
+        """
 
         # Get number of times recharging for each vehicle
         recharge_list = []
@@ -108,6 +249,7 @@ class StepLog:
 
         s = sum(self.serviced_list)
         t = sum(self.total_list)
+
         print(
             f"### {label} performance ##########################\n"
             f"Service rate: {s}/{t} ({self.service_rate:.2%})\n"
@@ -136,7 +278,18 @@ class StepLog:
         # Configure y axis
         plt.ylabel("# Cars")
 
-        plt.legend()
+        ax = plt.gca()
+        box = ax.get_position()
+        ax.set_position(
+            [box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9]
+        )
+
+        plt.legend(
+            loc="upper center",
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.15),
+            ncol=5,
+        )
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
@@ -164,8 +317,8 @@ class StepLog:
         fig, ax1 = plt.subplots()
         ax1.set_xlabel("Time (15min)")
         ax1.set_ylabel("Trips")
-        ax1.plot(steps, self.total_list, label="Trips Requested", color="b")
-        ax1.plot(steps, self.serviced_list, label="Trips Taken", color="g")
+        ax1.plot(steps, self.total_list, label="Total demand", color="b")
+        ax1.plot(steps, self.serviced_list, label="Met demand", color="g")
         ax1.legend()
         ax2 = ax1.twinx()
         ax2.plot(
@@ -188,10 +341,31 @@ class StepLog:
 
         plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
 
-        ax2.legend()
+        # Shrink current axis's height by 10% on the bottom
+        box = ax1.get_position()
+        ax1.set_position(
+            [box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9]
+        )
+
+        # Put a legend below current axis
+        ax1.legend(
+            loc="upper center",
+            frameon=False,
+            bbox_to_anchor=(0.3, -0.15),
+            ncol=2,
+        )
+
+        # Put a legend below current axis
+        ax2.legend(
+            loc="upper center",
+            frameon=False,
+            bbox_to_anchor=(0.8, -0.15),
+            ncol=1,
+        )
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
         else:
             plt.show()
         plt.close()
+

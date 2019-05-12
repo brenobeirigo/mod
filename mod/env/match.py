@@ -158,7 +158,7 @@ def myopic(env, trips, time_step, charge=True):
     # Disables all logging (file and console)
     m.setParam("OutputFlag", 0)
 
-    agg_level = 2
+    agg_level = 1
 
     # ##################################################################
     # SORT CARS ########################################################

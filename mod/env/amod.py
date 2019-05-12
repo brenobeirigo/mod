@@ -2,15 +2,10 @@ from mod.env.car import Car
 from mod.env.trip import Trip
 from mod.env.network import Point, get_point_list, get_neighbor_zones
 import itertools as it
-from bidict import bidict
-import matplotlib.pyplot as plt
-from collections import defaultdict, Counter
-from operator import itemgetter
-import scipy
+from collections import defaultdict
 import numpy as np
 import random
 from pprint import pprint
-import pickle
 from mod.env.config import FOLDER_EPISODE_TRACK
 from functools import lru_cache
 
@@ -27,63 +22,6 @@ class Amod:
     #  - rebalance from z1 to z2
     #  - recharge in zone z1 = z2
     RECHARGE_REBALANCE_DECISION = 1
-
-    @staticmethod
-    def load(path=None, mode="rb"):
-        f = open(path, mode)
-        amod = pickle.load(f)
-        f.close()
-        return amod
-
-    def cost_func(self, action, o, d):
-
-        if action == Amod.TRIP_STAY_DECISION:
-
-            # Stay
-            if o == d:
-                return 0
-
-            # Pick up
-            else:
-                distance_trip = self.get_distance(
-                    self.points[o], self.points[d]
-                )
-
-                reward = self.config.calculate_fare(distance_trip)
-
-                return reward
-
-        elif action == Amod.RECHARGE_REBALANCE_DECISION:
-
-            # Recharge
-            if o == d:
-                cost = self.config.calculate_cost_recharge(
-                    self.config.time_increment
-                )
-
-                return -cost
-            # Rebalance
-            else:
-                return 0
-
-    def get_point_by_id(self, point_id, level=0):
-        return self.dict_points[level][point_id]
-
-    def load_episode(self, path):
-        """Load .npy dictionary containing value functions of last
-        episode.
-        
-        Arguments:
-            path {str} -- File with saved value functions
-        """
-        values_old = np.load(
-            FOLDER_EPISODE_TRACK + self.config.label + ".npy"
-        ).item()
-        # print(values_old)
-        for t, g_a in values_old.items():
-            for g, a_value in g_a.items():
-                for a, value in a_value.items():
-                    self.values[t][g][a] = value
 
     def __init__(self, config, car_positions=[]):
         """Start AMoD environment
@@ -155,11 +93,57 @@ class Amod:
                 for point in car_positions
             ]
 
+    ####################################################################
+    # Cost functions ###################################################
+    ####################################################################
+
     @lru_cache(maxsize=None)
-    def get_neighbors(self, center):
-        return get_neighbor_zones(
-            center, self.config.pickup_zone_range, self.zones
-        )
+    def cost_func(self, action, o, d):
+
+        if action == Amod.TRIP_STAY_DECISION:
+
+            # Stay
+            if o == d:
+                return 0
+
+            # Pick up
+            else:
+                distance_trip = self.get_distance(
+                    self.points[o], self.points[d]
+                )
+
+                reward = self.config.calculate_fare(distance_trip)
+
+                return reward
+
+        elif action == Amod.RECHARGE_REBALANCE_DECISION:
+
+            # Recharge
+            if o == d:
+                cost = self.config.calculate_cost_recharge(
+                    self.config.time_increment
+                )
+
+                return -cost
+            # Rebalance
+            else:
+                return 0
+
+    def get_value(self, step, decision, level=0):
+
+        # Target attribute if decision was taken
+        d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
+
+        # Point associated to position
+        point = self.dict_points[0][d_pos]
+
+        # Attribute considering aggregation level
+        attribute = (point.id_level(level), d_battery_level)
+
+        # Value function
+        value = self.values[d_step][level][attribute]
+
+        return value
 
     def update_values(self, step, duals):
 
@@ -221,60 +205,14 @@ class Amod:
 
         # pprint(count_reward)
 
-    def save(self, path=None):
-        f = open(path, "wb")
-        pickle.dump(self.values, f)
-        f.close()
-    
-    # @lru_cache(maxsize=None)
-    def get_value(self, step, decision, level=0):
+    ####################################################################
+    # Network ##########################################################
+    ####################################################################
 
-        # Target attribute if decision was taken
-        d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
-
-        # Point associated to position
-        point = self.dict_points[0][d_pos]
-
-        # Attribute considering aggregation level
-        attribute = (point.id_level(level), d_battery_level)
-
-        # Value function
-        value = self.values[d_step][level][attribute]
-        return value
-
-    def get_value2(self, attribute):
-        # Id position at aggregation level 0
-        pos_level_0 = attribute[0]
-
-        # Point associated to position
-        point = self.dict_points[0][pos_level_0]
-
-        # Value associated to attribute
-        value = 0
-
-        # Weights
-        w = [0.4, 0.3, 0.2, 0.5, 0.5]
-
-        # Loop aggregations
-        for g in range(self.config.aggregation_levels):
-
-            # Attribute at level g
-            attribute_g = (point.id_level(g), attribute[1])
-
-            if attribute_g not in self.values[g]:
-                continue
-
-            # List of values associated to attribute of level g
-            values_level = self.values[g][attribute_g][0]
-
-            value += w[g] * values_level
-        return value
-
-    ################################################################
-    # Network ######################################################
-    ################################################################
+    @lru_cache(maxsize=None)
     def get_travel_time(self, distance, unit="min"):
         """Travel time in minutes given distance in miles"""
+
         travel_time_h = distance / self.config.speed_mph
         travel_time_min = travel_time_h * 60
 
@@ -284,12 +222,7 @@ class Amod:
             steps = int(round(travel_time_min / self.config.time_increment))
             return steps
 
-    def get_travel_time_od(self, o, d):
-        """Travel time in minutes given Euclidean distance in miles
-        between origin o and destination d"""
-        distance = self.get_distance(o, d)
-        return self.get_travel_time(distance)
-
+    @lru_cache(maxsize=None)
     def get_distance(self, o, d):
         """Receives two points of a gridmap and returns
         Euclidian distance.
@@ -305,10 +238,14 @@ class Amod:
             np.array([o.x, o.y]) - np.array([d.x, d.y])
         )
 
-    def rebalance(self, car, d):
+    ####################################################################
+    # Network ##########################################################
+    ####################################################################
+
+    def rebalance(self, car, target):
 
         # Distance car has to travel to rebalance
-        distance = self.get_distance(car.point, d)
+        distance = self.get_distance(car.point, target)
 
         # Next arrival
         duration_min = int(round(self.get_travel_time(distance)))
@@ -317,55 +254,6 @@ class Amod:
         reward = 0
 
         return duration_min, distance, reward
-
-    def get_duration(self, pos, o, d, unit="min"):
-        """Get trip duration
-
-        Arguments:
-            pos {int} -- Position car
-            o {int} -- Pickup point
-            d {int} -- Delivery point
-
-        Keyword Arguments:
-            unit {str} -- Trip duration unit [min, step, mile]
-            (default: {'min'})
-
-        Returns:
-            [int] -- Duration in time steps
-        """
-
-        distance = self.get_travel_distance(pos, o, d)
-        duration = int(round(self.get_travel_time(distance)))
-
-        if unit == "min":
-            return duration
-
-        elif unit == "step":
-            steps = int(round(duration / self.config.time_increment))
-            return steps
-
-    def get_travel_distance(self, pos, o, d):
-        """Total travel distance between three point ids.
-
-        Arguments:
-            pos {int} -- Position car
-            o {int} -- Pickup point
-            d {int} -- Delivery point
-
-        Returns:
-            [float] -- Distance in miles
-        """
-
-        # Distance car has to travel to service trip
-        distance_trip = self.get_distance(self.points[pos], self.points[o])
-
-        # Distance to pickup passanger
-        distance_pickup = self.get_distance(self.points[o], self.points[d])
-
-        # Total distance
-        total_distance = distance_pickup + distance_trip
-
-        return total_distance
 
     def pickup(self, trip, car):
         """Insert trip into car and update car status.
@@ -392,27 +280,17 @@ class Amod:
         # Next arrival
         duration_min = int(round(self.get_travel_time(total_distance)))
 
-        # if update:
-        #     # Update car data
-        #     car.update_trip(
-        #         duration_min,
-        #         total_distance,
-        #         reward,
-        #         trip
-        #     )
-
-        #     # Associate car to trip
-        #     trip.picked_by = car
-        # print(
-        #     f'Trip total distance ({trip.o}->{trip.d}) = {total_distance:.2f}'
-        #     f' miles ({distance_pickup:.2f}+{distance_trip:.2f})'
-        #     f' (~{duration_min}min) - Fares: ${reward:.2f}'
-        # )
-
         return duration_min, total_distance, reward
 
-    def cars_idle(self):
-        return [c for c in self.cars if not c.busy]
+    @lru_cache(maxsize=None)
+    def get_neighbors(self, center):
+        return get_neighbor_zones(
+            center, self.config.pickup_zone_range, self.zones
+        )
+
+    ####################################################################
+    # Recharge #########################################################
+    ####################################################################
 
     def full_recharge(self, car):
         """Recharge car fully and update its parameters.
@@ -448,99 +326,6 @@ class Amod:
 
         return cost
 
-    def get_current_action(self, cars):
-
-        actions = np.zeros(self.action_space.size, dtype=int)
-
-        for c in cars:
-
-            if c.status == Car.IDLE:
-                decision = (Amod.TRIP_STAY_DECISION, c.point.id, c.point.id)
-
-            elif c.status == Car.ASSIGN:
-                decision = (Amod.TRIP_STAY_DECISION, c.trip.o.id, c.trip.d.id)
-
-            elif c.status == Car.RECHARGING or c.status == Car.REBALANCE:
-                decision = (
-                    Amod.RECHARGE_REBALANCE_DECISION,
-                    c.previous.id,
-                    c.point.id,
-                )
-
-            action_id = self.action_space.dict[(c.attribute, decision)]
-            actions[action_id] += 1
-
-        return actions
-
-    @staticmethod
-    def get_decision(car, level):
-        """Return the decision tuple derived from car.
-
-
-        Arguments:
-            car {Car} -- Vehicle after decision is made
-
-        Returns:
-            tuple -- decision code, from zone, to zone
-
-        E.g.:
-        decision (0, 1, 2) - Car is servicing customer (flag=0)
-        going from zone 1 to zone 2
-        """
-
-        if car.status == Car.IDLE:
-            decision = (
-                Amod.TRIP_STAY_DECISION,
-                car.point.id_level(level),
-                car.point.id_level(level),
-            )
-        elif car.status == Car.ASSIGN:
-            decision = (
-                Amod.TRIP_STAY_DECISION,
-                car.trip.o.id_level(level),
-                car.trip.d.id_level(level),
-            )
-        elif car.status == Car.RECHARGING or car.status == Car.REBALANCE:
-            decision = (
-                Amod.RECHARGE_REBALANCE_DECISION,
-                car.previous.id_level(level),
-                car.point.id_level(level),
-            )
-        return decision
-
-    def print_environment(self):
-        """Print environment zones, points, and cars"""
-        print("\nZones:")
-        pprint(self.zones)
-
-        print("\nLocations:")
-        pprint(self.points)
-
-        print("\nFleet:")
-        pprint(self.cars)
-
-    def get_fleet_status(self):
-        """Number of cars per status and total battery level
-        in miles.
-
-        Returns:
-            dict, float -- #cars per status, total battery level
-        """
-        status_count = defaultdict(int)
-        total_battery_level = 0
-        for c in self.cars:
-            total_battery_level += c.battery_level_miles
-            status_count[c.status] += 1
-        return status_count, total_battery_level
-
-    def print_current_stats(self):
-        count_status = defaultdict(int)
-        for c in self.cars:
-            print(c.status_log())
-            count_status[c.status] += 1
-
-        pprint(dict(count_status))
-
     def reset(self):
         # Rt = resource state vector at time t
         # resource_state_vector = np.zeros(len(self.car_attributes))
@@ -564,11 +349,6 @@ class Amod:
             )
             for point in self.car_origin_points
         ]
-
-    def update_fleet_status(self, step):
-        # Update fleet status
-        for car in self.cars:
-            car.update(step, time_increment=self.config.time_increment)
 
     def realize_decision(
         self, time_step, decisions, trips_with_attribute, dict_attribute_cars
@@ -640,16 +420,15 @@ class Amod:
             list(it.chain.from_iterable(trips_with_attribute.values())),
         )
 
-    def preview_move(self, car_pos_id, o_id, d_id):
+    @lru_cache(maxsize=None)
+    def preview_move(self, car_pos, o, d):
 
-        distance = self.get_distance(self.points[o_id], self.points[d_id])
+        distance = self.get_distance(self.points[o], self.points[d])
 
         # Car is not in the same zone, of pickup point. Therefore, it
         # has to drive there first
-        if car_pos_id != o_id:
-            distance += self.get_distance(
-                self.points[car_pos_id], self.points[o_id]
-            )
+        if car_pos != o:
+            distance += self.get_distance(self.points[car_pos], self.points[o])
 
         dropped_levels = int(round(distance / self.config.battery_miles_level))
 
@@ -705,3 +484,66 @@ class Amod:
                 point = d
 
         return time_step, point, battery
+
+    ####################################################################
+    # Prints ###########################################################
+    ####################################################################
+
+    def print_environment(self):
+        """Print environment zones, points, and cars"""
+        print("\nZones:")
+        pprint(self.zones)
+
+        print("\nLocations:")
+        pprint(self.points)
+
+        print("\nFleet:")
+        pprint(self.cars)
+
+    def print_fleet_stats(self):
+        count_status = dict()
+
+        # Start all car statuses with 0
+        for s in Car.status_list:
+            count_status[s] = 0
+
+        # Count how many car per status
+        for c in self.cars:
+            print(c.status_log())
+            count_status[c.status] += 1
+
+        pprint(dict(count_status))
+
+    def get_fleet_status(self):
+        """Number of cars per status and total battery level
+        in miles.
+
+        Returns:
+            dict, float -- #cars per status, total battery level
+        """
+        status_count = defaultdict(int)
+        total_battery_level = 0
+        for c in self.cars:
+            total_battery_level += c.battery_level_miles
+            status_count[c.status] += 1
+        return status_count, total_battery_level
+
+    ####################################################################
+    # Save/Load ########################################################
+    ####################################################################
+
+    def load_episode(self, path):
+        """Load .npy dictionary containing value functions of last
+        episode.
+
+        Arguments:
+            path {str} -- File with saved value functions
+        """
+        values_old = np.load(
+            FOLDER_EPISODE_TRACK + self.config.label + ".npy"
+        ).item()
+        # print(values_old)
+        for t, g_a in values_old.items():
+            for g, a_value in g_a.items():
+                for a, value in a_value.items():
+                    self.values[t][g][a] = value

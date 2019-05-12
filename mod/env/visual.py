@@ -2,7 +2,6 @@ from collections import defaultdict
 from mod.env.car import Car
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 
 
 class EpisodeLog:
@@ -82,6 +81,23 @@ class StepLog:
             return s / t
         except ZeroDivisionError:
             return 0
+
+    def show_info(self):
+        """Print last time step statistics
+        """
+
+        try:
+            sr = self.serviced_list[-1] / self.total_list[-1]
+        except:
+            sr = 0
+
+        print(
+            f"### Time step: {self.n+1:>3}"
+            f" ### Profit: {self.reward_list[-1]:>10.2f}"
+            f" ### Service level: {sr:>6.2%}"
+            f" ### Trips: {self.total_list[-1]:>3}"
+            " ###"
+        )
 
     def overall_log(self, label="Operational"):
 

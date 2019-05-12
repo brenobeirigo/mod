@@ -59,14 +59,14 @@ def get_point_list(rows, cols, levels=None):
 
 def get_neighbor_zones(center, max_range, zone_grid):
     """Find all grid ids surrounding center in grid zone at a
-    "max_range" distance. 
-    
+    "max_range" distance.
+
     Arguments:
         center {Point} -- Center point
         max_range {int} -- Range of neighboring zones to select
-        zone_grid {array} -- Numpy array representing the 
-            zones (content is zone ids)
-    
+        zone_grid {array} -- Numpy array representing the zones
+        (content is zone ids)
+
     Returns:
         list -- Ids of neighboring zones in max_range
     """
@@ -88,7 +88,7 @@ def get_neighbor_zones(center, max_range, zone_grid):
     # print("Y:", min_y, max_y)
 
     # Slice zone_grid to extract neighboring zones around center
-    neighbors = zone_grid[min_x : max_x + 1, min_y : max_y + 1]
+    neighbors = zone_grid[min_x: max_x + 1, min_y: max_y + 1]
 
     # Return list of neighbor zones
     return np.ravel(neighbors)
@@ -161,12 +161,12 @@ def get_aggregated_zones(rows, cols, n_levels):
 def get_cell_level_zone_ids(rows, cols, n_levels):
     """For each cell in a gridmap, associate a tuple with
     the ids of this cell under "n_levels" aggregation levels.
-    
+
     Arguments:
         rows {int} -- Grid number of rows
         cols {int} -- Grid number of columns
         n_levels {int} -- Number of levels
-    
+
     Returns:
         list(tuple) -- List of zone ids according to aggregation level.
     """

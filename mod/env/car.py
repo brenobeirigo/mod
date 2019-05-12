@@ -7,6 +7,7 @@ class Car:
     RECHARGING = "Recharging"
     ASSIGN = "With passenger"
     REBALANCE = "Rebalancing"
+    
     status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
 
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):
@@ -35,12 +36,13 @@ class Car:
         self.status = Car.IDLE
         self.current_trip = None
 
+    @property
     def attribute(self, level=0):
         return (self.point.id_level(level), self.battery_level)
 
     @property
     def busy(self):
-        # print("busy check", self.status)
+        """Return False if car is idle"""
         if self.status == Car.IDLE:
             return False
         return True

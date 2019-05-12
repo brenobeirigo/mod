@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import random
-import pickle
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -19,13 +18,12 @@ from mod.env.config import (
     FOLDER_SERVICE_PLOT,
     FOLDER_EPISODE_TRACK,
 )
-from mod.env.match import fcfs, myopic
+from mod.env.match import myopic
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
     get_trips_random_ods,
 )
-from mod.env.ml import Adp, get_state
 import mod.env.network as nw
 from pprint import pprint
 
@@ -57,23 +55,20 @@ if __name__ == "__main__":
             ConfigStandard.COLS: 32,
             ConfigStandard.BATTERY_LEVELS: 20,
             ConfigStandard.PICKUP_ZONE_RANGE: 2,
-            ConfigStandard.AGGREGATION_LEVELS: 4,
+            ConfigStandard.AGGREGATION_LEVELS: 3,
         }
     )
 
     episodeLog = EpisodeLog()
 
     amod = Amod(config)
-    adp = Adp(amod)
 
     print("## Random centers")
 
+    # Random centers in map
     n_zones = 4
     neighborhood_levels = 5
     origins = get_random_centers(amod, n_zones, neighborhood_levels)
-    pprint(origins)
-
-    print(amod.zones)
 
     # Dynamic programming algorithm
     episodes = 4000
@@ -88,16 +83,11 @@ if __name__ == "__main__":
         f" - max: {max(step_trip_count_15)}"
     )
 
-    adp.print_dimension(max(step_trip_count_15), config.time_steps)
-
-    df = pd.DataFrame()
-
-    episode_reward_list = list()
-    episode_service_rate = list()
-
     for n in range(episodes):
 
         total_reward = 0
+        serviced_count = 0
+        total_count = 0
 
         # Create all episode trips
         step_trip_list = get_trips_random_ods(
@@ -125,52 +115,33 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            # print("## BEFORE")
-            # amod.print_current_stats()
-
             revenue, serviced, rejected = myopic(amod, trips, step)
 
             total_reward += revenue
+            serviced_count += len(serviced)
+            total_count += len(trips)
 
             # Update log with iteration
-            step_log.add_record(revenue, serviced, rejected)
-            try:
-                sr = len(serviced) / len(trips)
-            except:
-                sr = 0
+            # step_log.add_record(revenue, serviced, rejected)
 
-            # print(
-            #     f"### Time step: {step+1:>3}"
-            #     f" ### Profit: {revenue:>10.2f}"
-            #     f" ### Service level: {sr:>6.2%}"
-            #     f" ### Trips: {len(trips):>3}"
-            #     " ###"
+            # step_log.show_info()
+
+            # step_log.plot_fleet_status(
+            #     file_path=FOLDER_FLEET_PLOT + config.label + f"{n:04}",
+            #     file_format="png",
+            #     dpi=150,
             # )
 
-            # amod.print_current_stats()
-        #     # pprint(
-        #     #     {
-        #     #         state:{
-        #     #             action:f'{value:>5.2f}'
-        #     #             for action, value in actions.items() if value > 0
-        #     #         } for state, actions in amod.Q.items()
-        #     #     }
-        #     # )
+            # step_log.plot_service_status(
+            #     file_path=FOLDER_SERVICE_PLOT + config.label + f"{n:04}",
+            #     file_format="png",
+            #     dpi=150,
+            # )
+
+            # amod.print_fleet_stats()
 
         # step_log.overall_log()
-        episodeLog.add_record(step_log.total_reward, step_log.service_rate)
-
-        step_log.plot_fleet_status(
-            file_path=FOLDER_FLEET_PLOT + config.label + f"{n:04}",
-            file_format="png",
-            dpi=150,
-        )
-
-        step_log.plot_service_status(
-            file_path=FOLDER_SERVICE_PLOT + config.label + f"{n:04}",
-            file_format="png",
-            dpi=150,
-        )
+        episodeLog.add_record(total_reward, serviced_count / total_count)
 
         # # Saving last episode
         # path = FOLDER_EPISODE_TRACK + config.label + ".npy"

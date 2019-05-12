@@ -1,21 +1,19 @@
-from collections import defaultdict, Counter
+from collections import defaultdict
 import mod.env.network as nw
 from gurobipy import tuplelist, GRB, Model, quicksum
 from pprint import pprint
 from mod.env.amod import Amod
 import time
 
-# from mod.env.ml import get_dict_cars_per_attribute
+# Decisions are tuples following the format
+# (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION)
 
-
-def get_dict_cars_per_attribute(cars, level=0):
-
-    dict_cars_per_attribute = defaultdict(list)
-
-    for c in cars:
-        dict_cars_per_attribute[c.attribute(level)].append(c)
-
-    return dict_cars_per_attribute
+# Labels for decision tuples
+ACTION = 0
+POSITION = 1
+BATTERY = 2
+ORIGIN = 3
+DESTINATION = 4
 
 
 def extract_duals(flow_cars, car_attributes):
@@ -42,18 +40,23 @@ def extract_decisions(var_list):
     return decisions
 
 
-def extract_answer(var_list, flow_cars):
+def extract_solution(var_list, flow_cars):
+
+    # list of decision tuples (action, point, level, o, d)
     decisions = list()
+
+    # Dual values for car attributes (point, level)
     duals = dict()
-    # k = action, point, level, o, d
+
+    # Loop (decision tuple, var) pairs
     for decision, var in var_list.items():
-        # action, point, level, o, d = decision
 
         if var.x > 0.0001:
             decisions.append(decision + (int(var.x),))
 
             # FIll out duals
-            car_attribute = (decision[1], decision[2])
+            car_attribute = (decision[POSITION], decision[BATTERY])
+
             if car_attribute not in duals:
                 # pi = The constraint dual value in the current solution
                 # (also known as the shadow price).
@@ -64,10 +67,99 @@ def extract_answer(var_list, flow_cars):
     return decisions, duals
 
 
+def print_decisions(x_rebalance, x_stay, x_pickup, x_recharge, all_decisions):
+    print("#### Decision variables - (action, point, level, o, d) ####")
+    print("# REBALANCE")
+    pprint(x_rebalance)
+
+    print("# STAY")
+    pprint(x_stay)
+
+    print("# PICKUP")
+    pprint(x_pickup)
+
+    print("# RECHARGE")
+    pprint(x_recharge)
+
+    print(
+        "\n#### Count ####\n"
+        f"#Pickup: {len(x_pickup)}"
+        f" - #Stay: {len(x_stay)}"
+        f" - #Recharge: {len(x_recharge)}"
+        f" - #Rebalance: {len(x_rebalance)}"
+        f" - #Total: {len(all_decisions)}"
+    )
+
+
+def get_all_decisions_joint(attribute_neighbors, trip_ods):
+    decisions = []
+    for c in attribute_neighbors.keys():
+        # STAY
+        decisions.append((Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],))
+        # RECHARGE
+        decisions.append(
+            (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
+        )
+
+        # PICKUP
+        for o, d in trip_ods:
+            if o in attribute_neighbors[c[0]]:
+                decisions.append((Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,))
+
+        # REBALANCE
+        for z in attribute_neighbors[c[0]]:
+            if c[0] != z:
+                decisions.append(
+                    (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
+                )
+
+    return tuplelist(decisions)
+
+
+def get_decision_tuples(car_attributes, neighbors, trip_ods):
+
+    x_stay = [
+        (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
+        for c in car_attributes
+    ]
+
+    x_pickup = [
+        (Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,)
+        for o, d in trip_ods
+        for c in car_attributes
+        if o in neighbors[c[0]]
+    ]
+
+    x_recharge = [
+        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
+        for c in car_attributes
+    ]
+
+    x_rebalance = [
+        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
+        for c in car_attributes
+        for z in neighbors[c[0]]
+        if c[0] != z
+    ]
+
+    # Enumerated list of decisions
+    all_decisions = tuplelist(x_pickup + x_stay + x_rebalance + x_recharge)
+
+    # print_decisions(x_rebalance, x_stay, x_pickup, x_recharge, all_decisions)
+
+    return all_decisions
+
+
 def myopic(env, trips, time_step, charge=True):
 
-    level = 0
-    agg_level = 3
+    # Starting assignment model
+    m = Model("assignment")
+
+    # Disables all logging (file and console)
+    m.setParam("OutputFlag", 0)
+
+    agg_level = 2
+
     # ##################################################################
     # SORT CARS ########################################################
     # ##################################################################
@@ -76,7 +168,7 @@ def myopic(env, trips, time_step, charge=True):
     cars_with_attribute = defaultdict(list)
 
     # Which positions are surrounding each car position
-    dict_car_position_neighbors = dict()
+    dict_attribute_neighbors = dict()
 
     # Reachable points
     rechable_points = set()
@@ -92,11 +184,11 @@ def myopic(env, trips, time_step, charge=True):
             continue
 
         # List of cars with the same attribute (pos, battery level)
-        cars_with_attribute[car.attribute(level)].append(car)
+        cars_with_attribute[car.attribute].append(car)
 
         # Was this position already processed?
-        car_pos_id = car.point.id_level(level)
-        if car_pos_id not in dict_car_position_neighbors:
+        car_pos_id = car.point.id
+        if car_pos_id not in dict_attribute_neighbors:
 
             # Get zones around current car regions
             nearby_zones = env.get_neighbors(car.point)
@@ -104,14 +196,11 @@ def myopic(env, trips, time_step, charge=True):
             # Update set of points cars can reach
             rechable_points.update(nearby_zones)
 
-            dict_car_position_neighbors[car_pos_id] = nearby_zones
+            dict_attribute_neighbors[car_pos_id] = nearby_zones
 
     # ##################################################################
     # SORT TRIPS #######################################################
     # ##################################################################
-
-    # Trip ods
-    trip_ods = [(t.o.id_level(level), t.d.id_level(level)) for t in trips]
 
     #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
     trips_with_attribute = defaultdict(list)
@@ -119,10 +208,9 @@ def myopic(env, trips, time_step, charge=True):
     # Trips that cannot be picked up
     rejected = list()
     for t in trips:
-        o, d = t.o.id_level(level), t.d.id_level(level)
 
-        if o in rechable_points:
-            trips_with_attribute[(o, d)].append(t)
+        if t.o.id in rechable_points:
+            trips_with_attribute[(t.o.id, t.d.id)].append(t)
 
         # If no vehicle can reach the trip, it is immediately rejected
         else:
@@ -132,101 +220,22 @@ def myopic(env, trips, time_step, charge=True):
     # VARIABLES ########################################################
     # ##################################################################
 
-    car_attributes = cars_with_attribute.keys()
-
-    # start_time1 = time.time()
-    # all_decisions_set = []
-    # for c in car_attributes:
-    #     # STAY
-    #     all_decisions_set.append(
-    #         (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
-    #     )
-    #     # RECHARGE
-    #     all_decisions_set.append(
-    #         (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
-    #     )
-
-    #     # PICKUP
-    #     for o, d in trip_ods:
-    #         if o in dict_car_position_neighbors[c[0]]:
-    #             all_decisions_set.append(
-    #                 (Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,)
-    #             )
-
-    #     # REBALANCE
-    #     for z in dict_car_position_neighbors[c[0]]:
-    #         if c[0] != z:
-    #             all_decisions_set.append(
-    #                 (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
-    #             )
-
-    # all_decisions2 = tuplelist(all_decisions_set)
-
-    # start_time2 = time.time()
-
-    x_stay = [
-        (Amod.TRIP_STAY_DECISION,) + c + (c[0],) + (c[0],)
-        for c in car_attributes
-    ]
-
-    x_pickup = [
-        (Amod.TRIP_STAY_DECISION,) + c + (o,) + (d,)
-        for o, d in trip_ods
-        for c in car_attributes
-        if o in dict_car_position_neighbors[c[0]]
-    ]
-
-    x_recharge = [
-        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (c[0],)
-        for c in car_attributes
-    ]
-
-    x_rebalance = [
-        (Amod.RECHARGE_REBALANCE_DECISION,) + c + (c[0],) + (z,)
-        for c in car_attributes
-        for z in dict_car_position_neighbors[c[0]]
-        if c[0] != z
-    ]
-
-    # Enumerated list of decisions
-    all_decisions = tuplelist(
-        set(x_pickup + x_stay + x_rebalance + x_recharge)
+    # Enumerate list of decision variables
+    # time1 = time.time()
+    all_decisions = get_decision_tuples(
+        cars_with_attribute.keys(),
+        dict_attribute_neighbors,
+        trips_with_attribute,
     )
 
-    # start_time3 = time.time()
-    # print("\ntogether:", start_time2 - start_time1)
-    # print("separate:", start_time3 - start_time2)
+    # print("\n## Time to get decisions:", time.time() - time1)
 
-    # print("REBALANCE (action, point, level, o, d)")
-    # pprint(x_rebalance)
-
-    # print("STAY (action, point, level, o, d)")
-    # pprint(x_stay)
-
-    # print("PICKUP (action, point, level, o, d)")
-    # pprint(x_pickup)
-
-    # print("RECHARGE (action, point, level, o, d)")
-    # pprint(x_recharge)
-
-    # print(f"#Pickup: {len(x_pickup)}"
-    #       f" - #Stay: {len(x_stay)}"
-    #       f" - #Recharge: {len(x_recharge)}"
-    #       f" - #Rebalance: {len(x_rebalance)}"
-    #       f" - #Total: {len(all_decisions)}")
+    # Adding variables
+    x_var = m.addVars(all_decisions, name="x")
 
     # ##################################################################
     # MODEL ############################################################
     # ##################################################################
-
-    m = Model("assignment")
-    # Save model
-    # m.write('myopic.lp')
-
-    # Disables all logging (file and console)
-    m.setParam("OutputFlag", 0)
-    m.setParam('LogFile', "")
-    m.setParam('LogToConsole', 0)
 
     # if log_path:
     #         m.Params.LogFile = "{}/region_centers_{}.log".format(
@@ -237,28 +246,26 @@ def myopic(env, trips, time_step, charge=True):
     #             log_path, max_delay
     #         )
 
-    # How many vehice
-    x_var = m.addVars(all_decisions, name="x")
-
-    # The objective is to minimize the total pay costs
-
-    value_func = quicksum(
+    # Cost based on post decision (shadow prices from former iterations)
+    shadow_cost = quicksum(
         (env.get_value(time_step, d, level=agg_level) * x_var[d])
         for d in x_var
     )
 
-    cost_func = quicksum(
-        env.cost_func(d[0], d[3], d[4]) * x_var[d] for d in x_var
+    # Cost of current decision
+    cost = quicksum(
+        env.cost_func(d[ACTION], d[ORIGIN], d[DESTINATION]) * x_var[d]
+        for d in x_var
     )
 
-    m.setObjective(cost_func + value_func, GRB.MAXIMIZE)
+    m.setObjective(cost + shadow_cost, GRB.MAXIMIZE)
 
     # Car flow conservation
     flow_cars = m.addConstrs(
         (
             x_var.sum("*", point, level, "*", "*")
             == len(cars_with_attribute[(point, level)])
-            for point, level in car_attributes
+            for point, level in cars_with_attribute.keys()
         ),
         "CAR_FLOW",
     )
@@ -272,15 +279,6 @@ def myopic(env, trips, time_step, charge=True):
         ),
         "TRIP_FLOW",
     )
-
-    # flow_trips = m.addConstrs(
-    #     (x_var.sum(Amod.TRIP_STAY_DECISION, point, level, o, d) <= len(
-    #         trips_with_attribute[(o, d)])
-    #      for o, d in trips_with_attribute.keys()
-    #      for point, level in car_attributes
-    #      if o in dict_car_position_neighbors[point]),
-    #     "TRIP_FLOW",
-    # )
 
     if charge:
         # Battery
@@ -304,10 +302,14 @@ def myopic(env, trips, time_step, charge=True):
 
     if m.status == GRB.Status.OPTIMAL:
 
-        # best_decisions = tuples associated to positive values
-        # duals = dictionary car atribute (pos, battery) -> Shadow price
-        best_decisions, duals = extract_answer(x_var, flow_cars)
+        # c = time.time()
+        # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+        # decisions = extract_decisions(x_var)
+        # a = time.time()
+        best_decisions, duals = extract_solution(x_var, flow_cars)
+        # b=time.time()
 
+        # print(f'one: {a-c} X two:{b-a}')
         env.update_values(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
@@ -324,13 +326,12 @@ def myopic(env, trips, time_step, charge=True):
 
         return reward, serviced, rejected
 
-        # exit(0)
     if (
         m.status != GRB.Status.INF_OR_UNBD
         and m.status != GRB.Status.INFEASIBLE
     ):
         print("Optimization was stopped with status %d" % m.status)
-        # exit(0)
+
     if m.status == GRB.Status.INFEASIBLE:
         # do IIS
         print("The model is infeasible; computing IIS")
@@ -352,12 +353,12 @@ def myopic(env, trips, time_step, charge=True):
 
 def fcfs(env, trips, time_step, charge=True):
     """First Come First Serve
-    
+
     Arguments:
         env {Environment} -- AMoD environment
         trips {list} -- List of trips
         time_step {int} -- Current time step
-    
+
     Returns:
         float, list, list -- total_contribution, serviced trips,
             rejected trips

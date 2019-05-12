@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
+import time
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -16,7 +17,6 @@ from mod.env.trip import (
     get_trip_count_step,
     get_trips_random_ods,
 )
-from mod.env.ml import Adp, get_state
 from mod.env.visual import StepLog
 
 
@@ -25,7 +25,7 @@ def test_matching_methods(
 ):
 
     step_log = StepLog(amod)
-
+    total_duration = 0
     for time_step in range(amod.config.time_steps):
 
         if step_trip_list:
@@ -43,8 +43,11 @@ def test_matching_methods(
         # - revenue round
         # - list serviced requests
         # - list rejected requests
+        t1 = time.time()
         revenue, serviced, rejected = matching_func(amod, trips, time_step)
-
+        duration = time.time() - t1
+        # print('\n###', duration)
+        total_duration += duration
         print(
             f"### Time step: {time_step+1:>3}"
             f" ### Profit: {revenue:>10.2f}"
@@ -58,16 +61,15 @@ def test_matching_methods(
         # Show car stats
         if show_stats:
             amod.print_current_stats()
-
+    print("Total duration:", total_duration)
     return step_log
 
 
 if __name__ == "__main__":
 
     c = ConfigStandard()
-    # c.update({"FLEET_SIZE": 1, "ROWS": 10, "COLS": 10})
+    c.update({"FLEET_SIZE": 10, "ROWS": 100, "COLS": 100})
     amod = Amod(c)
-    adp = Adp(amod)
 
     step_trip_count_15 = get_trip_count_step(
         NY_TRIPS_EXCERPT_DAY, step=15, multiply_for=1
@@ -83,8 +85,8 @@ if __name__ == "__main__":
 
     matching_functions = {
         # "ADP": adp.iterate,
-        # "FCFS": fcfs,
-        "EXACT MYOPIC": myopic
+        "EXACT MYOPIC": myopic,
+        "FCFS": fcfs,
     }
 
     for label, func in matching_functions.items():
@@ -100,3 +102,6 @@ if __name__ == "__main__":
         step_log.plot_fleet_status()
         step_log.plot_service_status()
         step_log.overall_log(label=label)
+        print("travel_time", amod.get_travel_time.cache_info())
+        print("get_distance", amod.get_distance.cache_info())
+        print("cost_func", amod.cost_func.cache_info())

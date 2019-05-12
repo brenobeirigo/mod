@@ -41,11 +41,16 @@ class Config:
     # collection of aggregation functions, G(g) : A → A(g), where A(g)
     # represents the gth level of aggregation of the attribute space A.
     AGGREGATION_LEVELS = "AGGREGATION_LEVELS"
+    INCUMBENT_AGGREGATION_LEVEL = "INCUMBENT_AGGREGATION_LEVEL"
 
     ZONE_WIDTH = "ZONE_WIDTH"
     VALID_ZONES = "VALID_ZONES"
     ROWS = "ROWS"
     COLS = "COLS"
+    ORIGIN_CENTERS = "ORIGIN_CENTERS"
+    ORIGIN_CENTER_ZONE_SIZE = "ORIGIN_CENTER_ZONE_SIZE"
+
+    # Recharging
     RECHARGE_THRESHOLD = "RECHARGE_THRESHOLD"
     RECHARGE_BASE_FARE = "RECHARGE_BASE_FARE"
     RECHARGE_COST_MILE = "RECHARGE_COST_MILE"
@@ -71,6 +76,18 @@ class Config:
     def __init__(self, config):
 
         self.config = config
+
+    ################################################################
+    ### Area #######################################################
+    ################################################################
+
+    @property
+    def origin_centers(self):
+        return self.config[Config.ORIGIN_CENTERS]
+
+    @property
+    def origin_center_zone_size(self):
+        return self.config[Config.ORIGIN_CENTER_ZONE_SIZE]
 
     ################################################################
     ### Battery info ###############################################
@@ -227,6 +244,11 @@ class Config:
     def aggregation_levels(self):
         """Number of aggregation levels"""
         return self.config["AGGREGATION_LEVELS"]
+
+    @property
+    def incumbent_aggregation_level(self):
+        """Trip base fare in dollars"""
+        return self.config[Config.INCUMBENT_AGGREGATION_LEVEL]
 
     ################################################################
     ### Demand #####################################################
@@ -388,6 +410,9 @@ class ConfigStandard(Config):
         # included
         self.config["AGGREGATION_LEVELS"] = 5
 
+        # Attributes are based on a single aggregation level
+        self.config[Config.INCUMBENT_AGGREGATION_LEVEL] = 2
+
         # Each zone has width = 0.5 miles
         self.config["ZONE_WIDTH"] = 0.5
 
@@ -396,6 +421,10 @@ class ConfigStandard(Config):
         self.config["VALID_ZONES"] = 21634
         self.config["ROWS"] = 201
         self.config["COLS"] = 304
+
+        # Origin centers and number of surrounding layers
+        self.config[Config.ORIGIN_CENTERS] = 4
+        self.config[Config.ORIGIN_CENTER_ZONE_SIZE] = 3
 
         self.config["RECHARGE_THRESHOLD"] = 0.1  # 10%
         self.config["RECHARGE_BASE_FARE"] = 1  # dollar

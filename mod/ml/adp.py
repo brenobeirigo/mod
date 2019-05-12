@@ -11,15 +11,8 @@ sys.path.append(root)
 
 from mod.env.amod import Amod
 from mod.env.visual import StepLog, EpisodeLog
-from mod.env.config import (
-    ConfigStandard,
-    NY_TRIPS_EXCERPT_DAY,
-    FOLDER_FLEET_PLOT,
-    FOLDER_SERVICE_PLOT,
-    FOLDER_EPISODE_TRACK,
-    FOLDER_OUTPUT,
-)
-from mod.env.match import myopic
+from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
+from mod.env.match import adp, myopic, fcfs
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
@@ -38,19 +31,22 @@ if __name__ == "__main__":
     config = ConfigStandard()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 10,
-            ConfigStandard.ROWS: 15,
-            ConfigStandard.COLS: 15,
+            ConfigStandard.FLEET_SIZE: 250,
+            ConfigStandard.ROWS: 32,
+            ConfigStandard.COLS: 32,
             ConfigStandard.BATTERY_LEVELS: 20,
             ConfigStandard.PICKUP_ZONE_RANGE: 2,
             ConfigStandard.AGGREGATION_LEVELS: 3,
+            ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
+            ConfigStandard.ORIGIN_CENTERS: 4,
+            ConfigStandard.ORIGIN_CENTER_ZONE_SIZE: 3,
         }
     )
 
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 60
+    episodes = 1000
     episodeLog = EpisodeLog(config=config)
     amod = Amod(config)
 
@@ -59,23 +55,35 @@ if __name__ == "__main__":
         values, counts = episodeLog.load()
         amod.values = values
         amod.count = counts
-    except:
-        print("No previous episodes were saved.")
+
+    except Exception as e:
+        print(f"No previous episodes were saved {e}.")
 
     # -----------------------------------------------------------------#
     # Trips ############################################################
     # -----------------------------------------------------------------#
 
-    # Create random centers from where trips come from
-    n_centers = 4
-    neighborhood_levels = 3
-    origins = nw.get_demand_origin_centers(
-        amod.points, amod.zones, n_centers, neighborhood_levels
-    )
+    try:
+        origin_ids = episodeLog.load_origins()
+        origins = [amod.points[p] for p in origin_ids]
+        print(f"\n{len(origins)} origins loaded.")
+
+    except:
+
+        # Create random centers from where trips come from
+        origins = nw.get_demand_origin_centers(
+            amod.points,
+            amod.zones,
+            amod.config.origin_centers,
+            amod.config.origin_center_zone_size,
+        )
+
+        print(f"\nSaving {len(origins)} origins.")
+        episodeLog.save_origins([o.id for o in origins])
 
     # Get demand pattern from NY city
     step_trip_count_15 = get_trip_count_step(
-        NY_TRIPS_EXCERPT_DAY, step=15, multiply_for=0.01
+        NY_TRIPS_EXCERPT_DAY, step=15, multiply_for=0.167
     )
 
     print(
@@ -102,15 +110,10 @@ if __name__ == "__main__":
         # Resetting environment
         amod.reset()
 
-        print(
-            f"####### [Episode {n:>5}]"
-            f" - {episodeLog.last_episode_stats()} ########"
-        )
-
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = myopic(amod, trips, step)
+            revenue, serviced, rejected = adp(amod, trips, step)
 
             # ---------------------------------------------------------#
             # Update log with iteration ################################
@@ -127,6 +130,12 @@ if __name__ == "__main__":
         # -------------------------------------------------------------#
         # Compute episode info #########################################
         # -------------------------------------------------------------#
+        print(
+            f"####### "
+            f"[Episode {n:>5}] "
+            f"- {episodeLog.last_episode_stats()} "
+            f"#######"
+        )
         episodeLog.compute_episode(step_log, progress=True)
 
     episodeLog.compute_learning()

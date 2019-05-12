@@ -36,6 +36,17 @@ class EpisodeLog:
                     f"\n - {self.output_folder_service}"
                 )
 
+    def save_origins(self, origin_ids):
+        np.save(self.output_path + "/trip_origin_ids.npy", origin_ids)
+
+    def load_origins(self):
+        try:
+            path_origin_ids = self.output_path + "/trip_origin_ids.npy"
+            return np.load(path_origin_ids)
+        except Exception as e:
+            print(f'Origins at "{path_origin_ids}" could not be find {e}.')
+            raise Exception
+
     def last_episode_stats(self):
         try:
             return f"({self.reward[-1]:15.2f}, {self.service_rate[-1]:6.2%})"
@@ -96,33 +107,35 @@ class EpisodeLog:
             #  -Attribute a
             #  Save (value, count) tuple
 
+            value_count = {
+                t: {
+                    g: {
+                        a: (value, step_log.env.count[t][g][a])
+                        for a, value in a_value.items()
+                    }
+                    for g, a_value in g_a.items()
+                }
+                for t, g_a in step_log.env.values.items()
+            }
+
             np.save(
                 path,
                 {
                     "episodes": self.n,
                     "reward": self.reward,
                     "service_rate": self.service_rate,
-                    "progress": {
-                        t: {
-                            g: {
-                                a: (value, step_log.env.count[t][g][a])
-                                for a, value in a_value.items()
-                            }
-                            for g, a_value in g_a.items()
-                        }
-                        for t, g_a in step_log.env.values.items()
-                    },
+                    "progress": value_count,
                 },
             )
 
     def load(self):
         """Load episodes learned so far
-        
+
         Returns:
-            [type] -- [description]
+            values, counts -- Value functions and count per aggregation
+                level.
         """
 
-        # try:
         path = self.output_path + "/progress.npy"
 
         progress = np.load(path).item()
@@ -140,10 +153,8 @@ class EpisodeLog:
                     v, c = value_count
                     values[t][g][a] = v
                     counts[t][g][a] = c
-        return values, counts
 
-        # except AttributeError:
-        #     print("Output path not defined. Start with a 'Config' object.")
+        return values, counts
 
     def plot_reward(
         self, file_path=None, file_format="png", dpi=150, scale="linear"

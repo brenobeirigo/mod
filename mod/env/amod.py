@@ -339,14 +339,27 @@ class Amod:
         #     c.reset(self.battery_size)
 
         # Creating random fleet starting from random points
+
         self.cars = [
             Car(
                 point,
                 self.config.battery_levels,
                 battery_level_miles_max=self.config.battery_size_miles,
             )
-            for point in self.car_origin_points
+            for point in [
+                point
+                for point in random.choices(self.points, k=self.fleet_size)
+            ]
         ]
+
+        # self.cars = [
+        #     Car(
+        #         point,
+        #         self.config.battery_levels,
+        #         battery_level_miles_max=self.config.battery_size_miles,
+        #     )
+        #     for point in self.car_origin_points
+        # ]
 
     def realize_decision(
         self, time_step, decisions, trips_with_attribute, dict_attribute_cars

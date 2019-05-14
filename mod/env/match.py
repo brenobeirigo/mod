@@ -335,7 +335,7 @@ def myopic(env, trips, time_step, charge=True):
                 print("%s" % c.constrName)
 
 
-def adp(env, trips, time_step, charge=True):
+def adp(env, trips, time_step, charge=True, aggregation="weighted"):
 
     # Starting assignment model
     m = Model("assignment")
@@ -432,11 +432,19 @@ def adp(env, trips, time_step, charge=True):
     #             log_path, max_delay
     #         )
 
-    # Cost based on post decision (shadow prices from former iterations)
-    shadow_cost = quicksum(
-        (env.get_value(time_step, d, level=agg_level) * x_var[d])
-        for d in x_var
-    )
+    if aggregation == "weighted":
+
+        # Cost based on post decision (shadow prices from former iterations)
+        shadow_cost = quicksum(
+            (env.get_weighted_value(time_step, d) * x_var[d]) for d in x_var
+        )
+
+    else:
+        # Cost based on post decision (shadow prices from former iterations)
+        shadow_cost = quicksum(
+            (env.get_value(time_step, d, level=agg_level) * x_var[d])
+            for d in x_var
+        )
 
     # Cost of current decision
     cost = quicksum(
@@ -496,7 +504,10 @@ def adp(env, trips, time_step, charge=True):
         # b=time.time()
 
         # print(f'one: {a-c} X two:{b-a}')
-        env.update_values(time_step, duals)
+
+        # env.update_values(time_step, duals)
+
+        env.update_values_weights(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,

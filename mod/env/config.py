@@ -62,6 +62,13 @@ class Config:
     OFFSET_TERMINATION = "OFFSET_TERMINATION"
     TIME_PERIODS = "TIME_PERIODS"
 
+    # FLEET ECONOMICS
+    OPERATION_YEARS = "OPERATION_YEARS"
+    OPERATED_DAYS_YEAR = "OPERATED_DAYS_YEAR"
+    CAR_BASE_COST = "CAR_BASE_COST"
+    MAINTENANCE_INSURANCE = "MAINTENANCE_INSURANCE"
+    BATTERY_COST = "BATTERY_COST"
+
     @property
     def label(self):
         return (
@@ -70,16 +77,17 @@ class Config:
             f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             f"{self.config[Config.AGGREGATION_LEVELS]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
-            f"{self.config[Config.BATTERY_LEVELS]:04}"
+            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}"
         )
 
     def __init__(self, config):
 
         self.config = config
 
-    ################################################################
-    ### Area #######################################################
-    ################################################################
+    ####################################################################
+    ### Area ###########################################################
+    ####################################################################
 
     @property
     def origin_centers(self):
@@ -89,9 +97,9 @@ class Config:
     def origin_center_zone_size(self):
         return self.config[Config.ORIGIN_CENTER_ZONE_SIZE]
 
-    ################################################################
-    ### Battery info ###############################################
-    ################################################################
+    ####################################################################
+    ### Battery info ###################################################
+    ####################################################################
 
     @property
     def recharge_base_fare(self):
@@ -162,9 +170,9 @@ class Config:
 
         return minutes_recharging, int(round(time_steps_recharging))
 
-    ################################################################
-    ### Battery ####################################################
-    ################################################################
+    ####################################################################
+    ### Battery ########################################################
+    ####################################################################
 
     @property
     def battery_size_miles(self):
@@ -186,9 +194,9 @@ class Config:
         """Maximum battery size in miles"""
         return self.config["BATTERY_SIZE_KWH_MILE"]
 
-    ################################################################
-    ### Trip #######################################################
-    ################################################################
+    ####################################################################
+    ### Trip ###########################################################
+    ####################################################################
 
     @property
     def trip_base_fare(self):
@@ -250,9 +258,9 @@ class Config:
         """Trip base fare in dollars"""
         return self.config[Config.INCUMBENT_AGGREGATION_LEVEL]
 
-    ################################################################
-    ### Demand #####################################################
-    ################################################################
+    ####################################################################
+    ### Demand #########################################################
+    ####################################################################
 
     @property
     def min_trips(self):
@@ -328,9 +336,9 @@ class ConfigStandard(Config):
 
         self.config = dict()
 
-        ############################################################
-        # Car ######################################################
-        ############################################################
+        ################################################################
+        # Car ##########################################################
+        ################################################################
 
         # Speed cars (mph) - 20MPH
         self.config["SPEED_MPH"] = 17
@@ -338,9 +346,9 @@ class ConfigStandard(Config):
         # Total fleet
         self.config["FLEET_SIZE"] = 1500
 
-        ############################################################
-        # Battery ##################################################
-        ############################################################
+        ################################################################
+        # Battery ######################################################
+        ################################################################
 
         self.config["BATTERY_SIZE_MILE"] = 200  # miles
         self.config["BATTERY_SIZE"] = 66  # kWh
@@ -356,9 +364,9 @@ class ConfigStandard(Config):
             / self.config[Config.BATTERY_LEVELS]
         )
 
-        ############################################################
-        # Demand characteristics ###################################
-        ############################################################
+        ################################################################
+        # Demand characteristics #######################################
+        ################################################################
 
         self.config["MEAN_TRIP_DISTANCE"] = 24.8  # miles
         self.config["SD_TRIP_DISTANCE"] = 7  # TODO it was guessed
@@ -376,9 +384,9 @@ class ConfigStandard(Config):
         self.config["TOTAL_TRIPS"] = 32874
         self.config["MIN_TRIPS"] = 40
         self.config["MAX_TRIPS"] = 640
-        ############################################################
-        # Time  ####################################################
-        ############################################################
+        ################################################################
+        # Time  ########################################################
+        ################################################################
 
         # Lenght of time incremnts (min) - default is 15min
         self.config["TIME_INCREMENT"] = 15
@@ -399,9 +407,9 @@ class ConfigStandard(Config):
             + self.config["OFFSET_TERMINATION"]
         )
 
-        ############################################################
-        # Map settings #############################################
-        ############################################################
+        ################################################################
+        # Map settings #################################################
+        ################################################################
 
         # How many surrounding zones cars check for new costumers
         self.config["PICKUP_ZONE_RANGE"] = 2
@@ -434,3 +442,19 @@ class ConfigStandard(Config):
             Config.COST_RECHARGE_SINGLE_INCREMENT
         ] = self.calculate_cost_recharge(self.time_increment)
 
+        ################################################################
+        # Fleet economics ##############################################
+        ################################################################
+        self.config[Config.OPERATION_YEARS] = 4
+        self.config[Config.OPERATED_DAYS_YEAR] = 340
+        self.config[Config.CAR_BASE_COST] = 40000  # Dollars
+
+        # The cost starts with $240/kWh for the first 16.67 kWhs
+        # (which corresponds to a 50 miles range) and then cost
+        # increases by 20% for the next 16.67 kWhs.
+
+        # Let bsize = 16.67 * i for i = {1, 2, . . . , 10}, then the
+        # battery cost is:
+
+        # c^bat(b^size) = $240*(1 + 0.2*(i−1))*(16.67*i).
+        self.config[Config.BATTERY_COST] = 240

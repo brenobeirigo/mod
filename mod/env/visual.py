@@ -5,6 +5,7 @@ import numpy as np
 import seaborn as sns
 from mod.env.config import FOLDER_OUTPUT
 import os
+from pprint import pprint
 
 sns.set(style="ticks")
 sns.set_context("paper")
@@ -15,6 +16,7 @@ class EpisodeLog:
         self.n = 0
         self.reward = list()
         self.service_rate = list()
+        self.weights = list()
 
         # If config is not None, then the experiments should be saved
         if config:
@@ -43,6 +45,7 @@ class EpisodeLog:
         try:
             path_origin_ids = self.output_path + "/trip_origin_ids.npy"
             return np.load(path_origin_ids)
+
         except Exception as e:
             print(f'Origins at "{path_origin_ids}" could not be find {e}.')
             raise Exception
@@ -70,7 +73,16 @@ class EpisodeLog:
             dpi=150,
         )
 
-    def compute_episode(self, step_log, plots=True, progress=False):
+        # Service rate over the course of the whole experiment
+        self.plot_weights(
+            file_path=self.output_path + f"/weights_{self.n:04}_episodes",
+            file_format="png",
+            dpi=150,
+        )
+
+    def compute_episode(
+        self, step_log, weights=None, plots=True, progress=False
+    ):
 
         # Increment number of episodes
         self.n += 1
@@ -78,6 +90,10 @@ class EpisodeLog:
         # Update reward and service rate tracks
         self.reward.append(step_log.total_reward)
         self.service_rate.append(step_log.service_rate)
+
+        if weights is not None:
+            print("Adding ", weights)
+            self.weights.append(weights)
 
         # Save intermediate plots
         if plots:
@@ -155,6 +171,30 @@ class EpisodeLog:
                     counts[t][g][a] = c
 
         return values, counts
+
+    def plot_weights(
+        self, file_path=None, file_format="png", dpi=150, scale="linear"
+    ):
+        print("# Weights")
+        pprint(self.weights)
+        series = tuple(list(a) for a in zip(*self.weights))
+        pprint(series)
+        plt.plot(np.arange(self.n), *series)
+        plt.xlabel("Episodes")
+        plt.xscale(scale)
+        plt.ylabel("Weights")
+        plt.legend([f"Level {g}" for g in range(len(series))])
+
+        # Ticks
+        plt.yticks(np.arange(0.35, step=0.05))
+        plt.xticks(np.arange(self.n) + 1)
+
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+        else:
+            plt.show()
+
+        plt.close()
 
     def plot_reward(
         self, file_path=None, file_format="png", dpi=150, scale="linear"

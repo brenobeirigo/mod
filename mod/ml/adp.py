@@ -31,12 +31,12 @@ if __name__ == "__main__":
     config = ConfigStandard()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 250,
-            ConfigStandard.ROWS: 32,
-            ConfigStandard.COLS: 32,
-            ConfigStandard.BATTERY_LEVELS: 20,
+            ConfigStandard.FLEET_SIZE: 30,
+            ConfigStandard.ROWS: 40,
+            ConfigStandard.COLS: 40,
+            ConfigStandard.BATTERY_LEVELS: 10,
             ConfigStandard.PICKUP_ZONE_RANGE: 2,
-            ConfigStandard.AGGREGATION_LEVELS: 3,
+            ConfigStandard.AGGREGATION_LEVELS: 4,
             ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
             ConfigStandard.ORIGIN_CENTERS: 4,
             ConfigStandard.ORIGIN_CENTER_ZONE_SIZE: 3,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 1000
+    episodes = 100
     episodeLog = EpisodeLog(config=config)
     amod = Amod(config)
 
@@ -113,7 +113,9 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = adp(amod, trips, step)
+            revenue, serviced, rejected = adp(
+                amod, trips, step, aggregation="weighted"
+            )
 
             # ---------------------------------------------------------#
             # Update log with iteration ################################
@@ -136,6 +138,8 @@ if __name__ == "__main__":
             f"- {episodeLog.last_episode_stats()} "
             f"#######"
         )
-        episodeLog.compute_episode(step_log, progress=True)
+        episodeLog.compute_episode(
+            step_log, weights=amod.get_weights(), progress=True
+        )
 
     episodeLog.compute_learning()

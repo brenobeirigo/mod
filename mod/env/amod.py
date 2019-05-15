@@ -277,7 +277,6 @@ class Amod:
 
         self.lambda_step_size[t][g][attribute_g] = lambda_step_size
 
-    @lru_cache(maxsize=None)
     def get_transient_bias(self, t, g, pos_g_bat, value, value_g):
 
         # The transient bias (due to smoothing): When we smooth on past
@@ -290,7 +289,6 @@ class Amod:
 
         return transient_bias
 
-    @lru_cache(maxsize=None)
     def get_squared_variation(self, t, g, pos_g_bat, value, value_g):
 
         # The transient bias (due to smoothing): When we smooth on past

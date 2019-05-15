@@ -31,10 +31,10 @@ if __name__ == "__main__":
     config = ConfigStandard()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 30,
-            ConfigStandard.ROWS: 40,
-            ConfigStandard.COLS: 40,
-            ConfigStandard.BATTERY_LEVELS: 10,
+            ConfigStandard.FLEET_SIZE: 250,
+            ConfigStandard.ROWS: 32,
+            ConfigStandard.COLS: 32,
+            ConfigStandard.BATTERY_LEVELS: 20,
             ConfigStandard.PICKUP_ZONE_RANGE: 2,
             ConfigStandard.AGGREGATION_LEVELS: 4,
             ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 100
+    episodes = 1000
     episodeLog = EpisodeLog(config=config)
     amod = Amod(config)
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             f"#######"
         )
         episodeLog.compute_episode(
-            step_log, weights=amod.get_weights(), progress=True
+            step_log, weights=amod.get_weights2(), progress=True
         )
 
     episodeLog.compute_learning()

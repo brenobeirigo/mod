@@ -507,7 +507,8 @@ def adp(env, trips, time_step, charge=True, aggregation="weighted"):
 
         # env.update_values(time_step, duals)
 
-        env.update_values_weights(time_step, duals)
+        #env.update_values_weights(time_step, duals)
+        env.update_value_functions(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,

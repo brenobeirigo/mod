@@ -183,11 +183,11 @@ class EpisodeLog:
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Weights")
-        plt.legend([f"Level {g}" for g in range(len(series))])
+        plt.legend([f"Level {g}" for g in range(len(series)+1)])
 
         # Ticks
-        plt.yticks(np.arange(0.35, step=0.05))
-        plt.xticks(np.arange(self.n) + 1)
+        plt.yticks(np.arange(1, step=0.05))
+        plt.xticks(np.arange(self.n))
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", dpi=dpi)

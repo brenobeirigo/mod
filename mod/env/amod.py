@@ -59,8 +59,8 @@ class Amod:
         # How many times a cell was actually accessed by a vehicle in
         # a certain region, aggregation level, and time
         self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-
-        self.weight_track = np.array([])
+        self.counts = np.zeros(self.config.aggregation_levels)
+        self.weight_track = np.zeros(self.config.aggregation_levels)
 
         self.current_weights = np.array([])
 
@@ -70,6 +70,10 @@ class Amod:
 
         # Transient bias
         self.transient_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.squared_variation = defaultdict(
             lambda: defaultdict(lambda: defaultdict(float))
         )
 
@@ -179,12 +183,74 @@ class Amod:
 
         return value
 
-    def get_weighted_value(self, step, decision, level=0):
+    def get_weighted_value(self, t, decision):
 
         # Target attribute if decision was taken
-        d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
+        post_t, post_pos, post_battery = self.preview_decision(t, decision)
 
-        return self.weighted_values[d_step][(d_pos, d_battery_level)]
+        # Get point object associated to position
+        point = self.dict_points[0][post_pos]
+
+        v_ta_0 = self.values[post_t][0][(post_pos, post_battery)]
+
+        weight_vector = np.zeros(self.config.aggregation_levels)
+        value_vector = np.zeros(self.config.aggregation_levels)
+
+        for g in range(self.config.aggregation_levels):
+
+            # Find attribute at level g
+            ta_g = (point.id_level(g), post_battery)
+
+            # Current value function of attribute at level g
+            value_vector[g] = self.values[post_t][g][ta_g]
+
+            # WEIGHTING ############################################
+
+            # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
+            aggregation_bias = value_vector[g] - v_ta_0
+
+            # Bias due to smoothing of transient data series (value
+            # function change every iteration)
+            transient_bias = self.get_transient_bias(
+                post_t, g, ta_g, v_ta_0, value_vector[g]
+            )
+
+            squared_variation = self.get_squared_variation(
+                post_t, g, ta_g, v_ta_0, value_vector[g]
+            )
+
+            lambda_step_size = self.lambda_step_size[post_t][g][ta_g]
+
+            # Estimate of the variance of observations made of state
+            # s, using data from aggregation level g, after n
+            # observations.
+            variance_error = self.get_variance2(
+                squared_variation, transient_bias, lambda_step_size
+            )
+
+            # Variance of our estimate of the mean v[-,s,g,n]
+            variance = lambda_step_size * variance_error
+
+            # Total variation (variance plus the square of the bias)
+            total_variation = (variance + (aggregation_bias ** 2))
+
+            if total_variation == 0:
+                weight_vector[g] = 0
+            else:
+                weight_vector[g] = 1 / total_variation
+
+        if len(np.unique(value_vector)) <= 1:
+            value_estimation = 0
+        else:
+            weight_vector = weight_vector / sum(weight_vector)
+            value_estimation = sum(
+                np.prod([weight_vector, value_vector], axis=0)
+            )
+
+        self.counts += 1
+        self.weight_track += weight_vector
+
+        return value_estimation
 
     def get_variance(
         self, transient_bias, estimated_value, previous_step_size_lambda
@@ -193,16 +259,25 @@ class Amod:
             1 + previous_step_size_lambda
         )
 
+    def get_variance2(
+        self, squared_variation, transient_bias, previous_step_size_lambda
+    ):
+        return (squared_variation - (transient_bias ** 2)) / (
+            1 + previous_step_size_lambda
+        )
+
     def update_lambda_step_size(self, t, attribute_g, g):
 
         previous_lambda = self.lambda_step_size[t][g][attribute_g]
 
-        lambda_step_size = ((1 - self.step_size) ** 2) * previous_lambda + (
-            self.step_size ** 2
+        lambda_step_size = (
+            (((1 - self.step_size) ** 2) * previous_lambda)
+            + (self.step_size ** 2)
         )
 
         self.lambda_step_size[t][g][attribute_g] = lambda_step_size
 
+    @lru_cache(maxsize=None)
     def get_transient_bias(self, t, g, pos_g_bat, value, value_g):
 
         # The transient bias (due to smoothing): When we smooth on past
@@ -214,6 +289,20 @@ class Amod:
         ] + self.step_size * (value - value_g)
 
         return transient_bias
+
+    @lru_cache(maxsize=None)
+    def get_squared_variation(self, t, g, pos_g_bat, value, value_g):
+
+        # The transient bias (due to smoothing): When we smooth on past
+        # observations, we obtain an estimate v[-,s,g,n-1] that tends to
+        #  underestimate (or overestimate if v(^,n) tends to decrease)
+        # the true mean of v[^,n].
+        squared_variation = (
+            (1 - self.step_size)
+            * self.squared_variation[t][g][pos_g_bat]
+        ) + self.step_size * ((value - value_g) ** 2)
+
+        return squared_variation
 
     def get_weights(self):
         n_levels = self.config.aggregation_levels
@@ -232,22 +321,64 @@ class Amod:
             # print(average_weights)
 
             self.weight_track = np.array([])
+            self.counts = np.zeros(self.config.aggregate_levels)
             return average_weights
 
-        else:
-            return np.zeros(n_levels)
+    def get_weights2(self):
 
-    def update_values_weights(self, step, duals):
+        avg = self.weight_track/self.counts
+        total = sum(avg)
+        if total > 0:
+            avg = avg/total
+        self.weight_track = np.zeros(self.config.aggregation_levels)
+        self.counts = np.zeros(self.config.aggregation_levels)
 
-        for (pos, battery), vf_disaggregate in duals.items():
+        return avg
+
+    def update_value_functions(self, t, duals):
+
+        for (pos, battery), v_ta in duals.items():
 
             # Get point object associated to position
             point = self.dict_points[0][pos]
 
-            old_vf_0 = self.values[step][0][(pos, battery)]
+            for g in range(self.config.aggregation_levels):
 
-            weight_vector = np.zeros(self.config.aggregation_levels)
-            value_vector = np.zeros(self.config.aggregation_levels)
+                # Find attribute at level g
+                a_g = (point.id_level(g), battery)
+
+                # Current value function of attribute at level g
+                v_ta_g = self.values[t][g][a_g]
+
+                # Update value function at gth level with smoothing
+                self.values[t][g][a_g] = (
+                    (1 - self.step_size) * v_ta_g
+                    + self.step_size * v_ta
+                )
+
+                # WEIGHTING ############################################
+
+                # Bias due to smoothing of transient data series (value
+                # function change every iteration)
+                transient_bias = self.get_transient_bias(
+                    t, g, a_g, v_ta, v_ta_g
+                )
+
+                squared_variation = self.get_squared_variation(
+                    t, g, a_g, v_ta, v_ta_g
+                )
+
+                # Updating
+                self.transient_bias[t][g][a_g] = transient_bias
+                self.squared_variation[t][g][a_g] = squared_variation
+                self.update_lambda_step_size(t, a_g, g)
+
+    def update_values(self, step, duals):
+
+        for (pos, battery), new_vf_0 in duals.items():
+
+            # Get point object associated to position
+            point = self.dict_points[0][pos]
 
             for g in range(self.config.aggregation_levels):
 
@@ -255,168 +386,17 @@ class Amod:
                 attribute_g = (point.id_level(g), battery)
 
                 # Current value function of attribute at level g
-                old_vf_g = self.values[step][g][attribute_g]
+                current_vf = self.values[step][g][attribute_g]
 
-                # print(f'0] old_vf_[g={g},a={attribute_g}] = {old_vf_g:.2f}')
-                # print(
-                #     f'1] vf_[g={g},a={attribute_g}] = (1 - {self.step_size:.2f})'
-                #     f'*{old_vf_g:.2f} + {self.step_size:.2f}'
-                #     f'*({old_vf_g:.2f} - {vf_disaggregate:.2f})^2'
-                # )
+                # Compute attribute access
+                self.count[step][g][attribute_g] += 1
 
-                # print(
-                #     f'2] vf_[g={g},a={attribute_g}] = (1 - {self.step_size:.2f})'
-                #     f'*{old_vf_g:.2f} + {self.step_size:.2f}'
-                #     f'*({old_vf_g-vf_disaggregate:.2f})^2'
-                # )
-                # print(
-                #     f'3] vf_[g={g},a={attribute_g}] = (1 - {self.step_size:.2f})'
-                #     f'*{old_vf_g:.2f} + {self.step_size:.2f}'
-                #     f'*{(old_vf_g-vf_disaggregate)**2:.2f}'
-                # )
+                # Incremental averaging
+                count = self.count[step][g][attribute_g]
+                increment = (new_vf_0 - current_vf) / count
 
                 # Update attribute mean value
-                vf_g = (1 - self.step_size) * old_vf_g + self.step_size * (
-                    (old_vf_g - vf_disaggregate) ** 2
-                )
-
-                # print(f'4] vf_[g={g},a={attribute_g}] = {vf_g:.2f}')
-
-                self.values[step][g][attribute_g] = vf_g
-                value_vector[g] = vf_g
-
-                # WEIGHTING ############################################
-
-                # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-                aggregation_bias = old_vf_g - old_vf_0
-
-                # Bias due to smoothing of transient data (value
-                # function change every iteration)
-                transient_bias = self.get_transient_bias(
-                    step, g, attribute_g, vf_disaggregate, old_vf_g
-                )
-
-                lambda_step_size = self.lambda_step_size[step][g][attribute_g]
-
-                # Estimate of the variance of observations made of state
-                # s, using data from aggregation level g, after n
-                # observations.
-                variance_error = self.get_variance(
-                    transient_bias, value_vector[g], lambda_step_size
-                )
-
-                # Variance of our estimate of the mean v[-,s,g,n]
-                variance = lambda_step_size * variance_error
-
-                weight_vector[g] = 1 / (variance + aggregation_bias ** 2)
-
-                if vf_g > 2000:
-                    print(
-                        f"\n## Weighting -"
-                        f"- level: {g} "
-                        f"- attribute: {(pos, battery)}"
-                        f"- attribute_g: {attribute_g}"
-                        f"- old_vf_g: {old_vf_g:.4f}"
-                        f"- old_vf_0: {old_vf_0:.4f}"
-                        f"-  ##############################"
-                        f"\n          Lambda: {lambda_step_size:.4f}"
-                        f"\n           Error: {variance_error:.4f}"
-                        f"\n        Variance: {variance:.4f}"
-                        f"\n  Transient bias: {transient_bias:.4f}"
-                        f"\n         Value g: {value_vector[g]:.4f}"
-                        f"\nAggregation bias: {aggregation_bias:.4f}"
-                        f"\n Weight vector g: {weight_vector[g]:.4f}"
-                    )
-
-                # Updating
-                self.transient_bias[step][g][attribute_g] = transient_bias
-                self.update_lambda_step_size(step, attribute_g, g)
-
-            # ---------------------------------------------------------#
-            # Combining Multiple Levels of Aggregation #################
-
-            # Normalizing weights
-            weight_vector = weight_vector / sum(weight_vector)
-
-            # Weighted estimate = sum(w[s,g]*v[-,s,g]) for all g in G
-            value_estimation = sum(
-                np.prod([weight_vector, value_vector], axis=0)
-            )
-
-            print(f"value[{step}][{(pos, battery)}]:", value_estimation)
-
-            # Update weighted value for state
-            self.weighted_values[step][(pos, battery)] = value_estimation
-
-            # ----------------------------------------------------------#
-            self.weight_track = np.concatenate(
-                (self.weight_track, weight_vector)
-            )
-
-        print("# WEIGHTED VALUES #################")
-        # pprint(self.weighted_values)
-
-        # print(self.weight_track)
-
-    # def update_values(self, step, duals):
-
-    #     for (pos, battery), new_vf_0 in duals.items():
-
-    #         # Get point object associated to position
-    #         point = self.dict_points[0][pos]
-
-    #         for g in range(self.config.aggregation_levels):
-
-    #             # Find attribute at level g
-    #             attribute_g = (point.id_level(g), battery)
-
-    #             # Current value function of attribute at level g
-    #             current_vf = self.values[step][g][attribute_g]
-
-    #             # Compute attribute access
-    #             self.count[step][g][attribute_g] += 1
-
-    #             # Incremental averaging
-    #             count = self.count[step][g][attribute_g]
-    #             increment = (new_vf_0 - current_vf) / count
-
-    #             # Update attribute mean value
-    #             self.values[step][g][attribute_g] += increment
-
-    # print(
-    #     f"{step:3} - Level: {g} - Attribute: {attribute_g} = {self.values[step][g][attribute_g]:15.2f}"
-    # )
-    # if self.values[step][g][attribute_g] > 100:
-    #     print(step, g, attribute_g, self.values[step][g][attribute_g])
-
-    # print(f"############# DUALS {len(duals)} #################")
-
-    # pprint(self.values)
-    # pprint(self.count)
-    # count_reward = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-    # for t, g_a_count in self.count.items():
-    #     for g, a_count in g_a_count.items():
-    #         # print(f"\n####### Aggregation level: {g}")
-    #         for a, count in a_count.items():
-    #             l, b = a
-    #             point = self.dict_points[g][l]
-    #             attribute = (tuple(point.level_ids), b)
-    #             value = np.round(self.values[t][g][attribute], decimals=2)
-    #             if count >= 0:
-    #                 count_reward[t][attribute][g] = {
-    #                     'count': count,
-    #                     'value': value
-    #                 }
-    # print("### Count reward ######################################")
-    # pprint(
-    #     {
-    #         t:{ids: {g: c_r for g, c_r in g_tuple.items()}
-    #         for ids, g_tuple in ids_g_tuple.items()}
-    #         for t, ids_g_tuple in count_reward.items()
-    #     }
-    # )
-
-    # pprint(count_reward)
+                self.values[step][g][attribute_g] += increment
 
     ####################################################################
     # Network ##########################################################

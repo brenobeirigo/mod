@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 1000
+    episodes = 200
     episodeLog = EpisodeLog(config=config)
     amod = Amod(config)
 
@@ -114,7 +114,10 @@ if __name__ == "__main__":
         for step, trips in enumerate(step_trip_list):
 
             revenue, serviced, rejected = adp(
-                amod, trips, step, aggregation="weighted"
+                amod,
+                trips,
+                step,
+                # agg_level=amod.config.incumbent_aggregation_level,
             )
 
             # ---------------------------------------------------------#
@@ -139,7 +142,8 @@ if __name__ == "__main__":
             f"#######"
         )
         episodeLog.compute_episode(
-            step_log, weights=amod.get_weights2(), progress=True
+            step_log, weights=amod.get_weights(), progress=True
         )
 
     episodeLog.compute_learning()
+agg_level

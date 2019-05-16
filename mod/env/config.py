@@ -69,6 +69,9 @@ class Config:
     MAINTENANCE_INSURANCE = "MAINTENANCE_INSURANCE"
     BATTERY_COST = "BATTERY_COST"
 
+    # LEARNING
+    STEPSIZE = "STEPSIZE"
+
     @property
     def label(self):
         return (
@@ -257,6 +260,11 @@ class Config:
     def incumbent_aggregation_level(self):
         """Trip base fare in dollars"""
         return self.config[Config.INCUMBENT_AGGREGATION_LEVEL]
+
+    @property
+    def stepsize(self):
+        """Trip base fare in dollars"""
+        return self.config[Config.STEPSIZE]
 
     ####################################################################
     ### Demand #########################################################
@@ -458,3 +466,5 @@ class ConfigStandard(Config):
 
         # c^bat(b^size) = $240*(1 + 0.2*(i−1))*(16.67*i).
         self.config[Config.BATTERY_COST] = 240
+
+        self.config[Config.STEPSIZE] = 0.1

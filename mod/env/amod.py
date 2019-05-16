@@ -37,6 +37,10 @@ class Amod:
         self.config = config
         self.time_steps = config.time_steps
 
+        # ------------------------------------------------------------ #
+        # Network ######################################################
+        # -------------------------------------------------------------#
+
         # Defining the operational map
         self.n_zones = self.config.rows * self.config.cols
         zones = np.arange(self.n_zones)
@@ -48,54 +52,6 @@ class Amod:
             self.config.cols,
             levels=self.config.aggregation_levels,
         )
-        # What is the value of a car attribute assuming aggregation
-        # level and time steps
-        self.values = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-
-        self.weighted_values = defaultdict(lambda: defaultdict(float))
-
-        # How many times a cell was actually accessed by a vehicle in
-        # a certain region, aggregation level, and time
-        self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-        self.counts = np.zeros(self.config.aggregation_levels)
-        self.weight_track = np.zeros(self.config.aggregation_levels)
-
-        self.current_weights = np.array([])
-
-        # -------------------------------------------------------------#
-        # Weighing #####################################################
-        # -------------------------------------------------------------#
-
-        # Transient bias
-        self.transient_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-
-        self.squared_variation = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-
-        # Step size (η) - might be a constant
-        self.step_size = 0.1
-
-        # Step size (η) - might be a constant
-        self.lambda_step_size = defaultdict(
-            lambda: defaultdict(
-                lambda: defaultdict(lambda: self.step_size ** 2)
-            )
-        )
-
-        # Aggregation bias
-        self.aggregation_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-
-        # Weights of aggregated levels
-        self.weight = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
 
         # aggregation level -> point id -> point object
         self.dict_points = defaultdict(dict)
@@ -103,10 +59,18 @@ class Amod:
             for g in range(self.config.aggregation_levels):
                 self.dict_points[g][p.id_level(g)] = p
 
-        # Battery levels -- l^{d}
+        # ------------------------------------------------------------ #
+        # Battery ######################################################
+        # -------------------------------------------------------------#
+
         self.battery_levels = config.battery_levels
         self.battery_size_miles = config.battery_size_miles
         self.fleet_size = config.fleet_size
+
+        # ------------------------------------------------------------ #
+        # Fleet ########################################################
+        # -------------------------------------------------------------#
+
         self.car_origin_points = [
             point for point in random.choices(self.points, k=self.fleet_size)
         ]
@@ -132,6 +96,75 @@ class Amod:
                 )
                 for point in car_positions
             ]
+
+        # -------------------------------------------------------------#
+        # Learning #####################################################
+        # -------------------------------------------------------------#
+
+        # What is the value of a car attribute assuming aggregation
+        # level and time steps
+        self.values = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # How many times a cell was actually accessed by a vehicle in
+        # a certain region, aggregation level, and time
+        self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
+        # Averaging weights each round
+        self.counts = np.zeros(self.config.aggregation_levels)
+        self.weight_track = np.zeros(self.config.aggregation_levels)
+
+        self.current_weights = np.array([])
+
+        # -------------------------------------------------------------#
+        # Weighing #####################################################
+        # -------------------------------------------------------------#
+
+        # Transient bias
+        self.transient_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.variance_g = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.step_size_func = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.lambda_stepsize = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # Aggregation bias
+        self.aggregation_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+    def reset(self):
+
+        self.cars = [
+            Car(
+                point,
+                self.config.battery_levels,
+                battery_level_miles_max=self.config.battery_size_miles,
+            )
+            for point in [
+                point
+                for point in random.choices(self.points, k=self.fleet_size)
+            ]
+        ]
+
+        # self.cars = [
+        #     Car(
+        #         point,
+        #         self.config.battery_levels,
+        #         battery_level_miles_max=self.config.battery_size_miles,
+        #     )
+        #     for point in self.car_origin_points
+        # ]
 
     ####################################################################
     # Cost functions ###################################################
@@ -167,21 +200,15 @@ class Amod:
             else:
                 return 0
 
-    def get_value(self, step, decision, level=0):
+    def post_cost(self, t, decision, level=None):
+        if level:
+            return self.get_value(t, decision, level=level)
+        else:
+            return self.get_weighted_value(t, decision)
 
-        # Target attribute if decision was taken
-        d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
-
-        # Point associated to position at disaggregate level
-        point = self.dict_points[0][d_pos]
-
-        # Attribute considering aggregation level
-        attribute = (point.id_level(level), d_battery_level)
-
-        # Value function
-        value = self.values[d_step][level][attribute]
-
-        return value
+    ####################################################################
+    # Smoothed #########################################################
+    ####################################################################
 
     def get_weighted_value(self, t, decision):
 
@@ -212,27 +239,30 @@ class Amod:
             # Bias due to smoothing of transient data series (value
             # function change every iteration)
             transient_bias = self.get_transient_bias(
-                post_t, g, ta_g, v_ta_0, value_vector[g]
+                post_t, g, ta_g, v_ta_0, value_vector[g],
+                self.step_size_func[post_t][g][ta_g]
             )
 
-            squared_variation = self.get_squared_variation(
-                post_t, g, ta_g, v_ta_0, value_vector[g]
+            variance_g = self.get_variance_g(
+                post_t, g, ta_g, v_ta_0, value_vector[g],
+                self.config.stepsize
             )
 
-            lambda_step_size = self.lambda_step_size[post_t][g][ta_g]
+            # Lambda stepsize from iteration n-1
+            lambda_step_size = self.lambda_stepsize[post_t][g][ta_g]
 
             # Estimate of the variance of observations made of state
             # s, using data from aggregation level g, after n
             # observations.
-            variance_error = self.get_variance2(
-                squared_variation, transient_bias, lambda_step_size
+            variance_error = self.get_total_variance(
+                variance_g, transient_bias, lambda_step_size
             )
 
             # Variance of our estimate of the mean v[-,s,g,n]
             variance = lambda_step_size * variance_error
 
             # Total variation (variance plus the square of the bias)
-            total_variation = (variance + (aggregation_bias ** 2))
+            total_variation = variance + (aggregation_bias ** 2)
 
             if total_variation == 0:
                 weight_vector[g] = 0
@@ -252,88 +282,51 @@ class Amod:
 
         return value_estimation
 
-    def get_variance(
-        self, transient_bias, estimated_value, previous_step_size_lambda
-    ):
-        return (estimated_value - (transient_bias ** 2)) / (
-            1 + previous_step_size_lambda
+    def get_total_variance(self, total_variation, transient_bias, lambda_stepsize):
+        return (total_variation - (transient_bias ** 2)) / (
+            1 + lambda_stepsize
         )
 
-    def get_variance2(
-        self, squared_variation, transient_bias, previous_step_size_lambda
-    ):
-        return (squared_variation - (transient_bias ** 2)) / (
-            1 + previous_step_size_lambda
+    def get_variance_g(self, t, g, a_g, v, v_g, fixed_stepsize):
+
+        # We now need to compute s^2[a,g] which is the estimate of the
+        # variance of observations (v) for states (a) for which
+        # G(a) = a_g (the observations of states that aggregate up 
+        # to a).
+
+        return (
+            ((1 - fixed_stepsize) * self.variance_g[t][g][a_g])
+            + fixed_stepsize * ((v - v_g) ** 2)
         )
 
-    def update_lambda_step_size(self, t, attribute_g, g):
+    def get_lambda_stepsize(self, t, a_g, g, stepsize, lambda_stepsize):
 
-        previous_lambda = self.lambda_step_size[t][g][attribute_g]
+        return (((1 - stepsize) ** 2)*lambda_stepsize) + (stepsize ** 2)
 
-        lambda_step_size = (
-            (((1 - self.step_size) ** 2) * previous_lambda)
-            + (self.step_size ** 2)
-        )
-
-        self.lambda_step_size[t][g][attribute_g] = lambda_step_size
-
-    def get_transient_bias(self, t, g, pos_g_bat, value, value_g):
+    def get_transient_bias(self, t, g, a_g, v, v_g, stepsize):
 
         # The transient bias (due to smoothing): When we smooth on past
         # observations, we obtain an estimate v[-,s,g,n-1] that tends to
         #  underestimate (or overestimate if v(^,n) tends to decrease)
         # the true mean of v[^,n].
-        transient_bias = (1 - self.step_size) * self.transient_bias[t][g][
-            pos_g_bat
-        ] + self.step_size * (value - value_g)
+        transient_bias = (1 - stepsize) * self.transient_bias[t][g][
+            a_g
+        ] + stepsize * (v - v_g)
 
         return transient_bias
 
-    def get_squared_variation(self, t, g, pos_g_bat, value, value_g):
-
-        # The transient bias (due to smoothing): When we smooth on past
-        # observations, we obtain an estimate v[-,s,g,n-1] that tends to
-        #  underestimate (or overestimate if v(^,n) tends to decrease)
-        # the true mean of v[^,n].
-        squared_variation = (
-            (1 - self.step_size)
-            * self.squared_variation[t][g][pos_g_bat]
-        ) + self.step_size * ((value - value_g) ** 2)
-
-        return squared_variation
-
     def get_weights(self):
-        n_levels = self.config.aggregation_levels
 
-        if self.weight_track.size > 0:
-
-            n_weights = int(self.weight_track.size / n_levels)
-            all_weights = np.reshape(self.weight_track, (n_weights, n_levels))
-
-            average_weights = np.average(all_weights, axis=0)
-
-            # print("# All weights:")
-            # print(all_weights)
-
-            # print("\n# Average:")
-            # print(average_weights)
-
-            self.weight_track = np.array([])
-            self.counts = np.zeros(self.config.aggregate_levels)
-            return average_weights
-
-    def get_weights2(self):
-
-        avg = self.weight_track/self.counts
+        avg = self.weight_track / self.counts
         total = sum(avg)
         if total > 0:
-            avg = avg/total
+            avg = avg / total
         self.weight_track = np.zeros(self.config.aggregation_levels)
         self.counts = np.zeros(self.config.aggregation_levels)
 
         return avg
 
-    def update_value_functions(self, t, duals):
+    def update_values_smoothed(self, t, duals):
 
         for (pos, battery), v_ta in duals.items():
 
@@ -345,33 +338,71 @@ class Amod:
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery)
 
+                # Step size from previous iteration
+                current_stepsize = self.step_size_func[t][g][a_g]
+
                 # Current value function of attribute at level g
                 v_ta_g = self.values[t][g][a_g]
 
-                # Update value function at gth level with smoothing
-                self.values[t][g][a_g] = (
-                    (1 - self.step_size) * v_ta_g
-                    + self.step_size * v_ta
-                )
 
                 # WEIGHTING ############################################
 
+                # Updating
+
+                # Account for a_g
+                self.count[t][g][a_g] += 1
+
+                # TODO what if several values aggregate up to a_g???
+                new_stepsize = 1 / self.count[t][g][a_g]
+                self.step_size_func[t][g][a_g] = new_stepsize
+
                 # Bias due to smoothing of transient data series (value
                 # function change every iteration)
-                transient_bias = self.get_transient_bias(
-                    t, g, a_g, v_ta, v_ta_g
+                self.transient_bias[t][g][a_g] = self.get_transient_bias(
+                    t, g, a_g, v_ta, v_ta_g, self.config.stepsize
                 )
 
-                squared_variation = self.get_squared_variation(
-                    t, g, a_g, v_ta, v_ta_g
+                self.variance_g[t][g][a_g] = self.get_variance_g(
+                    t, g, a_g, v_ta, v_ta_g, self.config.stepsize
                 )
 
-                # Updating
-                self.transient_bias[t][g][a_g] = transient_bias
-                self.squared_variation[t][g][a_g] = squared_variation
-                self.update_lambda_step_size(t, a_g, g)
+                self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
+                    t, a_g, g, current_stepsize, new_stepsize
+                )
 
-    def update_values(self, step, duals):
+                # Update value function at gth level with smoothing
+                self.values[t][g][a_g] = (
+                    (1 - self.step_size_func[t][g][a_g]) * v_ta_g
+                    + self.step_size_func[t][g][a_g] * v_ta
+                )
+
+    ####################################################################
+    # True averaging ###################################################
+    ####################################################################
+
+    def get_value(self, step, decision, level=0):
+
+        # Target attribute if decision was taken
+        d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
+
+        # Point associated to position at disaggregate level
+        point = self.dict_points[0][d_pos]
+
+        # Attribute considering aggregation level
+        attribute = (point.id_level(level), d_battery_level)
+
+        # Value function
+        value = self.values[d_step][level][attribute]
+
+        return value
+
+    def averaged_update(self, step, duals):
+        """Update values without smoothing
+        
+        Arguments:
+            step {int} -- Current time step
+            duals {dict} -- Dictionary of attribute tuples and duals
+        """
 
         for (pos, battery), new_vf_0 in duals.items():
 
@@ -428,10 +459,6 @@ class Amod:
         return self.config.zone_widht * np.linalg.norm(
             np.array([o.x, o.y]) - np.array([d.x, d.y])
         )
-
-    ####################################################################
-    # Network ##########################################################
-    ####################################################################
 
     def rebalance(self, car, target):
 
@@ -517,33 +544,11 @@ class Amod:
 
         return cost
 
-    def reset(self):
+    ####################################################################
+    # Decision #########################################################
+    ####################################################################
 
-        self.cars = [
-            Car(
-                point,
-                self.config.battery_levels,
-                battery_level_miles_max=self.config.battery_size_miles,
-            )
-            for point in [
-                point
-                for point in random.choices(self.points, k=self.fleet_size)
-            ]
-        ]
-
-        # self.cars = [
-        #     Car(
-        #         point,
-        #         self.config.battery_levels,
-        #         battery_level_miles_max=self.config.battery_size_miles,
-        #     )
-        #     for point in self.car_origin_points
-        # ]
-
-    def realize_decision(
-        self, time_step, decisions, trips_with_attribute, dict_attribute_cars
-    ):
-
+    def realize_decision(self, t, decisions, a_trips, dict_a_cars):
         total_reward = 0
         serviced = list()
 
@@ -555,7 +560,7 @@ class Amod:
             # od = (o, d)
             # list_trips_in_decision = trips_per_attribute[od]
 
-            cars_with_attribute = dict_attribute_cars[(point, level)]
+            cars_with_attribute = dict_a_cars[(point, level)]
 
             for n, car in enumerate(cars_with_attribute):
 
@@ -591,7 +596,7 @@ class Amod:
                     else:
 
                         # Get a trip to apply decision
-                        trip = trips_with_attribute[(o, d)].pop()
+                        trip = a_trips[(o, d)].pop()
 
                         duration, distance, reward = self.pickup(trip, car)
 
@@ -607,7 +612,7 @@ class Amod:
         return (
             total_reward,
             serviced,
-            list(it.chain.from_iterable(trips_with_attribute.values())),
+            list(it.chain.from_iterable(a_trips.values())),
         )
 
     @lru_cache(maxsize=None)

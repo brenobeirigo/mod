@@ -36,7 +36,6 @@ def extract_decisions(var_list):
         if var.x > 0.0001:
             decisions.append((action, point, level, o, d, int(var.x)))
 
-            # print(f'v.varName:{v.varName}={v.x}')
     return decisions
 
 
@@ -335,7 +334,26 @@ def myopic(env, trips, time_step, charge=True):
                 print("%s" % c.constrName)
 
 
-def adp(env, trips, time_step, charge=True, aggregation="weighted"):
+def adp(env, trips, time_step, charge=True, agg_level=None, myopic=False):
+    """Assign trips to available vehicles optimally at the current
+    time step.
+    
+    Arguments:
+        env {Environment} -- AMoD environment
+        trips {list} -- List of trips
+        time_step {int} -- Current time step
+
+    Keyword Arguments:
+        charge {bool} -- Apply the charging constraint (default: {True})
+        agg_level {int} -- Attributes are queried according to an
+        aggregation level (default: {None})
+        myopic {bool} -- If True, does not learn between iterations
+            (default: {True})
+    
+    Returns:
+        float, list, list -- total_contribution, serviced trips,
+            rejected trips
+    """
 
     # Starting assignment model
     m = Model("assignment")
@@ -343,8 +361,14 @@ def adp(env, trips, time_step, charge=True, aggregation="weighted"):
     # Disables all logging (file and console)
     m.setParam("OutputFlag", 0)
 
-    # Attributes are queried according to a aggregation level
-    agg_level = env.config.incumbent_aggregation_level
+    # if log_path:
+    #     m.Params.LogFile = "{}/region_centers_{}.log".format(
+    #         log_path, max_delay
+    #     )
+
+    #     m.Params.ResultFile = "{}/region_centers_{}.lp".format(
+    #         log_path, max_delay
+    #     )
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -423,36 +447,32 @@ def adp(env, trips, time_step, charge=True, aggregation="weighted"):
     # MODEL ############################################################
     # ##################################################################
 
-    # if log_path:
-    #         m.Params.LogFile = "{}/region_centers_{}.log".format(
-    #             log_path, max_delay
-    #         )
+    # ---------------------------------------------------------------- #
+    # COST FUNCTION ####################################################
+    # ---------------------------------------------------------------- #
 
-    #         m.Params.ResultFile = "{}/region_centers_{}.lp".format(
-    #             log_path, max_delay
-    #         )
+    if myopic:
+        post_decision_costs = 0
 
-    if aggregation == "weighted":
-
-        # Cost based on post decision (shadow prices from former iterations)
-        shadow_cost = quicksum(
-            (env.get_weighted_value(time_step, d) * x_var[d]) for d in x_var
-        )
-
+    # Model has learned shadow costs from previous iterations and can
+    # use them to determine post decision costs.
     else:
-        # Cost based on post decision (shadow prices from former iterations)
-        shadow_cost = quicksum(
-            (env.get_value(time_step, d, level=agg_level) * x_var[d])
+        post_decision_costs = quicksum(
+            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
             for d in x_var
         )
 
     # Cost of current decision
-    cost = quicksum(
+    current_costs = quicksum(
         env.cost_func(d[ACTION], d[ORIGIN], d[DESTINATION]) * x_var[d]
         for d in x_var
     )
 
-    m.setObjective(cost + shadow_cost, GRB.MAXIMIZE)
+    m.setObjective(current_costs + post_decision_costs, GRB.MAXIMIZE)
+
+    # ---------------------------------------------------------------- #
+    # CONSTRAINTS ######################################################
+    # ---------------------------------------------------------------- #
 
     # Car flow conservation
     flow_cars = m.addConstrs(
@@ -474,8 +494,8 @@ def adp(env, trips, time_step, charge=True, aggregation="weighted"):
         "TRIP_FLOW",
     )
 
+    # Car is obliged to charged if battery reaches minimum level
     if charge:
-        # Battery
         recharge = m.addConstrs(
             (
                 x_var[(action, pos, level, o, d)]
@@ -501,14 +521,14 @@ def adp(env, trips, time_step, charge=True, aggregation="weighted"):
         # decisions = extract_decisions(x_var)
         # a = time.time()
         best_decisions, duals = extract_solution(x_var, flow_cars)
-        # b=time.time()
 
-        # print(f'one: {a-c} X two:{b-a}')
+        # Update shadow prices to be used in the next iterations
+        if not myopic:
+            if agg_level:
+                env.averaged_update(time_step, duals)
+            else:
+                env.update_values_smoothed(time_step, duals)
 
-        # env.update_values(time_step, duals)
-
-        #env.update_values_weights(time_step, duals)
-        env.update_value_functions(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,

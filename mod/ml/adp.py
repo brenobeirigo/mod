@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 200
+    episodes = 668
     episodeLog = EpisodeLog(config=config)
     amod = Amod(config)
 
@@ -146,4 +146,3 @@ if __name__ == "__main__":
         )
 
     episodeLog.compute_learning()
-agg_level

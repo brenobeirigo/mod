@@ -131,7 +131,7 @@ if __name__ == "__main__":
         offset_end=amod.config.offset_termination,
     )
 
-    matching_functions = {"MYOPIC": myopic, "adp": adp, "FCFS": fcfs}
+    matching_functions = {"MYOPIC": myopic, "ADP": adp, "FCFS": fcfs}
 
     for label, func in matching_functions.items():
 

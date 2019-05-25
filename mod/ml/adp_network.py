@@ -9,10 +9,10 @@ import random
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.amod import Amod
+from mod.env.amod import Amod, AmodNetwork
 from mod.env.visual import StepLog, EpisodeLog
-from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp, myopic, fcfs
+from mod.env.config import ConfigNetwork, NY_TRIPS_EXCERPT_DAY
+from mod.env.match import adp_network, myopic, fcfs
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
@@ -28,27 +28,27 @@ if __name__ == "__main__":
     # Amod environment #################################################
     # -----------------------------------------------------------------#
 
-    config = ConfigStandard()
+    config = ConfigNetwork()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 200,
-            ConfigStandard.ROWS: 32,
-            ConfigStandard.COLS: 32,
-            ConfigStandard.BATTERY_LEVELS: 20,
-            ConfigStandard.PICKUP_ZONE_RANGE: 2,
-            ConfigStandard.AGGREGATION_LEVELS: 4,
-            ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
-            ConfigStandard.ORIGIN_CENTERS: 4,
-            ConfigStandard.ORIGIN_CENTER_ZONE_SIZE: 3,
+            ConfigNetwork.FLEET_SIZE: 20,
+            ConfigNetwork.ROWS: 32,
+            ConfigNetwork.COLS: 32,
+            ConfigNetwork.BATTERY_LEVELS: 20,
+            ConfigNetwork.PICKUP_ZONE_RANGE: 2,
+            ConfigNetwork.AGGREGATION_LEVELS: 4,
+            ConfigNetwork.INCUMBENT_AGGREGATION_LEVEL: 2,
+            ConfigNetwork.ORIGIN_CENTERS: 5,
+            ConfigNetwork.ORIGIN_CENTER_ZONE_SIZE: 5,
         }
     )
 
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 668
+    episodes = 250
     episodeLog = EpisodeLog(config=config)
-    amod = Amod(config)
+    amod = AmodNetwork(config)
 
     try:
         # Load last episode
@@ -71,11 +71,11 @@ if __name__ == "__main__":
     except:
 
         # Create random centers from where trips come from
-        origins = nw.get_demand_origin_centers(
+        # TODO choose level to query origins
+        origins = nw.query_demand_origin_centers(
             amod.points,
-            amod.zones,
             amod.config.origin_centers,
-            amod.config.origin_center_zone_size,
+            amod.config.get_step_level(2),
         )
 
         print(f"\nSaving {len(origins)} origins.")
@@ -104,7 +104,7 @@ if __name__ == "__main__":
             origins=origins,
         )
 
-        # Start saving data of each step in the environment
+        # Start saving data of each step in the enadp_networkvironment
         step_log = StepLog(amod)
 
         # Resetting environment
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = adp(
+            revenue, serviced, rejected = adp_network(
                 amod,
                 trips,
                 step,

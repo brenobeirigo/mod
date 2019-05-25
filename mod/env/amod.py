@@ -1,6 +1,7 @@
 from mod.env.car import Car
 from mod.env.trip import Trip
-from mod.env.network import Point, get_point_list, get_neighbor_zones
+from mod.env.network import Point
+import mod.env.network as nw
 import itertools as it
 from collections import defaultdict
 import numpy as np
@@ -47,7 +48,7 @@ class Amod:
         self.zones = zones.reshape((self.config.rows, self.config.cols))
 
         # Defining map points with aggregation_levels
-        self.points = get_point_list(
+        self.points = nw.get_point_list(
             self.config.rows,
             self.config.cols,
             levels=self.config.aggregation_levels,
@@ -239,13 +240,16 @@ class Amod:
             # Bias due to smoothing of transient data series (value
             # function change every iteration)
             transient_bias = self.get_transient_bias(
-                post_t, g, ta_g, v_ta_0, value_vector[g],
-                self.step_size_func[post_t][g][ta_g]
+                post_t,
+                g,
+                ta_g,
+                v_ta_0,
+                value_vector[g],
+                self.step_size_func[post_t][g][ta_g],
             )
 
             variance_g = self.get_variance_g(
-                post_t, g, ta_g, v_ta_0, value_vector[g],
-                self.config.stepsize
+                post_t, g, ta_g, v_ta_0, value_vector[g], self.config.stepsize
             )
 
             # Lambda stepsize from iteration n-1
@@ -282,7 +286,9 @@ class Amod:
 
         return value_estimation
 
-    def get_total_variance(self, total_variation, transient_bias, lambda_stepsize):
+    def get_total_variance(
+        self, total_variation, transient_bias, lambda_stepsize
+    ):
         return (total_variation - (transient_bias ** 2)) / (
             1 + lambda_stepsize
         )
@@ -291,17 +297,16 @@ class Amod:
 
         # We now need to compute s^2[a,g] which is the estimate of the
         # variance of observations (v) for states (a) for which
-        # G(a) = a_g (the observations of states that aggregate up 
+        # G(a) = a_g (the observations of states that aggregate up
         # to a).
 
         return (
-            ((1 - fixed_stepsize) * self.variance_g[t][g][a_g])
-            + fixed_stepsize * ((v - v_g) ** 2)
-        )
+            (1 - fixed_stepsize) * self.variance_g[t][g][a_g]
+        ) + fixed_stepsize * ((v - v_g) ** 2)
 
     def get_lambda_stepsize(self, t, a_g, g, stepsize, lambda_stepsize):
 
-        return (((1 - stepsize) ** 2)*lambda_stepsize) + (stepsize ** 2)
+        return (((1 - stepsize) ** 2) * lambda_stepsize) + (stepsize ** 2)
 
     def get_transient_bias(self, t, g, a_g, v, v_g, stepsize):
 
@@ -344,7 +349,6 @@ class Amod:
                 # Current value function of attribute at level g
                 v_ta_g = self.values[t][g][a_g]
 
-
                 # WEIGHTING ############################################
 
                 # Updating
@@ -372,9 +376,8 @@ class Amod:
 
                 # Update value function at gth level with smoothing
                 self.values[t][g][a_g] = (
-                    (1 - self.step_size_func[t][g][a_g]) * v_ta_g
-                    + self.step_size_func[t][g][a_g] * v_ta
-                )
+                    1 - self.step_size_func[t][g][a_g]
+                ) * v_ta_g + self.step_size_func[t][g][a_g] * v_ta
 
     ####################################################################
     # True averaging ###################################################
@@ -502,7 +505,7 @@ class Amod:
 
     @lru_cache(maxsize=None)
     def get_neighbors(self, center):
-        return get_neighbor_zones(
+        return nw.get_neighbor_zones(
             center, self.config.pickup_zone_range, self.zones
         )
 
@@ -742,3 +745,168 @@ class Amod:
             for g, a_value in g_a.items():
                 for a, value in a_value.items():
                     self.values[t][g][a] = value
+
+
+class AmodNetwork(Amod):
+    def __init__(self, config, car_positions=[]):
+        """Start AMoD environment
+
+        Arguments:
+            rows {int} -- Number of zone rows
+            cols {int} -- Number of zone columns
+            fleet_size {int} -- Number of cars
+            battery_size {int} -- Battery max. capacity
+            actions {list} -- Possible actions from each state
+            car_positions -- Where each vehicle is in the beginning.
+        """
+
+        super().__init__(config)
+
+        self.config = config
+        self.time_steps = config.time_steps
+
+        # ------------------------------------------------------------ #
+        # Network ######################################################
+        # -------------------------------------------------------------#
+
+        # Defining the operational map
+        self.n_zones = self.config.rows * self.config.cols
+        zones = np.arange(self.n_zones)
+        self.zones = zones.reshape((self.config.rows, self.config.cols))
+
+        # Defining map points with aggregation_levels
+        self.points = nw.query_point_list(
+            self.config.aggregation_levels, step=self.config.step_seconds
+        )
+
+        # aggregation level -> point id -> point object
+        self.dict_points = defaultdict(dict)
+        for p in self.points:
+            for g in range(self.config.aggregation_levels):
+                self.dict_points[g][p.id_level(g)] = p
+
+        # ------------------------------------------------------------ #
+        # Battery ######################################################
+        # -------------------------------------------------------------#
+
+        self.battery_levels = config.battery_levels
+        self.battery_size_miles = config.battery_size_miles
+        self.fleet_size = config.fleet_size
+
+        # ------------------------------------------------------------ #
+        # Fleet ########################################################
+        # -------------------------------------------------------------#
+
+        self.car_origin_points = [
+            point for point in random.choices(self.points, k=self.fleet_size)
+        ]
+
+        # If no list predefined positions
+        if not car_positions:
+            # Creating random fleet starting from random points
+            self.cars = [
+                Car(
+                    point,
+                    self.battery_levels,
+                    battery_level_miles_max=self.battery_size_miles,
+                )
+                for point in self.car_origin_points
+            ]
+        else:
+            # Creating fleet starting from pre-determined positions
+            self.cars = [
+                Car(
+                    point,
+                    self.battery_levels,
+                    battery_level_miles_max=self.battery_size_miles,
+                )
+                for point in car_positions
+            ]
+
+        # -------------------------------------------------------------#
+        # Learning #####################################################
+        # -------------------------------------------------------------#
+
+        # What is the value of a car attribute assuming aggregation
+        # level and time steps
+        self.values = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # How many times a cell was actually accessed by a vehicle in
+        # a certain region, aggregation level, and time
+        self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+
+        # Averaging weights each round
+        self.counts = np.zeros(self.config.aggregation_levels)
+        self.weight_track = np.zeros(self.config.aggregation_levels)
+
+        self.current_weights = np.array([])
+
+        # -------------------------------------------------------------#
+        # Weighing #####################################################
+        # -------------------------------------------------------------#
+
+        # Transient bias
+        self.transient_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.variance_g = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.step_size_func = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        self.lambda_stepsize = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # Aggregation bias
+        self.aggregation_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+    @lru_cache(maxsize=None)
+    def get_distance(self, o, d):
+        """Receives two points referring to network ids and return the
+        shortest path.
+
+        Arguments:
+            o {Point} -- Origin point
+            d {Point} -- Destination point
+
+        Returns:
+            float -- Shortest path
+        """
+
+        return nw.get_distance(o.id, d.id)
+
+    @lru_cache(maxsize=None)
+    def get_neighbors(self, center,  level):
+        return nw.query_neighbor_zones(
+            center.id_level(level),
+            self.config.get_step_level(level)
+        )
+
+    @lru_cache(maxsize=None)
+    def get_level_neighbors(self, center, level):
+        return nw.query_level_neighbors(
+            center.id_level(level),
+            self.config.get_step_level(level)
+        )
+
+    @lru_cache(maxsize=None)
+    def get_travel_time(self, distance_m, unit="min"):
+        """Travel time in minutes given distance in miles"""
+
+        travel_time_h = distance_m / (self.config.speed_kmh * 1000)
+        travel_time_min = travel_time_h * 60
+
+        if unit == "min":
+            return travel_time_min
+        else:
+            steps = int(round(travel_time_min / self.config.time_increment))
+            return steps

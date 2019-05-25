@@ -7,7 +7,7 @@ class Car:
     RECHARGING = "Recharging"
     ASSIGN = "With passenger"
     REBALANCE = "Rebalancing"
-    
+
     status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
 
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):

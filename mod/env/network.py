@@ -1,15 +1,22 @@
 import numpy as np
 from random import choices
+import functools
 
 
 class Point:
-    def __init__(self, x, y, point_id, level_ids=None):
+    def __init__(self, x, y, point_id, level_ids=None, level_ids_dic=None):
         self.x = x
         self.y = y
         if level_ids:
             self.level_ids = level_ids
         else:
             level_ids = (point_id,)
+
+        if level_ids_dic:
+            self.level_ids_dic = level_ids_dic
+        else:
+
+            self.level_ids_dic = {0: point_id}
 
     @property
     def id(self):
@@ -186,14 +193,14 @@ def get_demand_origin_centers(points, grid_area, n_centers, zone_size):
     """From a a list of points distributed in a grid area, choose a
     number of centers to be the demand origins. Requests can also depart
     from nodes in the neighboring zones of each center.
-    
+
     Arguments:
         points {list} -- List of Point objects
         grid_area {narray} -- Grid area with point ids
         n_centers {int} -- How many centers to create
         zone_size {int} -- How many neighboring levels surrounding
             a center.
-    
+
     Returns:
         list -- Origin points
     """
@@ -219,20 +226,30 @@ port = 4999
 url = f"http://localhost:{port}"
 
 
-def get_point_list_map(levels=None):
+def query_point_list(levels, step=60):
 
     if levels:
-        point_level_ids = get_aggregated_centers(levels)
+        # Dictionary of levels(distances from region centers) and
+        # corresponding node ids (in referrence to region centers)
+        point_level_ids, distances = query_aggregated_centers(levels, step)
+
+        # Tuples with node ids for each level
+        # e.g., [[0,1,2,3], [10,11,12,13], [20,21,22,23]]
+        # [(0,10,20), (1,11,21), (2,12,22), (3,13,23)]
         p = list(zip(*point_level_ids))
         r = requests.get(url=f"{url}/nodes")
         nodes = r.json()["nodes"]
 
+        # Level zero correspond to node id
         point_list = [
             Point(
                 nodes[pos[0]]["x"],
                 nodes[pos[0]]["y"],
                 pos[0],
                 level_ids=list(pos),
+                level_ids_dic={
+                    int(d): pos[i] for i, d in enumerate(distances)
+                },
             )
             for pos in p
         ]
@@ -245,50 +262,126 @@ def get_point_list_map(levels=None):
     return point_list
 
 
-def get_neighbors_map(center, max_range):
+def query_neighbor_zones(center, distance, n_neighbors=4):
+    # TODO establish better neighborhood structure
+    url_neighbors = f"{url}/center_neighbors/{distance}/{center}/{n_neighbors}"
 
-    url_neighbors = f"{url}/neighbors/{center}/{max_range}/forward"
+    # url_neighbors = f"{url}/neighbors/{center.id}/{max_range}/forward"
+    # print("URL query neighbor zones:", url_neighbors)
     r = requests.get(url=url_neighbors)
-    return np.array(list(map(int, r.text.split(";"))))
+    neighbors = np.array(list(map(int, r.text.split(";"))))
+    # print("URL query neighbor zones:", url_neighbors, neighbors)
+    return neighbors
 
 
-def get_aggregated_centers(n_levels):
+def query_level_neighbors(center, distance):
+    """Get the elements belonging to region center of distance.
+    
+    Parameters
+    ----------
+    center : int
+        Region center id
+    distance : int
+        Distance threshold that region center id belongs to
+    
+    Returns
+    -------
+    list
+        All nodes in region center
+    """
+    url_level_neighbors = f"{url}/center_elements/" f"{distance}/" f"{center}"
+
+    r = requests.get(url=url_level_neighbors)
+    neighbors = np.array(list(map(int, r.text.split(";"))))
+
+    return neighbors
+
+
+@functools.lru_cache(maxsize=None)
+def get_distance(o, d):
+    url_distance = f"{url}/distance_meters/{o}/{d}"
+    r = requests.get(url=url_distance)
+    return float(r.text) / 1000
+
+
+def query_aggregated_centers(n_levels, step=60):
     """Return 'n_levels' lists of 1D lists with ids aggregated in g
     levels with g in [0, n_levels].
 
-    The aggregation is done on the zones where every 2^(2*g) zones form an
-    area. All areas are disjoint at each aggregation level.
-
     Arguments:
-        rows {int} -- Grid total number of rows
-        cols {int} -- Grid total number of columns
-        levels {int} -- Number of aggregation levels
-
+        n_levels {[type]} -- [description]
+    
+    Keyword Arguments:
+        step {int} -- [description] (default: {60})
+    
     Returns:
-        list(np.array((max_rows, max_cols))) -- list of 2D areas with
-        ids belonging to each aggregated level.
-
+        [type] -- [description]
+    
+    Example
+    -------
+    >>> 'http://localhost:4999/node_region_ids/60'
+    { '0': [1360, 1030, 741, 742, 1383, 845, 328, 23, 329, ...],
+     '60': [1087, 1336, 1917, 679, 181, 965, 860, 57, 339, ...],
+    '120': [1083, 968, 684, 684, 1761, 968, 405, 74, 405, ...],
+    '300': [1078, 144, 2006, 2006, 144, 1114, 2006, 1114, 2006, ...],
+    '360': [1854, 1117, 1042, 1042, 1117, 1117, 1042, 1117, 1117, ...],
+    '420': [1077, 1558, 1935, 1935, 1339, 1558, 1339, 1558, 1558, ...],
+    '480': [1077, 1561, 1077, 1077, 1561, 1561, 1561, 1129, 1561, ...],
+    '540': [1092, 1196, 1092, 1092, 1196, 1196, 1196, 1196, 1196, ...],
+    '600': [587, 1195, 587, 587, 1195, 1195, 1195, 1195, 1195, ...]}
     """
 
-    r = requests.get(url=f"{url}/node_region_ids")
-
+    # Get all ids for each level
+    query = f"{url}/node_region_ids/{step}"
+    r = requests.get(url=query)
     node_region_ids = r.json()
 
     if n_levels <= 0:
         raise (Exception("Aggregation levels have to be higher than 0."))
 
+    # Sort dictionary according to keys (increasing distance)
     sorted_levels = list(node_region_ids.items())
     sorted_levels.sort(key=lambda tp: int(tp[0]))
 
     level_grid_list = list()
+    distances = list()
     # 0 = 0, 30 = 1, 60 = 2, 90 = 3, 120 = 4, 150 = 5, etc.
-    for i, level in enumerate(sorted_levels):
+    for i, step_nodes in enumerate(sorted_levels):
+        distance, level_node_ids = step_nodes
+        # print(f"\n\n##### Level={i:>2} - Step={step}")
 
-        #
         if i >= n_levels:
             break
 
         # List of zones per aggregate level g
-        level_grid_list.append(np.array(level[1]))
+        level_grid_list.append(np.array(level_node_ids))
+        distances.append(distance)
 
-    return level_grid_list
+    return level_grid_list, distances
+
+
+def query_demand_origin_centers(points, n_centers, distance):
+    """From a a list of points distributed in a grid area, choose a
+    number of centers to be the demand origins. Requests can also depart
+    from nodes in the neighboring zones of each center.
+
+    Arguments:
+        points {list} -- List of Point objects]
+        n_centers {int} -- How many centers to create
+        zone_size {int} -- How many neighboring levels surrounding
+            a center.
+
+    Returns:
+        list -- Origin points
+    """
+
+    # Choose random location
+    random_centers = choices(points, k=n_centers)
+
+    nodes = []
+    for c in random_centers:
+        nodes.extend(
+            query_level_neighbors(c.level_ids_dic[distance], distance)
+        )
+
+    return [points[n] for n in nodes]

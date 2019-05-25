@@ -468,3 +468,39 @@ class ConfigStandard(Config):
         self.config[Config.BATTERY_COST] = 240
 
         self.config[Config.STEPSIZE] = 0.1
+
+
+class ConfigNetwork(ConfigStandard):
+
+    STEP_SECONDS = "STEP_SECONDS"
+    SPEED_KMH = "SPEED_KMH"
+
+    def __init__(self, config=None):
+
+        if not config:
+            config = dict()
+
+        super().__init__(config)
+
+        # Speed cars (kmh) - 20KMH
+        self.config["SPEED_KMH"] = 20
+        self.config["STEP_SECONDS"] = 60
+
+    # ---------------------------------------------------------------- #
+    # Network version ################################################ #
+    # ---------------------------------------------------------------- #
+    @property
+    def speed_kmh(self):
+        """Speed in kmh"""
+        return self.config["SPEED_KMH"]
+
+    def get_step_level(self, level):
+        return level * self.config["STEP_SECONDS"]
+
+    @property
+    def step_seconds(self):
+        """Speed in kmh"""
+        return self.config["STEP_SECONDS"]
+
+    # ---------------------------------------------------------------- #
+

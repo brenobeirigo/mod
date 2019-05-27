@@ -28,6 +28,18 @@ def extract_duals(flow_cars, car_attributes):
     return duals
 
 
+def extract_duals_point(flow_cars, car_attributes):
+    duals = dict()
+    for point, battery_level in car_attributes:
+        c = flow_cars[point, battery_level]
+        if c.pi > 0:
+            # pi = The constraint dual value in the current solution
+            # (also known as the shadow price).
+            duals[(point, battery_level)] = c.pi
+        # print(f'The dual value of {c.constrName} : {c.pi}')
+    return duals
+
+
 def extract_decisions(var_list):
     decisions = list()
     for k, var in var_list.items():
@@ -139,6 +151,116 @@ def get_decision_tuples(car_attributes, neighbors, trip_ods):
         for c in car_attributes
         for z in neighbors[c[0]]
         if c[0] != z
+    ]
+
+    # Enumerated list of decisions
+    all_decisions = tuplelist(x_pickup + x_stay + x_rebalance + x_recharge)
+
+    # print_decisions(x_rebalance, x_stay, x_pickup, x_recharge, all_decisions)
+
+    return all_decisions
+
+
+def get_decision_set(car_attributes, neighbors, trip_ods):
+    decisions = set()
+
+    for (pos_level, battery), car_list in car_attributes.items():
+        for car in car_list:
+
+            # Stay #####################################################
+            decisions.add(
+                (Amod.TRIP_STAY_DECISION,)
+                + (car.point.id, battery)
+                + (car.point.id,)
+                + (car.point.id,)
+            )
+
+            # Trip #####################################################
+            for (o, d), trip_list in trip_ods.items():
+                for trip in trip_list:
+                    if o in neighbors[pos_level]:
+                        decisions.add(
+                            (Amod.TRIP_STAY_DECISION,)
+                            + (car.point.id, battery)
+                            + (trip.o.id,)
+                            + (trip.d.id,)
+                        )
+
+            # Recharge #################################################
+            decisions.add(
+                (Amod.RECHARGE_REBALANCE_DECISION,)
+                + (car.point.id, battery)
+                + (car.point.id,)
+                + (car.point.id,)
+            )
+
+            # Rebalancing ##############################################
+            for z in neighbors[pos_level]:
+                if pos_level != z:
+                    decisions.add(
+                        (Amod.RECHARGE_REBALANCE_DECISION,)
+                        + (car.point.id, battery)
+                        + (car.point.id,)
+                        + (z,)
+                    )
+
+    return decisions
+
+
+def get_decision_tuples_network(car_attributes, neighbors, trip_ods, level):
+    """[summary]
+
+    Parameters
+    ----------
+    car_attributes : dict
+        (Point, battery) -> car list
+    neighbors : dict
+        Point -> neighbor ids (level 0)
+    trip_ods : dict
+        (Point, Point) -> Trip list
+    level : int
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    x_stay = [
+        (Amod.TRIP_STAY_DECISION,)
+        + (point, battery)
+        + (point,)
+        + (point,)
+        for point, battery in car_attributes
+    ]
+
+    x_pickup = [
+        (Amod.TRIP_STAY_DECISION,)
+        + (point, battery)
+        + (o,)
+        + (d,)
+        for o, d in trip_ods
+        for point, battery in car_attributes
+        if o in neighbors[point]
+    ]
+
+    x_recharge = [
+        (Amod.RECHARGE_REBALANCE_DECISION,)
+        + (point, battery)
+        + (point,)
+        + (point,)
+        for point, battery in car_attributes
+    ]
+
+    x_rebalance = [
+        (Amod.RECHARGE_REBALANCE_DECISION,)
+        + (point, battery)
+        + (point,)
+        + (z,)
+        for point, battery in car_attributes
+        for z in neighbors[point]
+        if point != z
     ]
 
     # Enumerated list of decisions
@@ -334,10 +456,567 @@ def myopic(env, trips, time_step, charge=True):
                 print("%s" % c.constrName)
 
 
+def adp3(
+        env,
+        trips,
+        time_step,
+        charge=True,
+        agg_level=None,
+        myopic=False,
+        neighborhood_level=0,
+        n_neighbors=4):
+    """Assign trips to available vehicles optimally at the current
+        time step.
+
+    Parameters
+    ----------
+    env : Environment
+        AMoD environment
+    trips : list
+        List of trips
+    time_step : int
+        Time step after receiving trips
+
+    charge : bool, optional
+        Apply the charging constraint, by default True
+    agg_level : [type], optional
+        Attributes are queried according to an aggregation level, 
+        by default None
+    myopic : bool, optional
+        If True, does not learn between iterations, by default False
+    neighborhood_level : int, optional
+        How large are region centers (
+            e.g., 1 = reachable in 1min,
+                  2 = reachable in 2min
+            ), by default 1
+    n_neighbors : int, optional
+        Max. neighbors of region centers, by default 4
+
+    Returns
+    -------
+    float, list, list
+        total contribution, serviced trips, rejected trips
+    """
+
+    # Starting assignment model
+    m = Model("assignment")
+
+    # Disables all logging (file and console)
+    m.setParam("OutputFlag", 0)
+    # m.write("adp.lp")
+
+    # if log_path:
+    #     m.Params.LogFile = "{}/region_centers_{}.log".format(
+    #         log_path, max_delay
+    #     )
+
+    #     m.Params.ResultFile = "{}/region_centers_{}.lp".format(
+    #         log_path, max_delay
+    #     )
+
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    # How many cars per attribute
+    cars_with_attribute = defaultdict(list)
+    cars_with_attribute_zero = defaultdict(list)
+
+    # Which positions are surrounding each car position
+    dict_attribute_neighbors = dict()
+
+    # Reachable points
+    rechable_points = set()
+
+    for car in env.cars:
+
+        # Check if vehicles finished their tasks
+        # Where are the cars? What are they doing at the current step?
+        # t ------- t+1 ------- t+2 ------- t+3 ------- t+4 ------- t+5
+        # ---trips-------trips-------trips-------trips-------trips-----
+        car.update(time_step, time_increment=env.config.time_increment)
+
+        # Discard busy vehicles
+        if car.busy:
+            continue
+
+        # List of cars with the same attribute (pos, battery level)
+        a_level = car.attribute_level(neighborhood_level)
+        cars_with_attribute[a_level].append(car)
+        cars_with_attribute_zero[car.attribute].append(car)
+
+        # Was this position already processed?
+        car_pos_id = car.point.id_level(neighborhood_level)
+        if car_pos_id not in dict_attribute_neighbors:
+
+            # Get zones around current car regions
+            nearby_zones = env.get_neighbors(
+                car.point,
+                level=neighborhood_level,
+                n_neighbors=n_neighbors
+            )
+
+            # Update set of points cars can reach
+            rechable_points.update(nearby_zones)
+
+            dict_attribute_neighbors[car_pos_id] = nearby_zones
+
+    # ##################################################################
+    # SORT TRIPS #######################################################
+    # ##################################################################
+
+    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+    trips_with_attribute = defaultdict(list)
+    trips_with_attribute_zero = defaultdict(list)
+
+    # Trips that cannot be picked up
+    rejected = list()
+    for t in trips:
+
+        if t.o.id_level(neighborhood_level) in rechable_points:
+
+            od_level_neighborhood = (
+                t.o.id_level(neighborhood_level),
+                t.d.id_level(neighborhood_level)
+            )
+
+            od_level_zero = (
+                t.o.id,
+                t.d.id
+            )
+
+            trips_with_attribute[od_level_neighborhood].append(t)
+            trips_with_attribute_zero[od_level_zero].append(t)
+
+        # If no vehicle can reach the trip, it is immediately rejected
+        else:
+            rejected.append(t)
+
+    # ##################################################################
+    # VARIABLES ########################################################
+    # ##################################################################
+
+    # Enumerate list of decision variables
+    # time1 = time.time()
+    # all_decisions = get_decision_tuples(
+    #     cars_with_attribute.keys(),
+    #     dict_attribute_neighbors,
+    #     trips_with_attribute,
+    # )
+
+    decisions = get_decision_set(
+        cars_with_attribute,
+        dict_attribute_neighbors,
+        trips_with_attribute,
+    )
+
+
+    # print("\n## Time to get decisions:", time.time() - time1)
+
+    # Adding variables
+    x_var = m.addVars(tuplelist(decisions), name="x")
+
+    # ##################################################################
+    # MODEL ############################################################
+    # ##################################################################
+
+    # ---------------------------------------------------------------- #
+    # COST FUNCTION ####################################################
+    # ---------------------------------------------------------------- #
+
+    if myopic:
+        post_decision_costs = 0
+
+    # Model has learned shadow costs from previous iterations and can
+    # use them to determine post decision costs.
+    else:
+        post_decision_costs = quicksum(
+            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+            for d in x_var
+        )
+
+    # Cost of current decision
+    current_costs = quicksum(
+        env.cost_func(d[ACTION], d[ORIGIN], d[DESTINATION]) * x_var[d]
+        for d in x_var
+    )
+
+    m.setObjective(current_costs + post_decision_costs, GRB.MAXIMIZE)
+
+    # ---------------------------------------------------------------- #
+    # CONSTRAINTS ######################################################
+    # ---------------------------------------------------------------- #
+
+    # Car flow conservation
+    flow_cars = m.addConstrs(
+        (
+            x_var.sum("*", point, level, "*", "*")
+            == len(cars_with_attribute_zero[(point, level)])
+            for point, level in cars_with_attribute_zero.keys()
+        ),
+        "CAR_FLOW",
+    )
+
+    # Trip flow conservation
+    flow_trips = m.addConstrs(
+        (
+            x_var.sum(Amod.TRIP_STAY_DECISION, "*", "*", o, d)
+            <= len(trips_with_attribute_zero[(o, d)])
+            for o, d in trips_with_attribute_zero
+        ),
+        "TRIP_FLOW",
+    )
+
+    # Car is obliged to charged if battery reaches minimum level
+    if charge:
+        recharge = m.addConstrs(
+            (
+                x_var[(action, pos, level, o, d)]
+                == len(cars_with_attribute_zero[(pos, level)])
+                for action, pos, level, o, d in x_var
+                if level <= env.config.min_battery_level
+                and action == Amod.RECHARGE_REBALANCE_DECISION
+                and o == d
+            ),
+            "RECHARGE",
+        )
+
+    # Optimize
+    m.optimize()
+    
+    if m.status == GRB.Status.UNBOUNDED:
+        print("The model cannot be solved because it is unbounded")
+
+    if m.status == GRB.Status.OPTIMAL:
+
+        # c = time.time()
+        # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+        # decisions = extract_decisions(x_var)
+        # a = time.time()
+        best_decisions, duals = extract_solution(x_var, flow_cars)
+
+        # Update shadow prices to be used in the next iterations
+        if not myopic:
+            if agg_level:
+                env.averaged_update(time_step, duals)
+            else:
+                env.update_values_smoothed(time_step, duals)
+
+        reward, serviced, denied = env.realize_decision(
+            time_step,
+            best_decisions,
+            trips_with_attribute_zero,
+            cars_with_attribute_zero,
+        )
+        # print(f"Objective Function - {m.objVal:6.2f} X
+        # {reward:6.2f} - Decision reward")
+
+        # Update list of rejected orders
+        rejected.extend(denied)
+
+        return reward, serviced, rejected
+
+    if (
+        m.status != GRB.Status.INF_OR_UNBD
+        and m.status != GRB.Status.INFEASIBLE
+    ):
+        print("Optimization was stopped with status %d" % m.status)
+
+    if m.status == GRB.Status.INFEASIBLE:
+        # do IIS
+        print("The model is infeasible; computing IIS")
+
+        # Save model
+        m.write("myopic.lp")
+
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)
+
+
+def adp2(
+        env,
+        trips,
+        time_step,
+        charge=True,
+        agg_level=None,
+        myopic=False,
+        neighborhood_level=0,
+        n_neighbors=4):
+    """Assign trips to available vehicles optimally at the current
+        time step.
+
+    Parameters
+    ----------
+    env : Environment
+        AMoD environment
+    trips : list
+        List of trips
+    time_step : int
+        Time step after receiving trips
+
+    charge : bool, optional
+        Apply the charging constraint, by default True
+    agg_level : [type], optional
+        Attributes are queried according to an aggregation level, 
+        by default None
+    myopic : bool, optional
+        If True, does not learn between iterations, by default False
+    neighborhood_level : int, optional
+        How large are region centers (
+            e.g., 1 = reachable in 1min,
+                  2 = reachable in 2min
+            ), by default 1
+    n_neighbors : int, optional
+        Max. neighbors of region centers, by default 4
+
+    Returns
+    -------
+    float, list, list
+        total contribution, serviced trips, rejected trips
+    """
+
+    # Starting assignment model
+    m = Model("assignment")
+
+    # Disables all logging (file and console)
+    m.setParam("OutputFlag", 0)
+
+    # if log_path:
+    #     m.Params.LogFile = "{}/region_centers_{}.log".format(
+    #         log_path, max_delay
+    #     )
+
+    #     m.Params.ResultFile = "{}/region_centers_{}.lp".format(
+    #         log_path, max_delay
+    #     )
+
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    # How many cars per attribute
+    cars_with_attribute = defaultdict(list)
+
+    # Which positions are surrounding each car position
+    dict_attribute_neighbors = dict()
+
+    # Reachable points
+    rechable_points = set()
+
+    for car in env.cars:
+
+        # Check if vehicles finished their tasks
+        # Where are the cars? What are they doing at the current step?
+        # t ------- t+1 ------- t+2 ------- t+3 ------- t+4 ------- t+5
+        # ---trips-------trips-------trips-------trips-------trips-----
+        car.update(time_step, time_increment=env.config.time_increment)
+
+        # Discard busy vehicles
+        if car.busy:
+            continue
+
+        # List of cars with the same attribute (pos, battery level)
+        a_level = car.attribute_level(neighborhood_level)
+        cars_with_attribute[a_level].append(car)
+
+        # Was this position already processed?
+        car_pos_id = car.point.id_level(neighborhood_level)
+        if car_pos_id not in dict_attribute_neighbors:
+
+            # Get zones around current car regions
+            nearby_zones = env.get_neighbors(
+                car.point,
+                level=neighborhood_level,
+                n_neighbors=n_neighbors
+            )
+
+            # Update set of points cars can reach
+            rechable_points.update(nearby_zones)
+
+            dict_attribute_neighbors[car_pos_id] = nearby_zones
+
+    # ##################################################################
+    # SORT TRIPS #######################################################
+    # ##################################################################
+
+    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+    trips_with_attribute = defaultdict(list)
+
+    # Trips that cannot be picked up
+    rejected = list()
+    for t in trips:
+
+        if t.o.id_level(neighborhood_level) in rechable_points:
+
+            od_level_tuple = (
+                t.o.id_level(neighborhood_level),
+                t.d.id_level(neighborhood_level)
+            )
+            trips_with_attribute[od_level_tuple].append(t)
+
+        # If no vehicle can reach the trip, it is immediately rejected
+        else:
+            rejected.append(t)
+
+    # ##################################################################
+    # VARIABLES ########################################################
+    # ##################################################################
+
+    # Enumerate list of decision variables
+    # time1 = time.time()
+    # all_decisions = get_decision_tuples(
+    #     cars_with_attribute.keys(),
+    #     dict_attribute_neighbors,
+    #     trips_with_attribute,
+    # )
+
+    all_decisions = get_decision_set(
+        cars_with_attribute,
+        dict_attribute_neighbors,
+        trips_with_attribute,
+    )
+
+    # print("\n## Time to get decisions:", time.time() - time1)
+
+    # Adding variables
+    x_var = m.addVars(all_decisions, name="x")
+
+    # ##################################################################
+    # MODEL ############################################################
+    # ##################################################################
+
+    # ---------------------------------------------------------------- #
+    # COST FUNCTION ####################################################
+    # ---------------------------------------------------------------- #
+
+    if myopic:
+        post_decision_costs = 0
+
+    # Model has learned shadow costs from previous iterations and can
+    # use them to determine post decision costs.
+    else:
+        post_decision_costs = quicksum(
+            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+            for d in x_var
+        )
+
+    # Cost of current decision
+    current_costs = quicksum(
+        env.cost_func(d[ACTION], d[ORIGIN], d[DESTINATION]) * x_var[d]
+        for d in x_var
+    )
+
+    m.setObjective(current_costs + post_decision_costs, GRB.MAXIMIZE)
+
+    # ---------------------------------------------------------------- #
+    # CONSTRAINTS ######################################################
+    # ---------------------------------------------------------------- #
+
+    # Car flow conservation
+    flow_cars = m.addConstrs(
+        (
+            x_var.sum("*", point, level, "*", "*")
+            == len(cars_with_attribute[(point, level)])
+            for point, level in cars_with_attribute.keys()
+        ),
+        "CAR_FLOW",
+    )
+
+    # Trip flow conservation
+    flow_trips = m.addConstrs(
+        (
+            x_var.sum(Amod.TRIP_STAY_DECISION, "*", "*", o, d)
+            <= len(trips_with_attribute[(o, d)])
+            for o, d, trip_list in trips_with_attribute
+        ),
+        "TRIP_FLOW",
+    )
+
+    # Car is obliged to charged if battery reaches minimum level
+    if charge:
+        recharge = m.addConstrs(
+            (
+                x_var[(action, pos, level, o, d)]
+                == len(cars_with_attribute[(pos, level)])
+                for action, pos, level, o, d in x_var
+                if level <= env.config.min_battery_level
+                and action == Amod.RECHARGE_REBALANCE_DECISION
+                and o == d
+            ),
+            "RECHARGE",
+        )
+
+    # Optimize
+    m.optimize()
+
+    if m.status == GRB.Status.UNBOUNDED:
+        print("The model cannot be solved because it is unbounded")
+
+    if m.status == GRB.Status.OPTIMAL:
+
+        # c = time.time()
+        # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+        # decisions = extract_decisions(x_var)
+        # a = time.time()
+        best_decisions, duals = extract_solution(x_var, flow_cars)
+
+        # Update shadow prices to be used in the next iterations
+        if not myopic:
+            if agg_level:
+                env.averaged_update(time_step, duals)
+            else:
+                env.update_values_smoothed(time_step, duals)
+
+        reward, serviced, denied = env.realize_decision(
+            time_step,
+            best_decisions,
+            trips_with_attribute,
+            cars_with_attribute,
+        )
+        # print(f"Objective Function - {m.objVal:6.2f} X
+        # {reward:6.2f} - Decision reward")
+
+        # Update list of rejected orders
+        rejected.extend(denied)
+
+        return reward, serviced, rejected
+
+    if (
+        m.status != GRB.Status.INF_OR_UNBD
+        and m.status != GRB.Status.INFEASIBLE
+    ):
+        print("Optimization was stopped with status %d" % m.status)
+
+    if m.status == GRB.Status.INFEASIBLE:
+        # do IIS
+        print("The model is infeasible; computing IIS")
+
+        # Save model
+        m.write("myopic.lp")
+
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)
+
 def adp(env, trips, time_step, charge=True, agg_level=None, myopic=False):
     """Assign trips to available vehicles optimally at the current
     time step.
-    
+
     Arguments:
         env {Environment} -- AMoD environment
         trips {list} -- List of trips
@@ -349,7 +1028,7 @@ def adp(env, trips, time_step, charge=True, agg_level=None, myopic=False):
         aggregation level (default: {None})
         myopic {bool} -- If True, does not learn between iterations
             (default: {True})
-    
+
     Returns:
         float, list, list -- total_contribution, serviced trips,
             rejected trips
@@ -529,7 +1208,6 @@ def adp(env, trips, time_step, charge=True, agg_level=None, myopic=False):
             else:
                 env.update_values_smoothed(time_step, duals)
 
-
         reward, serviced, denied = env.realize_decision(
             time_step,
             best_decisions,
@@ -671,7 +1349,8 @@ def fcfs(env, trips, time_step, charge=True):
     return total_contribution, serviced, rejected
 
 
-def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False):
+def adp_network(
+    env, trips, time_step, charge=True, agg_level=None, myopic=False):
     """Assign trips to available vehicles optimally at the current
     time step.
 
@@ -692,7 +1371,7 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
             rejected trips
     """
 
-    level = 2
+    level = 1
 
     # Starting assignment model
     m = Model("assignment")
@@ -733,27 +1412,37 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
             continue
 
         # List of cars with the same attribute (pos, battery level)
-        cars_with_attribute[car.attribute].append(car)
+        cars_with_attribute[car.attribute_level(level)].append(car)
 
         # Was this position already processed?
-        car_pos_id = car.point.id
+        car_pos_id = car.point.id_level(level)
         if car_pos_id not in dict_attribute_neighbors:
 
-            # Get zones around current car regions
-            nearby_zones = env.get_neighbors(car.point, level)
+            # Get zones around current car region
+            n_neighbors = 1
+            nearby_zones = env.get_neighbors(
+                car.point,
+                level=level,
+                n_neighbors=n_neighbors
+            )
 
             # Update set of points cars can reach
             reachable_zones.update(nearby_zones)
 
-            can_reach_points = env.get_level_neighbors(car.point, level)
+            # Select all point ids belonging to regions in the car's
+            # surroundings
+            # region_neighbors = list()
+            # for a in nearby_zones:
+            #     region_neighbors.extend(env.get_region_elements(a, level))
 
-            dict_attribute_neighbors[car_pos_id] = can_reach_points
+            dict_attribute_neighbors[car_pos_id] = nearby_zones
+            # dict_attribute_neighbors[car_pos_id] = region_neighbors
 
     # ##################################################################
     # SORT TRIPS #######################################################
     # ##################################################################
 
-    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+    # Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
     trips_with_attribute = defaultdict(list)
 
     # Trips that cannot be picked up
@@ -761,7 +1450,7 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
     for t in trips:
 
         if t.o.id_level(level) in reachable_zones:
-            trips_with_attribute[(t.o.id, t.d.id)].append(t)
+            trips_with_attribute[(t.o.id_level(level), t.d.id_level(level))].append(t)
 
         # If no vehicle can reach the trip, it is immediately rejected
         else:
@@ -773,10 +1462,14 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
 
     # Enumerate list of decision variables
     # time1 = time.time()
-    all_decisions = get_decision_tuples(
-        cars_with_attribute.keys(),
+    # cars_with_attribute = (Point, battery) -> car list
+    # dict_attribute_neighbors = Point -> neighbor ids (level 0)
+    # trips_with_attribute = (Point, Point) -> Trip list
+    all_decisions = get_decision_tuples_network(
+        cars_with_attribute,
         dict_attribute_neighbors,
         trips_with_attribute,
+        level,
     )
 
     # print("\n## Time to get decisions:", time.time() - time1)
@@ -858,7 +1551,14 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
     if m.status == GRB.Status.OPTIMAL:
 
         # c = time.time()
-        # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+        # best_decisions = extract_decisions(
+        #     x_var
+        # )
+        # duals = extract_duals_point(
+        #     flow_cars,
+        #     cars_with_attribute.keys()
+        # )
+
         # decisions = extract_decisions(x_var)
         # a = time.time()
         best_decisions, duals = extract_solution(x_var, flow_cars)
@@ -869,7 +1569,6 @@ def adp_network(env, trips, time_step, charge=True, agg_level=None, myopic=False
                 env.averaged_update(time_step, duals)
             else:
                 env.update_values_smoothed(time_step, duals)
-
 
         reward, serviced, denied = env.realize_decision(
             time_step,

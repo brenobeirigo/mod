@@ -40,6 +40,13 @@ class Car:
     def attribute(self, level=0):
         return (self.point.id_level(level), self.battery_level)
 
+    def attribute_level(self, level):
+        return (self.point.id_level(level), self.battery_level)
+
+    @property
+    def attribute_point(self):
+        return (self.point, self.battery_level)
+
     @property
     def busy(self):
         """Return False if car is idle"""
@@ -82,25 +89,28 @@ class Car:
         Arguments:
             t {int} -- current time steps
 
-        
         Keyword Arguments:
             time_increment {int} -- duration of time steps (default: {15})
         """
 
         # print("updating according to current time ", t)
         # If vehicle is idle, update current arrival time
-        if self.status == Car.IDLE:
-            # print(f'car {self} is idle!')
-            self.arrival_time = step * time_increment
-            self.step = step
+        # if self.status == Car.IDLE:
+        #     # print(f'car {self} is idle!')
+        #     self.arrival_time = step * time_increment
+        #     self.step = step
 
         # If car finished its task, it is currently idle
-        if self.arrival_time <= (step + 1) * time_increment:
+        if self.arrival_time <= step * time_increment:
             # print(f'car {self} is NO LONGER idle!')
             self.status = Car.IDLE
             self.trip = None
             self.previous = self.point
             self.previous_battery_level = self.battery_level
+
+            # Car is free to service users
+            self.arrival_time = step * time_increment
+            self.step = step
 
     def has_power(self, distance):
         """Check if car has power to travel distane
@@ -123,7 +133,7 @@ class Car:
         time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
-        
+
         Arguments:
             duration_service {int} -- How long to pick up and deliver
             distance_traveled {float} -- Total distance to pickup and deliver
@@ -143,9 +153,9 @@ class Car:
 
         self.revenue += revenue
 
-        self.arrival_time += duration_service
+        self.arrival_time += max(duration_service, time_increment)
 
-        self.step += int(duration_service / time_increment)
+        self.step += max(int(duration_service / time_increment), 1)
 
         self.battery_level = int(
             round(
@@ -178,7 +188,7 @@ class Car:
         time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
-        
+
         Arguments:
             duration_service {int} -- How long to pick up and deliver
             distance_traveled {float} -- Total distance to pickup and deliver
@@ -198,9 +208,11 @@ class Car:
 
         self.revenue += revenue
 
-        self.arrival_time += duration_service
+        self.arrival_time += max(duration_service, time_increment)
 
-        self.step += int(duration_service / time_increment)
+        # If service duration is lower than time increment, car have
+        # to be free in the next time step
+        self.step += max(int(duration_service / time_increment), 1)
 
         self.battery_level = int(
             round(
@@ -242,9 +254,8 @@ class Car:
         self.battery_level = self.battery_level_max
 
         self.recharging_cost += cost
-        self.arrival_time += duration_recharging
-        self.step += int(duration_recharging / time_increment)
-        self.arrival_time = int(self.arrival_time)
+        self.arrival_time += max(duration_recharging, time_increment)
+        self.step += max(int(duration_recharging / time_increment), 1)
 
         # Cars tahte are busy fulfilling trips or recharging are not considered
         # to be reassigned for a decision
@@ -271,5 +282,8 @@ class Car:
         return f"V{self.id}[{self.battery_level}] - {self.point}"
 
     def __repr__(self):
-        return f"Car{{id={self.id:02}, (point, battery)=({self.point},{self.battery_level})}}"
+        return (
+            f"Car{{id={self.id:02}, "
+            f"(point, battery)=({self.point},{self.battery_level})}}"
+        )
 

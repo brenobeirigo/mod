@@ -38,7 +38,9 @@ class Trip:
 ####################################################################
 
 
-def get_trip_count_step(path, step=15, multiply_for=1):
+def get_trip_count_step(
+    path, step=15, multiply_for=1, earliest_step=0, max_steps=None
+):
 
     df_trips = pd.read_csv(path, index_col="pickup_datetime", parse_dates=True)
 
@@ -47,6 +49,11 @@ def get_trip_count_step(path, step=15, multiply_for=1):
     df_trips = df_trips.resample(f"{step}T").count()
 
     trip_count_step = (np.array(df_trips) * multiply_for).astype(int)
+
+    if max_steps:
+        trip_count_step = trip_count_step[
+            earliest_step : earliest_step + max_steps
+        ]
 
     return trip_count_step
 

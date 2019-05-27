@@ -12,7 +12,7 @@ sys.path.append(root)
 from mod.env.amod import Amod, AmodNetwork
 from mod.env.visual import StepLog, EpisodeLog
 from mod.env.config import ConfigNetwork, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp_network, myopic, fcfs
+from mod.env.match import adp3, myopic, fcfs
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
@@ -31,17 +31,24 @@ if __name__ == "__main__":
     config = ConfigNetwork()
     config.update(
         {
-            ConfigNetwork.FLEET_SIZE: 20,
-            ConfigNetwork.ROWS: 32,
-            ConfigNetwork.COLS: 32,
+            ConfigNetwork.FLEET_SIZE: 120,
             ConfigNetwork.BATTERY_LEVELS: 20,
             ConfigNetwork.PICKUP_ZONE_RANGE: 2,
             ConfigNetwork.AGGREGATION_LEVELS: 4,
             ConfigNetwork.INCUMBENT_AGGREGATION_LEVEL: 2,
-            ConfigNetwork.ORIGIN_CENTERS: 5,
-            ConfigNetwork.ORIGIN_CENTER_ZONE_SIZE: 5,
+            ConfigNetwork.ORIGIN_CENTERS: 4,
+            ConfigNetwork.ORIGIN_CENTER_ZONE_SIZE: 3,
+            ConfigNetwork.TIME_INCREMENT: 1,
+            ConfigNetwork.STEP_SECONDS: 30,
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: 4,
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 1,
+            # ConfigNetwork.OFFSET_REPOSIONING: 15,
+            # ConfigNetwork.OFFSET_TERMINATION: 30,
         }
     )
+
+    hours = 24
+    earliest_step = 0
 
     # -----------------------------------------------------------------#
     # Episodes #########################################################
@@ -52,9 +59,16 @@ if __name__ == "__main__":
 
     try:
         # Load last episode
-        values, counts = episodeLog.load()
+        values, counts, transient_bias, variance_g, step_size_func, lambda_stepsize, aggregation_bias = (
+            episodeLog.load()
+        )
         amod.values = values
         amod.count = counts
+        amod.transient_bias = transient_bias
+        amod.variance_g = variance_g
+        amod.step_size_func = step_size_func
+        amod.lambda_stepsize = lambda_stepsize
+        amod.aggregation_bias = aggregation_bias
 
     except Exception as e:
         print(f"No previous episodes were saved {e}.")
@@ -82,8 +96,13 @@ if __name__ == "__main__":
         episodeLog.save_origins([o.id for o in origins])
 
     # Get demand pattern from NY city
+
     step_trip_count_15 = get_trip_count_step(
-        NY_TRIPS_EXCERPT_DAY, step=15, multiply_for=0.167
+        NY_TRIPS_EXCERPT_DAY,
+        step=config.time_increment,
+        multiply_for=0.167,
+        earliest_step=earliest_step,
+        max_steps=int(hours * 60 / config.time_increment),
     )
 
     print(
@@ -113,10 +132,12 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = adp_network(
+            revenue, serviced, rejected = adp3(
                 amod,
                 trips,
-                step,
+                step + 1,
+                neighborhood_level=config.neighborhood_level,
+                n_neighbors=config.n_neighbors
                 # agg_level=amod.config.incumbent_aggregation_level,
             )
 

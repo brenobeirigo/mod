@@ -23,13 +23,16 @@ class Point:
         return self.level_ids[0]
 
     def __str__(self):
-        return f"{self.level_ids}"
+        return str(self.id)
+        # return f"{self.level_ids}"
 
     def __repr__(self):
-        return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
+        return str(self.id)
+        # return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
 
     def __hash__(self):
-        return hash((self.x, self.y))
+        # return hash((self.x, self.y))
+        return hash(self.level_ids[0])
 
     def id_level(self, i):
         try:
@@ -262,18 +265,34 @@ def query_point_list(levels, step=60):
     return point_list
 
 
+@functools.lru_cache(maxsize=None)
 def query_neighbor_zones(center, distance, n_neighbors=4):
-    # TODO establish better neighborhood structure
+    """Return neighbor zone ids of center node.
+
+    Parameters
+    ----------
+    center : int
+        Region center id
+    distance : int
+        Distance that determines the region center set
+    n_neighbors : int, optional
+        How many neighbor zones to return, by default 4
+
+    Returns
+    -------
+    list
+        List of center neighbors
+    """
+ 
     url_neighbors = f"{url}/center_neighbors/{distance}/{center}/{n_neighbors}"
 
-    # url_neighbors = f"{url}/neighbors/{center.id}/{max_range}/forward"
-    # print("URL query neighbor zones:", url_neighbors)
     r = requests.get(url=url_neighbors)
     neighbors = np.array(list(map(int, r.text.split(";"))))
-    # print("URL query neighbor zones:", url_neighbors, neighbors)
+
     return neighbors
 
 
+@functools.lru_cache(maxsize=None)
 def query_level_neighbors(center, distance):
     """Get the elements belonging to region center of distance.
     
@@ -299,21 +318,37 @@ def query_level_neighbors(center, distance):
 
 @functools.lru_cache(maxsize=None)
 def get_distance(o, d):
+    """Min. distance between origin o and destination d in kilometers
+    
+    Parameters
+    ----------
+    o : int
+        Origin id
+    d : int
+        Destination id
+    
+    Returns
+    -------
+    float
+        Distance in kilometers
+    """
+
     url_distance = f"{url}/distance_meters/{o}/{d}"
     r = requests.get(url=url_distance)
-    return float(r.text) / 1000
+    return float(r.text) / 1000.0
 
 
+@functools.lru_cache(maxsize=None)
 def query_aggregated_centers(n_levels, step=60):
     """Return 'n_levels' lists of 1D lists with ids aggregated in g
     levels with g in [0, n_levels].
 
     Arguments:
         n_levels {[type]} -- [description]
-    
+
     Keyword Arguments:
         step {int} -- [description] (default: {60})
-    
+
     Returns:
         [type] -- [description]
     

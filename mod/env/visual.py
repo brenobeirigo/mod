@@ -126,7 +126,15 @@ class EpisodeLog:
             value_count = {
                 t: {
                     g: {
-                        a: (value, step_log.env.count[t][g][a])
+                        a: (
+                            value,
+                            step_log.env.count[t][g][a],
+                            step_log.env.transient_bias[t][g][a],
+                            step_log.env.variance_g[t][g][a],
+                            step_log.env.step_size_func[t][g][a],
+                            step_log.env.lambda_stepsize[t][g][a],
+                            step_log.env.aggregation_bias[t][g][a]
+                        )
                         for a, value in a_value.items()
                     }
                     for g, a_value in g_a.items()
@@ -160,17 +168,34 @@ class EpisodeLog:
         self.reward = progress["reward"]
         self.service_rate = progress["service_rate"]
 
-        values = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-        counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        values = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float)))
+        counts = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
+        transient_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
+        variance_g = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
+        step_size_func = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
+        lambda_stepsize = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
+        aggregation_bias = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int)))
 
         for t, g_a in progress["progress"].items():
             for g, a_value in g_a.items():
                 for a, value_count in a_value.items():
-                    v, c = value_count
+                    v, c, t, var, step, lam, agg = value_count
                     values[t][g][a] = v
                     counts[t][g][a] = c
+                    transient_bias[t][g][a] = t
+                    variance_g[t][g][a] = var
+                    step_size_func[t][g][a] = step
+                    lambda_stepsize[t][g][a] = lam
+                    aggregation_bias[t][g][a] = agg
 
-        return values, counts
+        return (values, counts, transient_bias, variance_g, step_size_func, lambda_stepsize, aggregation_bias)
 
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
@@ -279,7 +304,7 @@ class StepLog:
             sr = 0
 
         print(
-            f"### Time step: {self.n+1:>3}"
+            f"### Time step: {self.n:>3}"
             f" ### Profit: {self.reward_list[-1]:>10.2f}"
             f" ### Service level: {sr:>6.2%}"
             f" ### Trips: {self.total_list[-1]:>3}"

@@ -37,8 +37,7 @@ def test_matching_methods(
                 amod.points,
                 time_step,
                 amod.config.min_trips,
-                amod.config.max_trips,
-            )
+    earliest_step  latest_smax_steps      )
 
         # Match cars and trips and get:
         # - revenue round

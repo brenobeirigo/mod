@@ -401,7 +401,7 @@ class Amod:
 
     def averaged_update(self, step, duals):
         """Update values without smoothing
-        
+
         Arguments:
             step {int} -- Current time step
             duals {dict} -- Dictionary of attribute tuples and duals
@@ -504,7 +504,7 @@ class Amod:
         return duration_min, total_distance, reward
 
     @lru_cache(maxsize=None)
-    def get_neighbors(self, center):
+    def get_neighbors(self, center, level=0, n_neighbors=4):
         return nw.get_neighbor_zones(
             center, self.config.pickup_zone_range, self.zones
         )
@@ -543,7 +543,11 @@ class Amod:
         cost = self.config.calculate_cost_recharge(time_min)
 
         # Update vehicle status to recharging
-        car.update_recharge(time_min, cost)
+        car.update_recharge(
+            time_min,
+            cost,
+            time_increment=self.config.time_increment
+        )
 
         return cost
 
@@ -588,22 +592,44 @@ class Amod:
                             car, self.points[d]
                         )
 
-                        car.move(duration, distance, reward, self.points[d])
+                        car.move(
+                            duration,
+                            distance,
+                            reward,
+                            self.points[d],
+                            time_increment=self.config.time_increment
+                        )
 
                 elif action == Amod.TRIP_STAY_DECISION:
                     # Staying ##########################################
                     if o == d:
-                        car.step += 1
+                        #car.step += 1
+                        pass
 
                     # Servicing ########################################
                     else:
 
+                        # Get closest trip
+                        iclosest_pk = np.argmin(
+                            [
+                                self.get_distance(car.point, trip.o)
+                                for trip in a_trips[(o, d)]
+                            ]
+                        )
+
                         # Get a trip to apply decision
-                        trip = a_trips[(o, d)].pop()
+                        trip = a_trips[(o, d)].pop(iclosest_pk)
+                        # trip = a_trips[(o, d)].pop()
 
                         duration, distance, reward = self.pickup(trip, car)
 
-                        car.update_trip(duration, distance, reward, trip)
+                        car.update_trip(
+                            duration,
+                            distance,
+                            reward,
+                            trip,
+                            time_increment=self.config.time_increment
+                        )
 
                         serviced.append(trip)
 
@@ -835,7 +861,9 @@ class AmodNetwork(Amod):
 
         # How many times a cell was actually accessed by a vehicle in
         # a certain region, aggregation level, and time
-        self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        self.count = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int))
+        )
 
         # Averaging weights each round
         self.counts = np.zeros(self.config.aggregation_levels)
@@ -869,40 +897,46 @@ class AmodNetwork(Amod):
             lambda: defaultdict(lambda: defaultdict(float))
         )
 
-    @lru_cache(maxsize=None)
     def get_distance(self, o, d):
         """Receives two points referring to network ids and return the
-        shortest path.
+        the distance of the shortest path between them (meters).
 
-        Arguments:
-            o {Point} -- Origin point
-            d {Point} -- Destination point
+        Parameters
+        ----------
+        o : Point
+            Origin point
+        d : Destination
+            Destination point
 
-        Returns:
-            float -- Shortest path
+        Returns
+        -------
+        float
+            Shortest path
         """
-
         return nw.get_distance(o.id, d.id)
 
-    @lru_cache(maxsize=None)
-    def get_neighbors(self, center,  level):
+    def get_neighbors(self, center, level=0, n_neighbors=4):
         return nw.query_neighbor_zones(
             center.id_level(level),
-            self.config.get_step_level(level)
+            self.config.get_step_level(level),
+            n_neighbors=n_neighbors,
         )
 
-    @lru_cache(maxsize=None)
     def get_level_neighbors(self, center, level):
         return nw.query_level_neighbors(
-            center.id_level(level),
-            self.config.get_step_level(level)
+            center.id_level(level), self.config.get_step_level(level)
+        )
+
+    def get_region_elements(self, center, level):
+        return nw.query_level_neighbors(
+            center, self.config.get_step_level(level)
         )
 
     @lru_cache(maxsize=None)
-    def get_travel_time(self, distance_m, unit="min"):
+    def get_travel_time(self, distance_km, unit="min"):
         """Travel time in minutes given distance in miles"""
 
-        travel_time_h = distance_m / (self.config.speed_kmh * 1000)
+        travel_time_h = distance_km / self.config.speed_kmh
         travel_time_min = travel_time_h * 60
 
         if unit == "min":
@@ -910,3 +944,78 @@ class AmodNetwork(Amod):
         else:
             steps = int(round(travel_time_min / self.config.time_increment))
             return steps
+
+    # def realize_decision(self, t, decisions, a_trips, dict_a_cars):
+    #     total_reward = 0
+    #     serviced = list()
+
+    #     for decision in decisions:
+
+    #         action, point, level, o, d, times = decision
+
+    #         # Trip attribute
+    #         # od = (o, d)
+    #         # list_trips_in_decision = trips_per_attribute[od]
+
+    #         cars_with_attribute = dict_a_cars[(point, level)]
+
+    #         for n, car in enumerate(cars_with_attribute):
+
+    #             # Only 'times' cars will execute decision
+    #             # determined in action 'a'
+    #             if n >= times:
+    #                 break
+
+    #             if action == Amod.RECHARGE_REBALANCE_DECISION:
+    #                 # Recharging #######################################
+    #                 if o == d:
+    #                     cost_recharging = self.recharge(
+    #                         car, self.config.time_increment
+    #                     )
+
+    #                     # Subtract cost of recharging
+    #                     total_reward -= cost_recharging
+
+    #                 # Rebalancing ######################################
+    #                 else:
+    #                     duration, distance, reward = self.rebalance(
+    #                         car, self.points[d]
+    #                     )
+
+    #                     car.move(duration, distance, reward, self.points[d])
+
+    #             elif action == Amod.TRIP_STAY_DECISION:
+    #                 # Staying ##########################################
+    #                 if o == d:
+    #                     car.step += 1
+
+    #                 # Servicing ########################################
+    #                 else:
+
+    #                     # Get closest trip
+    #                     iclosest_pk = np.argmin(
+    #                         [
+    #                             self.get_distance(car.point, trip.o)
+    #                             for trip in a_trips[(o, d)]
+    #                         ]
+    #                     )
+
+    #                     # Get a trip to apply decision
+    #                     trip = a_trips[(o, d)].pop(iclosest_pk)
+
+    #                     duration, distance, reward = self.pickup(trip, car)
+
+    #                     car.update_trip(duration, distance, reward, trip)
+
+    #                     serviced.append(trip)
+
+    #                     total_reward += reward
+
+    #         # Remove cars already used to fulfill decisions
+    #         cars_with_attribute = cars_with_attribute[times:]
+
+    #     return (
+    #         total_reward,
+    #         serviced,
+    #         list(it.chain.from_iterable(a_trips.values())),
+    #     )

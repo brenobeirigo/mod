@@ -12,7 +12,7 @@ sys.path.append(root)
 from mod.env.amod import Amod
 from mod.env.visual import StepLog, EpisodeLog
 from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp, myopic, fcfs
+from mod.env.match import adp2, myopic, fcfs
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     config = ConfigStandard()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 200,
+            ConfigStandard.FLEET_SIZE: 20,
             ConfigStandard.ROWS: 32,
             ConfigStandard.COLS: 32,
             ConfigStandard.BATTERY_LEVELS: 20,
@@ -39,6 +39,7 @@ if __name__ == "__main__":
             ConfigStandard.AGGREGATION_LEVELS: 4,
             ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
             ConfigStandard.ORIGIN_CENTERS: 4,
+            ConfigStandard.TIME_INCREMENT: 1,
             ConfigStandard.ORIGIN_CENTER_ZONE_SIZE: 3,
         }
     )
@@ -83,7 +84,7 @@ if __name__ == "__main__":
 
     # Get demand pattern from NY city
     step_trip_count_15 = get_trip_count_step(
-        NY_TRIPS_EXCERPT_DAY, step=15, multiply_for=0.167
+        NY_TRIPS_EXCERPT_DAY, step=config.time_increment, multiply_for=1
     )
 
     print(
@@ -113,10 +114,10 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = adp(
+            revenue, serviced, rejected = adp2(
                 amod,
                 trips,
-                step,
+                step + 1,
                 # agg_level=amod.config.incumbent_aggregation_level,
             )
 
@@ -127,10 +128,10 @@ if __name__ == "__main__":
             step_log.add_record(revenue, serviced, rejected)
 
             # Show time step statistics
-            # step_log.show_info()
+            step_log.show_info()
 
             # What each vehicle is doing?
-            # amod.print_fleet_stats()
+            amod.print_fleet_stats()
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################

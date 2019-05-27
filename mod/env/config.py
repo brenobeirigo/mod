@@ -72,6 +72,12 @@ class Config:
     # LEARNING
     STEPSIZE = "STEPSIZE"
 
+    # Network
+    SPEED_KMH = "SPEED_KMH"
+    STEP_SECONDS = "STEP_SECONDS"
+    N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
+    NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
+
     @property
     def label(self):
         return (
@@ -81,7 +87,8 @@ class Config:
             f"{self.config[Config.AGGREGATION_LEVELS]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
             f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}"
+            f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}_"
+            f"{self.config[Config.TIME_INCREMENT]:02}"
         )
 
     def __init__(self, config):
@@ -174,7 +181,7 @@ class Config:
         return minutes_recharging, int(round(time_steps_recharging))
 
     ####################################################################
-    ### Battery ########################################################
+    # Battery ##########################################################
     ####################################################################
 
     @property
@@ -485,6 +492,8 @@ class ConfigNetwork(ConfigStandard):
         # Speed cars (kmh) - 20KMH
         self.config["SPEED_KMH"] = 20
         self.config["STEP_SECONDS"] = 60
+        self.config["N_CLOSEST_NEIGHBORS"] = 4
+        self.config["NEIGHBORHOOD_LEVEL"] = 1
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -502,5 +511,21 @@ class ConfigNetwork(ConfigStandard):
         """Speed in kmh"""
         return self.config["STEP_SECONDS"]
 
-    # ---------------------------------------------------------------- #
+    @property
+    def neighborhood_level(self):
+        """Extent of the reachability of the region centers. E.g.,
+        level = 0 - Region centers are nodes
+        level = 1 - Region centers can access neighbors within
+        step_seconds distance.
+        level = 2 - Region cetners can access neighbors within
+        2*step_seconds distance.
+        """
+        return self.config["NEIGHBORHOOD_LEVEL"]
 
+    @property
+    def n_neighbors(self):
+        """Number of closest region centers each region center can
+        access."""
+        return self.config["N_CLOSEST_NEIGHBORS"]
+
+    # ---------------------------------------------------------------- #

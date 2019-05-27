@@ -11,7 +11,7 @@ sys.path.append(root)
 
 from mod.env.amod import Amod
 from mod.env.config import Config, ConfigStandard, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import fcfs, myopic, adp
+from mod.env.match import fcfs, myopic, adp_grid
 import mod.env.network as nw
 from mod.env.trip import (
     get_random_trips,
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         offset_end=amod.config.offset_termination,
     )
 
-    matching_functions = {"MYOPIC": myopic, "ADP": adp, "FCFS": fcfs}
+    matching_functions = {"MYOPIC": myopic, "ADP": adp_grid, "FCFS": fcfs}
 
     for label, func in matching_functions.items():
 

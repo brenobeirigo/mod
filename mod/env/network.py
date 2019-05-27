@@ -283,7 +283,7 @@ def query_neighbor_zones(center, distance, n_neighbors=4):
     list
         List of center neighbors
     """
- 
+
     url_neighbors = f"{url}/center_neighbors/{distance}/{center}/{n_neighbors}"
 
     r = requests.get(url=url_neighbors)
@@ -295,14 +295,14 @@ def query_neighbor_zones(center, distance, n_neighbors=4):
 @functools.lru_cache(maxsize=None)
 def query_level_neighbors(center, distance):
     """Get the elements belonging to region center of distance.
-    
+
     Parameters
     ----------
     center : int
         Region center id
     distance : int
         Distance threshold that region center id belongs to
-    
+
     Returns
     -------
     list

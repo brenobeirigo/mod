@@ -9,7 +9,10 @@ import random
 from pprint import pprint
 from mod.env.config import FOLDER_EPISODE_TRACK
 from functools import lru_cache
+import requests
 
+port = 4999
+url = f"http://localhost:{port}"
 
 class Amod:
     # Decision codes
@@ -219,7 +222,13 @@ class Amod:
         # Get point object associated to position
         point = self.dict_points[0][post_pos]
 
-        v_ta_0 = self.values[post_t][0][(post_pos, post_battery)]
+        v_ta_0 = (
+            self.values[post_t][0][(post_pos, post_battery)]
+            if post_t in self.values
+            and 0 in self.values[post_t]
+            and (post_pos, post_battery) in self.values[post_t][0]
+            else 0
+        )
 
         weight_vector = np.zeros(self.config.aggregation_levels)
         value_vector = np.zeros(self.config.aggregation_levels)
@@ -230,7 +239,13 @@ class Amod:
             ta_g = (point.id_level(g), post_battery)
 
             # Current value function of attribute at level g
-            value_vector[g] = self.values[post_t][g][ta_g]
+            value_vector[g] = (
+                self.values[post_t][g][ta_g]
+                if post_t in self.values
+                and 0 in self.values[post_t]
+                and (post_pos, post_battery) in self.values[post_t][0]
+                else 0
+            )
 
             # WEIGHTING ############################################
 
@@ -752,9 +767,29 @@ class Amod:
             status_count[c.status] += 1
         return status_count, total_battery_level
 
+    def print_car_traces(self):
+        for c in self.cars:
+            print(f'# {c}')
+            pprint(c.point_list)
+
+    def print_car_traces_geojson(self):
+        for c in self.cars:
+            for o, d in zip(c.point_list[:-1], c.point_list[1:]):
+                url_neighbors = f"{url}/sp_coords/{o}/{d}"
+                r = requests.get(url=url_neighbors)
+                traces = r.text.split(";")
+
     ####################################################################
     # Save/Load ########################################################
     ####################################################################
+    def load_progress(self, progress):
+        self.values = progress['values']
+        self.count = progress['counts']
+        self.transient_bias = progress['transient_bias']
+        self.variance_g = progress['variance_g']
+        self.step_size_func = progress['stepsize']
+        self.lambda_stepsize = progress['lambda_stepsize']
+        self.aggregation_bias = progress['aggregation_bias']
 
     def load_episode(self, path):
         """Load .npy dictionary containing value functions of last
@@ -917,7 +952,7 @@ class AmodNetwork(Amod):
 
     def get_neighbors(self, center, level=0, n_neighbors=4):
         return nw.query_neighbor_zones(
-            center.id_level(level),
+            center.level_ids_dic[self.config.get_step_level(level)],
             self.config.get_step_level(level),
             n_neighbors=n_neighbors,
         )

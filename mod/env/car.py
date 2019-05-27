@@ -21,6 +21,7 @@ class Car:
         self.battery_level_max = battery_level_max
         self.battery_level_miles_max = battery_level_miles_max
         self.trip = None
+        self.point_list = [self.point]
 
         Car.count += 1
         self.arrival_time = 0
@@ -106,6 +107,11 @@ class Car:
             self.status = Car.IDLE
             self.trip = None
             self.previous = self.point
+
+            # Update route
+            if self.point != self.point_list[-1]:
+                self.point_list.append(self.point)
+
             self.previous_battery_level = self.battery_level
 
             # Car is free to service users
@@ -265,6 +271,7 @@ class Car:
 
     def reset(self, battery_level):
         self.point = self.origin
+        self.point_list = [self.point]
         self.arrival_time = 0
         self.revenue = 0
         self.distance_traveled = 0

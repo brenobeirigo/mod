@@ -133,7 +133,7 @@ class EpisodeLog:
                             step_log.env.variance_g[t][g][a],
                             step_log.env.step_size_func[t][g][a],
                             step_log.env.lambda_stepsize[t][g][a],
-                            step_log.env.aggregation_bias[t][g][a]
+                            step_log.env.aggregation_bias[t][g][a],
                         )
                         for a, value in a_value.items()
                     }
@@ -152,7 +152,7 @@ class EpisodeLog:
                 },
             )
 
-    def load(self):
+    def load_progress(self):
         """Load episodes learned so far
 
         Returns:
@@ -168,34 +168,50 @@ class EpisodeLog:
         self.reward = progress["reward"]
         self.service_rate = progress["service_rate"]
 
-        values = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float)))
-        counts = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+        values = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+        counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
         transient_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
         variance_g = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
         step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
         lambda_stepsize = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
         aggregation_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
 
         for t, g_a in progress["progress"].items():
-            for g, a_value in g_a.items():
-                for a, value_count in a_value.items():
-                    v, c, t, var, step, lam, agg = value_count
+            for g, a_saved in g_a.items():
+                for a, saved in a_saved.items():
+                    v, c, t_bias, variance, step, lam, agg_bias = saved
+                    # print(
+                    # f't={t:>04} a=[{a}] - g={g} - '
+                    # 'value={v:>3.2f}({c:>3})'
+                    # )
                     values[t][g][a] = v
                     counts[t][g][a] = c
-                    transient_bias[t][g][a] = t
-                    variance_g[t][g][a] = var
+                    transient_bias[t][g][a] = t_bias
+                    variance_g[t][g][a] = variance
                     step_size_func[t][g][a] = step
                     lambda_stepsize[t][g][a] = lam
-                    aggregation_bias[t][g][a] = agg
+                    aggregation_bias[t][g][a] = agg_bias
 
-        return (values, counts, transient_bias, variance_g, step_size_func, lambda_stepsize, aggregation_bias)
+        saved_values = dict()
+        saved_values['values'] = values
+        saved_values['counts'] = counts
+        saved_values['transient_bias'] = transient_bias
+        saved_values['variance_g'] = variance_g
+        saved_values['stepsize'] = step_size_func
+        saved_values['lambda_stepsize'] = lambda_stepsize
+        saved_values['aggregation_bias'] = aggregation_bias
+        
+        return saved_values
 
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
@@ -208,7 +224,7 @@ class EpisodeLog:
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Weights")
-        plt.legend([f"Level {g}" for g in range(len(series)+1)])
+        plt.legend([f"Level {g}" for g in range(len(series) + 1)])
 
         # Ticks
         plt.yticks(np.arange(1, step=0.05))
@@ -444,4 +460,3 @@ class StepLog:
         else:
             plt.show()
         plt.close()
-

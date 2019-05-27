@@ -88,7 +88,8 @@ class Config:
             f"{self.config[Config.FLEET_SIZE]:04}_"
             f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}_"
-            f"{self.config[Config.TIME_INCREMENT]:02}"
+            f"{self.config[Config.TIME_INCREMENT]:02}_"
+            f"{self.config[Config.STEP_SECONDS]:04}"
         )
 
     def __init__(self, config):
@@ -529,3 +530,15 @@ class ConfigNetwork(ConfigStandard):
         return self.config["N_CLOSEST_NEIGHBORS"]
 
     # ---------------------------------------------------------------- #
+
+    @property
+    def label(self):
+        return (
+            "network_"
+            f"{self.config[Config.FLEET_SIZE]:04}_"
+            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"{self.config[Config.AGGREGATION_LEVELS]}_"
+            f"{self.config[Config.TIME_INCREMENT]:02}_"
+            f"{self.config[Config.STEP_SECONDS]:04}_"
+            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}"
+        )

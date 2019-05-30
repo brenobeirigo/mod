@@ -4,6 +4,9 @@ import functools
 
 
 class Point:
+
+    point_dict = dict()
+
     def __init__(self, x, y, point_id, level_ids=None, level_ids_dic=None):
         self.x = x
         self.y = y
@@ -18,6 +21,10 @@ class Point:
 
             self.level_ids_dic = {0: point_id}
 
+        # Add point to dictionary of all points
+        if point_id not in Point.point_dict:
+            Point.point_dict[point_id] = self
+
     @property
     def id(self):
         return self.level_ids[0]
@@ -27,8 +34,7 @@ class Point:
         # return f"{self.level_ids}"
 
     def __repr__(self):
-        return str(self.id)
-        # return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
+        return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
 
     def __hash__(self):
         # return hash((self.x, self.y))
@@ -38,7 +44,9 @@ class Point:
         try:
             return self.level_ids[i]
         except:
-            raise IndexError(f'Point {self} has no level "{i}".')
+            raise IndexError(
+                f'Point {self} has no level "{i}" ({self.level_ids}).'
+            )
 
 
 ########################################################################
@@ -241,7 +249,7 @@ def query_point_list(levels, step=60):
         # [(0,10,20), (1,11,21), (2,12,22), (3,13,23)]
         p = list(zip(*point_level_ids))
         r = requests.get(url=f"{url}/nodes")
-        nodes = r.json()["nodes"]
+        nodes = {e["id"]: e for e in r.json()["nodes"]}
 
         # Level zero correspond to node id
         point_list = [
@@ -261,6 +269,8 @@ def query_point_list(levels, step=60):
         point_list = [
             Point(nodes[pos[0]]["x"], nodes[pos[0]]["y"], pos[0]) for pos in p
         ]
+
+    point_list.sort(key=lambda p: p.id)
 
     return point_list
 

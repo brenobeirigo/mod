@@ -20,12 +20,20 @@ class Amod:
     # In a zoned environment with (z1, z2) cells signals:
     #  - trip from z1 to z2
     #  - stay in zone z1 = z2
-    TRIP_STAY_DECISION = 0
+    TRIP_STAY_DECISION = 'XXX'
+
+    TRIP_DECISION = 'T'
+
+    STAY_DECISION = 'S'
 
     # In a zoned environment with (z1, z2) cells signals:
     #  - rebalance from z1 to z2
     #  - recharge in zone z1 = z2
-    RECHARGE_REBALANCE_DECISION = 1
+    RECHARGE_REBALANCE_DECISION = 'YYY'
+
+    RECHARGE_DECISION = 'P'
+
+    REBALANCE_DECISION = 'R'
 
     def __init__(self, config, car_positions=[]):
         """Start AMoD environment
@@ -58,17 +66,17 @@ class Amod:
         )
 
         # aggregation level -> point id -> point object
-        self.dict_points = defaultdict(dict)
-        for p in self.points:
-            for g in range(self.config.aggregation_levels):
-                self.dict_points[g][p.id_level(g)] = p
+        # self.dict_points = defaultdict(list)
+        # for p in self.points:
+        #     for g in range(self.config.aggregation_levels):
+        #         self.dict_points[g].append(p)
 
         # ------------------------------------------------------------ #
         # Battery ######################################################
         # -------------------------------------------------------------#
 
         self.battery_levels = config.battery_levels
-        self.battery_size_miles = config.battery_size_miles
+        self.battery_size_distances = config.battery_size_distances
         self.fleet_size = config.fleet_size
 
         # ------------------------------------------------------------ #
@@ -86,7 +94,7 @@ class Amod:
                 Car(
                     point,
                     self.battery_levels,
-                    battery_level_miles_max=self.battery_size_miles,
+                    battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in self.car_origin_points
             ]
@@ -96,7 +104,7 @@ class Amod:
                 Car(
                     point,
                     self.battery_levels,
-                    battery_level_miles_max=self.battery_size_miles,
+                    battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in car_positions
             ]
@@ -153,7 +161,7 @@ class Amod:
             Car(
                 point,
                 self.config.battery_levels,
-                battery_level_miles_max=self.config.battery_size_miles,
+                battery_level_miles_max=self.config.battery_size_distances,
             )
             for point in [
                 point
@@ -165,7 +173,7 @@ class Amod:
         #     Car(
         #         point,
         #         self.config.battery_levels,
-        #         battery_level_miles_max=self.config.battery_size_miles,
+        #         battery_level_miles_max=self.config.battery_size_distances,
         #     )
         #     for point in self.car_origin_points
         # ]
@@ -177,32 +185,27 @@ class Amod:
     @lru_cache(maxsize=None)
     def cost_func(self, action, o, d):
 
-        if action == Amod.TRIP_STAY_DECISION:
-
+        if action == Amod.STAY_DECISION:
             # Stay
-            if o == d:
-                return 0
-
+            return 0
+        
+        elif action == Amod.TRIP_DECISION:
             # Pick up
-            else:
-                distance_trip = self.get_distance(
-                    self.points[o], self.points[d]
-                )
+            distance_trip = self.get_distance(
+                self.points[o], self.points[d]
+            )
 
-                reward = self.config.calculate_fare(distance_trip)
+            reward = self.config.calculate_fare(distance_trip)
+            return reward
 
-                return reward
-
-        elif action == Amod.RECHARGE_REBALANCE_DECISION:
-
+        elif action == Amod.RECHARGE_DECISION:
             # Recharge
-            if o == d:
-                cost = self.config.cost_recharge_sigle_increment
-
-                return -cost
+            cost = self.config.cost_recharge_sigle_increment
+            return -cost
+            
+        else:
             # Rebalance
-            else:
-                return 0
+            return 0
 
     def post_cost(self, t, decision, level=None):
         if level:
@@ -220,7 +223,7 @@ class Amod:
         post_t, post_pos, post_battery = self.preview_decision(t, decision)
 
         # Get point object associated to position
-        point = self.dict_points[0][post_pos]
+        point = self.points[post_pos]
 
         v_ta_0 = (
             self.values[post_t][0][(post_pos, post_battery)]
@@ -351,7 +354,7 @@ class Amod:
         for (pos, battery), v_ta in duals.items():
 
             # Get point object associated to position
-            point = self.dict_points[0][pos]
+            point = self.points[pos]
 
             for g in range(self.config.aggregation_levels):
 
@@ -404,7 +407,7 @@ class Amod:
         d_step, d_pos, d_battery_level = self.preview_decision(step, decision)
 
         # Point associated to position at disaggregate level
-        point = self.dict_points[0][d_pos]
+        point = self.points[d_pos]
 
         # Attribute considering aggregation level
         attribute = (point.id_level(level), d_battery_level)
@@ -425,7 +428,7 @@ class Amod:
         for (pos, battery), new_vf_0 in duals.items():
 
             # Get point object associated to position
-            point = self.dict_points[0][pos]
+            point = self.points[pos]
 
             for g in range(self.config.aggregation_levels):
 
@@ -453,7 +456,7 @@ class Amod:
     def get_travel_time(self, distance, unit="min"):
         """Travel time in minutes given distance in miles"""
 
-        travel_time_h = distance / self.config.speed_mph
+        travel_time_h = distance / self.config.speed
         travel_time_min = travel_time_h * 60
 
         if unit == "min":
@@ -591,64 +594,62 @@ class Amod:
                 if n >= times:
                     break
 
-                if action == Amod.RECHARGE_REBALANCE_DECISION:
+                if action == Amod.RECHARGE_DECISION:
                     # Recharging #######################################
-                    if o == d:
-                        cost_recharging = self.recharge(
-                            car, self.config.time_increment
-                        )
 
-                        # Subtract cost of recharging
-                        total_reward -= cost_recharging
+                    cost_recharging = self.recharge(
+                        car, self.config.recharge_time_single_level
+                    )
 
+                    # Subtract cost of recharging
+                    total_reward -= cost_recharging
+
+                elif action == Amod.REBALANCE_DECISION:
                     # Rebalancing ######################################
-                    else:
-                        duration, distance, reward = self.rebalance(
-                            car, self.points[d]
-                        )
 
-                        car.move(
-                            duration,
-                            distance,
-                            reward,
-                            self.points[d],
-                            time_increment=self.config.time_increment
-                        )
+                    duration, distance, reward = self.rebalance(
+                        car, self.points[d]
+                    )
 
-                elif action == Amod.TRIP_STAY_DECISION:
-                    # Staying ##########################################
-                    if o == d:
-                        #car.step += 1
-                        pass
+                    car.move(
+                        duration,
+                        distance,
+                        reward,
+                        self.points[d],
+                        time_increment=self.config.time_increment
+                    )
 
+                elif action == Amod.STAY_DECISION:
+                    # car.step += 1
+                    pass
+
+                else:
                     # Servicing ########################################
-                    else:
 
-                        # Get closest trip
-                        iclosest_pk = np.argmin(
-                            [
-                                self.get_distance(car.point, trip.o)
-                                for trip in a_trips[(o, d)]
-                            ]
-                        )
+                    # Get closest trip
+                    iclosest_pk = np.argmin(
+                        [
+                            self.get_distance(car.point, trip.o)
+                            for trip in a_trips[(o, d)]
+                        ]
+                    )
 
-                        # Get a trip to apply decision
-                        trip = a_trips[(o, d)].pop(iclosest_pk)
-                        # trip = a_trips[(o, d)].pop()
+                    # Get a trip to apply decision
+                    trip = a_trips[(o, d)].pop(iclosest_pk)
+                    # trip = a_trips[(o, d)].pop()
 
-                        duration, distance, reward = self.pickup(trip, car)
+                    duration, distance, reward = self.pickup(trip, car)
 
-                        car.update_trip(
-                            duration,
-                            distance,
-                            reward,
-                            trip,
-                            time_increment=self.config.time_increment
-                        )
+                    car.update_trip(
+                        duration,
+                        distance,
+                        reward,
+                        trip,
+                        time_increment=self.config.time_increment
+                    )
 
-                        serviced.append(trip)
-
-                        total_reward += reward
+                    serviced.append(trip)
+                    total_reward += reward
 
             # Remove cars already used to fulfill decisions
             cars_with_attribute = cars_with_attribute[times:]
@@ -656,7 +657,9 @@ class Amod:
         return (
             total_reward,
             serviced,
-            list(it.chain.from_iterable(a_trips.values())),
+            list(
+                it.chain.from_iterable(a_trips.values())
+            ),
         )
 
     @lru_cache(maxsize=None)
@@ -669,7 +672,9 @@ class Amod:
         if car_pos != o:
             distance += self.get_distance(self.points[car_pos], self.points[o])
 
-        dropped_levels = int(round(distance / self.config.battery_miles_level))
+        dropped_levels = int(
+            round(distance / self.config.battery_distance_level)
+        )
 
         duration = self.get_travel_time(distance, unit="step")
 
@@ -693,36 +698,33 @@ class Amod:
         """
 
         action, point, battery, o, d = decision
-
-        if action == Amod.RECHARGE_REBALANCE_DECISION:
+        battery_post = battery
+        if action == Amod.RECHARGE_DECISION:
 
             # Recharging ###############################################
-            if o == d:
-                # TODO unit in battery level does not take one time step!!!!
-                battery = min(self.battery_levels, battery + 1)
-                time_step += 1
+            battery_post = min(self.battery_levels, battery + 1)
+            time_step += self.config.recharge_time_single_level
 
+        elif action == Amod.REBALANCE_DECISION:
             # Rebalancing ##############################################
-            else:
-                duration, battery_drop = self.preview_move(point, o, d)
-                time_step += max(1, duration)
-                battery = max(0, battery - battery_drop)
-                point = d
 
-        elif action == Amod.TRIP_STAY_DECISION:
+            duration, battery_drop = self.preview_move(point, o, d)
+            time_step += max(1, duration)
+            battery_post = max(0, battery - battery_drop)
+            point = d
 
+        elif action == Amod.STAY_DECISION:
             # Staying ##################################################
-            if o == d:
-                time_step += 1
+            time_step += 1
 
+        else:
             # Servicing ################################################
-            else:
-                duration, battery_drop = self.preview_move(point, o, d)
-                time_step += max(1, duration)
-                battery = max(0, battery - battery_drop)
-                point = d
+            duration, battery_drop = self.preview_move(point, o, d)
+            time_step += max(1, duration)
+            battery_post = max(0, battery - battery_drop)
+            point = d
 
-        return time_step, point, battery
+        return time_step, point, battery_post
 
     ####################################################################
     # Prints ###########################################################
@@ -837,21 +839,22 @@ class AmodNetwork(Amod):
 
         # Defining map points with aggregation_levels
         self.points = nw.query_point_list(
-            self.config.aggregation_levels, step=self.config.step_seconds
+            self.config.aggregation_levels,
+            step=self.config.step_seconds
         )
 
-        # aggregation level -> point id -> point object
-        self.dict_points = defaultdict(dict)
-        for p in self.points:
-            for g in range(self.config.aggregation_levels):
-                self.dict_points[g][p.id_level(g)] = p
+        # # aggregation level -> point id -> point object
+        # self.dict_points = defaultdict(dict)
+        # for p in self.points:
+        #     for g in range(self.config.aggregation_levels):
+        #         self.dict_points[g][p.id_level(g)] = p
 
         # ------------------------------------------------------------ #
         # Battery ######################################################
         # -------------------------------------------------------------#
 
         self.battery_levels = config.battery_levels
-        self.battery_size_miles = config.battery_size_miles
+        self.battery_size_distances = config.battery_size_distances
         self.fleet_size = config.fleet_size
 
         # ------------------------------------------------------------ #
@@ -869,7 +872,7 @@ class AmodNetwork(Amod):
                 Car(
                     point,
                     self.battery_levels,
-                    battery_level_miles_max=self.battery_size_miles,
+                    battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in self.car_origin_points
             ]
@@ -879,7 +882,7 @@ class AmodNetwork(Amod):
                 Car(
                     point,
                     self.battery_levels,
-                    battery_level_miles_max=self.battery_size_miles,
+                    battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in car_positions
             ]
@@ -951,9 +954,10 @@ class AmodNetwork(Amod):
         return nw.get_distance(o.id, d.id)
 
     def get_neighbors(self, center, level=0, n_neighbors=4):
+        step = self.config.get_step_level(level)
         return nw.query_neighbor_zones(
-            center.level_ids_dic[self.config.get_step_level(level)],
-            self.config.get_step_level(level),
+            center.level_ids_dic[step],
+            step,
             n_neighbors=n_neighbors,
         )
 
@@ -971,7 +975,7 @@ class AmodNetwork(Amod):
     def get_travel_time(self, distance_km, unit="min"):
         """Travel time in minutes given distance in miles"""
 
-        travel_time_h = distance_km / self.config.speed_kmh
+        travel_time_h = distance_km / self.config.speed
         travel_time_min = travel_time_h * 60
 
         if unit == "min":

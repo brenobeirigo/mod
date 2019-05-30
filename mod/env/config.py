@@ -19,19 +19,22 @@ FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
 
 class Config:
 
-    SPEED_MPH = "SPEED_MPH"
+    SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
-    BATTERY_SIZE_MILE = "BATTERY_SIZE_MILE"
+
+    BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
+    BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
+
     BATTERY_SIZE = "BATTERY_SIZE"
     BATTERY_LEVELS = "BATTERY_LEVELS"
-    BATTERY_SIZE_KWH_MILE = "BATTERY_SIZE_KWH_MILE"
-    BATTERY_MILES_LEVEL = "BATTERY_MILES_LEVEL"
+    BATTERY_SIZE_KWH_DISTANCE = "BATTERY_SIZE_KWH_DISTANCE"
+    BATTERY_DISTANCE_LEVEL = "BATTERY_DISTANCE_LEVEL"
     MEAN_TRIP_DISTANCE = "MEAN_TRIP_DISTANCE"
     SD_TRIP_DISTANCE = "SD_TRIP_DISTANCE"
     MINIMUM_TRIP_DISTANCE = "MINIMUM_TRIP_DISTANCE"
     MAXIMUM_TRIP_DISTANCE = "MAXIMUM_TRIP_DISTANCE"
     TRIP_BASE_FARE = "TRIP_BASE_FARE"
-    TRIP_COST_MILE = "TRIP_COST_MILE"
+    TRIP_COST_DISTANCE = "TRIP_COST_DISTANCE"
     TOTAL_TRIPS = "TOTAL_TRIPS"
     MIN_TRIPS = "MIN_TRIPS"
     MAX_TRIPS = "MAX_TRIPS"
@@ -53,7 +56,7 @@ class Config:
     # Recharging
     RECHARGE_THRESHOLD = "RECHARGE_THRESHOLD"
     RECHARGE_BASE_FARE = "RECHARGE_BASE_FARE"
-    RECHARGE_COST_MILE = "RECHARGE_COST_MILE"
+    RECHARGE_COST_DISTANCE = "RECHARGE_COST_DISTANCE"
     RECHARGE_RATE = "RECHARGE_RATE"
     COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
@@ -73,7 +76,6 @@ class Config:
     STEPSIZE = "STEPSIZE"
 
     # Network
-    SPEED_KMH = "SPEED_KMH"
     STEP_SECONDS = "STEP_SECONDS"
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
@@ -125,9 +127,9 @@ class Config:
         )
 
     @property
-    def recharge_cost_mile(self):
+    def recharge_cost_distance(self):
         """Trip base fare in dollars"""
-        return self.config["RECHARGE_COST_MILE"]
+        return self.config["RECHARGE_COST_DISTANCE"]
 
     @property
     def recharge_rate(self):
@@ -148,7 +150,7 @@ class Config:
     def calculate_cost_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0
         return self.config["RECHARGE_BASE_FARE"] + (
-            self.config["RECHARGE_COST_MILE"]
+            self.config["RECHARGE_COST_DISTANCE"]
             * self.config["RECHARGE_RATE"]
             * recharging_time_h
         )
@@ -186,9 +188,9 @@ class Config:
     ####################################################################
 
     @property
-    def battery_size_miles(self):
+    def battery_size_distances(self):
         """Battery size in number of miles """
-        return self.config["BATTERY_SIZE_MILE"]
+        return self.config["BATTERY_SIZE_DISTANCE"]
 
     @property
     def battery_levels(self):
@@ -196,17 +198,17 @@ class Config:
         return self.config["BATTERY_LEVELS"]
 
     @property
-    def battery_miles_level(self):
+    def battery_distance_level(self):
         """Number of discrete levels"""
-        return self.config[Config.BATTERY_MILES_LEVEL]
+        return self.config[Config.BATTERY_DISTANCE_LEVEL]
 
     @property
-    def battery_size_kwh_mile(self):
+    def battery_size_kwh_distance(self):
         """Maximum battery size in miles"""
-        return self.config["BATTERY_SIZE_KWH_MILE"]
+        return self.config["BATTERY_SIZE_KWH_DISTANCE"]
 
     ####################################################################
-    ### Trip ###########################################################
+    # Trip #############################################################
     ####################################################################
 
     @property
@@ -217,7 +219,7 @@ class Config:
     @property
     def trip_cost_fare(self):
         """Trip cost per mile in dollars"""
-        return self.config["TRIP_COST_MILE"]
+        return self.config["TRIP_COST_DISTANCE"]
 
     @property
     def pickup_zone_range(self):
@@ -230,9 +232,9 @@ class Config:
         return self.config["TIME_INCREMENT"]
 
     @property
-    def speed_mph(self):
+    def speed(self):
         """Speed in mph"""
-        return self.config["SPEED_MPH"]
+        return self.config["SPEED"]
 
     @property
     def zone_widht(self):
@@ -315,14 +317,18 @@ class Config:
     def calculate_fare(self, distance_trip):
         return (
             self.config["TRIP_BASE_FARE"]
-            + self.config["TRIP_COST_MILE"] * distance_trip
+            + self.config["TRIP_COST_DISTANCE"] * distance_trip
         )
 
     def update(self, dict_update):
         self.config.update(dict_update)
 
-        self.config["BATTERY_SIZE_KWH_MILE"] = (
-            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_MILE"]
+        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+        )
+
+        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
         # Total number of time periods
@@ -332,9 +338,18 @@ class Config:
             + self.config["OFFSET_TERMINATION"]
         )
 
-        self.config[Config.BATTERY_MILES_LEVEL] = (
-            self.config[Config.BATTERY_SIZE_MILE]
+        self.config[Config.BATTERY_DISTANCE_LEVEL] = (
+            self.config[Config.BATTERY_SIZE_DISTANCE]
             / self.config[Config.BATTERY_LEVELS]
+        )
+
+        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+        )
+
+        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+            self.config["BATTERY_SIZE_DISTANCE"]
+            / self.config["BATTERY_LEVELS"]
         )
 
         self.config[
@@ -357,7 +372,7 @@ class ConfigStandard(Config):
         ################################################################
 
         # Speed cars (mph) - 20MPH
-        self.config["SPEED_MPH"] = 17
+        self.config["SPEED"] = 17
 
         # Total fleet
         self.config["FLEET_SIZE"] = 1500
@@ -366,17 +381,23 @@ class ConfigStandard(Config):
         # Battery ######################################################
         ################################################################
 
-        self.config["BATTERY_SIZE_MILE"] = 200  # miles
+        self.config["BATTERY_SIZE_DISTANCE"] = 200  # miles
         self.config["BATTERY_SIZE"] = 66  # kWh
         self.config["BATTERY_LEVELS"] = 20  # levels
+
         # How many KWh per mile?
-        self.config["BATTERY_SIZE_KWH_MILE"] = (
-            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_MILE"]
+        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+        )
+
+        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+            self.config["BATTERY_SIZE_DISTANCE"]
+            / self.config["BATTERY_LEVELS"]
         )
 
         # How many miles each level has?
-        self.config[Config.BATTERY_MILES_LEVEL] = (
-            self.config[Config.BATTERY_SIZE_MILE]
+        self.config[Config.BATTERY_DISTANCE_LEVEL] = (
+            self.config[Config.BATTERY_SIZE_DISTANCE]
             / self.config[Config.BATTERY_LEVELS]
         )
 
@@ -394,7 +415,7 @@ class ConfigStandard(Config):
         # - Where trip originates
         # - time of the day
         # - surge pricing
-        self.config["TRIP_COST_MILE"] = 1  # dollar
+        self.config["TRIP_COST_DISTANCE"] = 1  # dollar
 
         # Total number of trips (min, max) = (40, 640) in period
         self.config["TOTAL_TRIPS"] = 32874
@@ -452,7 +473,7 @@ class ConfigStandard(Config):
 
         self.config["RECHARGE_THRESHOLD"] = 0.1  # 10%
         self.config["RECHARGE_BASE_FARE"] = 1  # dollar
-        self.config["RECHARGE_COST_MILE"] = 0.1  # dollar
+        self.config["RECHARGE_COST_DISTANCE"] = 0.1  # dollar
         self.config["RECHARGE_RATE"] = 300  # miles/hour
         self.config[
             Config.COST_RECHARGE_SINGLE_INCREMENT
@@ -480,8 +501,8 @@ class ConfigStandard(Config):
 
 class ConfigNetwork(ConfigStandard):
 
+    # In km/h
     STEP_SECONDS = "STEP_SECONDS"
-    SPEED_KMH = "SPEED_KMH"
 
     def __init__(self, config=None):
 
@@ -491,18 +512,47 @@ class ConfigNetwork(ConfigStandard):
         super().__init__(config)
 
         # Speed cars (kmh) - 20KMH
-        self.config["SPEED_KMH"] = 20
+        self.config["SPEED"] = 20
+
+        # Battery ######################################################
+
+        self.config["RECHARGE_RATE"] = 483  # km/hour
+        self.config["BATTERY_SIZE_DISTANCE"] = 322
+
+        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+        )
+
+        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+            self.config["BATTERY_SIZE_DISTANCE"]
+            / self.config["BATTERY_LEVELS"]
+        )
+
+        # Time #########################################################
+
         self.config["STEP_SECONDS"] = 60
         self.config["N_CLOSEST_NEIGHBORS"] = 4
         self.config["NEIGHBORHOOD_LEVEL"] = 1
 
+        # How much time does it take (min) to recharge one single level?
+        self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
+            60
+            * self.config["BATTTERY_SIZE_DISTANCE_LEVEL"]
+            / self.config["RECHARGE_RATE"]
+        )
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
+
     @property
-    def speed_kmh(self):
-        """Speed in kmh"""
-        return self.config["SPEED_KMH"]
+    def recharge_time_single_level(self):
+        return self.config["RECHARGE_TIME_SINGLE_LEVEL"]
+
+    @property
+    def battery_size_distance(self):
+        """Battery size in number of miles """
+        return self.config["BATTERY_SIZE_DISTANCE"]
 
     def get_step_level(self, level):
         return level * self.config["STEP_SECONDS"]

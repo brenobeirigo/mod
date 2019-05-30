@@ -134,7 +134,13 @@ def get_decision_tuples(car_attributes, neighbors, trip_ods):
     return all_decisions
 
 
-def get_decision_set(car_attributes, neighbors, trip_ods):
+def get_decision_set(
+        car_attributes,
+        neighbors,
+        trip_ods,
+        rebalance_neighbors,
+        max_battery_level=20,
+    ):
     decisions = set()
 
     for (pos_level, battery), car_list in car_attributes.items():
@@ -142,7 +148,7 @@ def get_decision_set(car_attributes, neighbors, trip_ods):
 
             # Stay #####################################################
             decisions.add(
-                (Amod.TRIP_STAY_DECISION,)
+                (Amod.STAY_DECISION,)
                 + (car.point.id, battery)
                 + (car.point.id,)
                 + (car.point.id,)
@@ -153,29 +159,29 @@ def get_decision_set(car_attributes, neighbors, trip_ods):
                 for trip in trip_list:
                     if o in neighbors[pos_level]:
                         decisions.add(
-                            (Amod.TRIP_STAY_DECISION,)
+                            (Amod.TRIP_DECISION,)
                             + (car.point.id, battery)
                             + (trip.o.id,)
                             + (trip.d.id,)
                         )
 
             # Recharge #################################################
-            decisions.add(
-                (Amod.RECHARGE_REBALANCE_DECISION,)
-                + (car.point.id, battery)
-                + (car.point.id,)
-                + (car.point.id,)
-            )
+            if battery < max_battery_level:
+                decisions.add(
+                    (Amod.RECHARGE_DECISION,)
+                    + (car.point.id, battery)
+                    + (car.point.id,)
+                    + (car.point.id,)
+                )
 
             # Rebalancing ##############################################
-            for z in neighbors[pos_level]:
-                if pos_level != z:
-                    decisions.add(
-                        (Amod.RECHARGE_REBALANCE_DECISION,)
-                        + (car.point.id, battery)
-                        + (car.point.id,)
-                        + (z,)
-                    )
+            for neighbor in rebalance_neighbors[car.point.id]:
+                decisions.add(
+                    (Amod.REBALANCE_DECISION,)
+                    + (car.point.id, battery)
+                    + (car.point.id,)
+                    + (neighbor,)
+                )
 
     return decisions
 
@@ -231,7 +237,7 @@ def adp_network(
 
     # Disables all logging (file and console)
     m.setParam("OutputFlag", 0)
-    # m.write("adp.lp")
+    
 
     # if log_path:
     #     m.Params.LogFile = "{}/region_centers_{}.log".format(
@@ -252,6 +258,7 @@ def adp_network(
 
     # Which positions are surrounding each car position
     dict_attribute_neighbors = dict()
+    dict_attribute_rebalance = dict()
 
     # Reachable points
     rechable_points = set()
@@ -272,6 +279,15 @@ def adp_network(
         a_level = car.attribute_level(neighborhood_level)
         cars_with_attribute_neighborhood[a_level].append(car)
         cars_with_attribute_zero[car.attribute].append(car)
+
+        # Each car can rebalance to its immediate neighbors. This
+        # prevents vehicles are busy rebalancing to far away zones.
+        if car.attribute not in dict_attribute_rebalance:
+            dict_attribute_rebalance[car.point.id] = env.get_neighbors(
+                car.point,
+                level=0,
+                n_neighbors=n_neighbors
+            )
 
         # Was this position already processed?
         car_pos_id = car.point.id_level(neighborhood_level)
@@ -328,6 +344,8 @@ def adp_network(
         cars_with_attribute_neighborhood,
         dict_attribute_neighbors,
         trips_with_attribute_neighborhood,
+        dict_attribute_rebalance,
+        max_battery_level=env.config.battery_levels,
     )
 
     # Adding variables
@@ -377,7 +395,7 @@ def adp_network(
     # Trip flow conservation
     flow_trips = m.addConstrs(
         (
-            x_var.sum(Amod.TRIP_STAY_DECISION, "*", "*", o, d)
+            x_var.sum(Amod.TRIP_DECISION, "*", "*", o, d)
             <= len(trips_with_attribute_zero[(o, d)])
             for o, d in trips_with_attribute_zero
         ),
@@ -392,15 +410,15 @@ def adp_network(
                 == len(cars_with_attribute_zero[(pos, level)])
                 for action, pos, level, o, d in x_var
                 if level <= env.config.min_battery_level
-                and action == Amod.RECHARGE_REBALANCE_DECISION
-                and o == d
+                and action == Amod.RECHARGE_DECISION
             ),
             "RECHARGE",
         )
 
     # Optimize
     m.optimize()
-    
+    #m.write(f"mip/adp{time_step:04}.lp")
+
     if m.status == GRB.Status.UNBOUNDED:
         print("The model cannot be solved because it is unbounded")
 
@@ -742,7 +760,9 @@ def fcfs(env, trips, time_step, charge=True):
             # print(f' - it needs RECHARGE')
             # Recharge vehicle
             # cost_recharging = env.full_recharge(car)
-            cost_recharging = env.recharge(car, env.config.time_increment)
+            cost_recharging = env.recharge(
+                car, env.config.recharge_time_single_level
+            )
 
             # Subtract cost of recharging
             total_contribution -= cost_recharging
@@ -1120,6 +1140,7 @@ def adp_low_resolution(
         cars_with_attribute,
         dict_attribute_neighbors,
         trips_with_attribute,
+        max_battery_level=env.config.max_battery_level,
     )
 
     # print("\n## Time to get decisions:", time.time() - time1)

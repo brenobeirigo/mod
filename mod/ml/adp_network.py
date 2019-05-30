@@ -32,7 +32,7 @@ if __name__ == "__main__":
     config.update(
         {
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 200,
+            ConfigNetwork.FLEET_SIZE: 1,
             ConfigNetwork.BATTERY_LEVELS: 20,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -42,14 +42,14 @@ if __name__ == "__main__":
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 60,
             # Demand spawn from how many centers?
-            ConfigNetwork.ORIGIN_CENTERS: 10,
+            ConfigNetwork.ORIGIN_CENTERS: 1,
             # Cars rebalance to up to #region centers
             ConfigNetwork.N_CLOSEST_NEIGHBORS: 4,
             # Cars can access locations within region centers
             # established in which neighborhood level?
-            ConfigNetwork.NEIGHBORHOOD_LEVEL: 1,
-            ConfigNetwork.AGGREGATION_LEVELS: 4,
-            ConfigNetwork.SPEED_KMH: 30,
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
+            ConfigNetwork.AGGREGATION_LEVELS: 6,
+            ConfigNetwork.SPEED: 30,
         }
     )
 
@@ -57,13 +57,15 @@ if __name__ == "__main__":
     # Slice demand ################################################### #
     # ################################################################ #
 
-    # Origins
-    level_origins = 3
+    # What is the level covered by origin area?
+    # E.g., levels 1, 2, 3 = 60, 120, 180
+    # if level_origins = 3
+    level_origins = 1
 
     # Data correspond to 1 day NY demand
-    total_hours = 5
-    earliest_hour = 14
-    resize_factor = 0.25
+    total_hours = 24
+    earliest_hour = 0
+    resize_factor = 1
     max_steps = int(total_hours * 60 / config.time_increment)
     earliest_step_min = int(earliest_hour * 60 / config.time_increment)
 
@@ -119,6 +121,12 @@ if __name__ == "__main__":
         f" - max: {max(step_trip_count)}"
     )
 
+    destinations = nw.query_demand_origin_centers(
+        amod.points,
+        amod.config.origin_centers,
+        amod.config.get_step_level(level_origins),
+    )
+
     # ---------------------------------------------------------------- #
     # Experiment ##################################################### #
     # ---------------------------------------------------------------- #
@@ -133,6 +141,7 @@ if __name__ == "__main__":
             offset_start=amod.config.offset_repositioning,
             offset_end=amod.config.offset_termination,
             origins=origins,
+            destinations=destinations,
         )
 
         # Start saving data of each step in the enadp_networkvironment
@@ -149,7 +158,7 @@ if __name__ == "__main__":
                 trips,
                 step + 1,
                 neighborhood_level=config.neighborhood_level,
-                n_neighbors=config.n_neighbors
+                n_neighbors=config.n_neighbors,
                 # agg_level=amod.config.incumbent_aggregation_level,
             )
 
@@ -159,10 +168,15 @@ if __name__ == "__main__":
 
             step_log.add_record(revenue, serviced, rejected)
 
-            # Show time step statistics
+            step_log.plot_fleet_operation()
+
+            # print(
+            #     "##########################################################################################"
+            # )
+            # # Show time step statistics
             # step_log.show_info()
 
-            # What each vehicle is doing?
+            # # What each vehicle is doing?
             # amod.print_fleet_stats()
 
         # amod.print_car_traces()

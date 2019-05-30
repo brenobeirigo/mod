@@ -1,5 +1,6 @@
 from collections import defaultdict
 from mod.env.car import Car
+from mod.env.network import Point
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -203,14 +204,14 @@ class EpisodeLog:
                     aggregation_bias[t][g][a] = agg_bias
 
         saved_values = dict()
-        saved_values['values'] = values
-        saved_values['counts'] = counts
-        saved_values['transient_bias'] = transient_bias
-        saved_values['variance_g'] = variance_g
-        saved_values['stepsize'] = step_size_func
-        saved_values['lambda_stepsize'] = lambda_stepsize
-        saved_values['aggregation_bias'] = aggregation_bias
-        
+        saved_values["values"] = values
+        saved_values["counts"] = counts
+        saved_values["transient_bias"] = transient_bias
+        saved_values["variance_g"] = variance_g
+        saved_values["stepsize"] = step_size_func
+        saved_values["lambda_stepsize"] = lambda_stepsize
+        saved_values["aggregation_bias"] = aggregation_bias
+
         return saved_values
 
     def plot_weights(
@@ -393,7 +394,7 @@ class StepLog:
 
         max_battery_level = len(self.env.cars) * (
             self.env.cars[0].battery_level_miles_max
-            * self.env.config.battery_size_kwh_mile
+            * self.env.config.battery_size_kwh_distance
         )
 
         # Closest power of 10
@@ -401,7 +402,7 @@ class StepLog:
 
         list_battery_level_kwh = (
             np.array(self.total_battery)
-            * self.env.config.battery_size_kwh_mile
+            * self.env.config.battery_size_kwh_distance
         )
 
         steps = np.arange(self.n)

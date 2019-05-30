@@ -59,7 +59,12 @@ def get_trip_count_step(
 
 
 def get_random_trips(
-    locations_list, time_step, min_trips, max_trips, origins=None
+    locations_list,
+    time_step,
+    min_trips,
+    max_trips,
+    origins=None,
+    destinations=None,
 ):
     """ Return a random number of trips
     """
@@ -78,9 +83,13 @@ def get_random_trips(
         ),
     )
 
+    # Destination set
+    to_locations = destinations if destinations else locations_list
+
     for o in from_locations:
+
         # Choose random destination
-        d = random.choice(locations_list)
+        d = random.choice(to_locations)
 
         if o != d:
             trips.append(Trip(o, d, time_step))
@@ -110,7 +119,12 @@ def get_trip_list_step(
 
 
 def get_trips_random_ods(
-    points, step_trip_count, offset_start=0, offset_end=0, origins=None
+    points,
+    step_trip_count,
+    offset_start=0,
+    offset_end=0,
+    origins=None,
+    destinations=None,
 ):
 
     # Populate first steps with empty lists
@@ -118,7 +132,14 @@ def get_trips_random_ods(
 
     step_trip_list.extend(
         [
-            get_random_trips(points, t, n_trips, n_trips, origins=origins)
+            get_random_trips(
+                points,
+                t,
+                n_trips,
+                n_trips,
+                origins=origins,
+                destinations=destinations,
+            )
             for t, n_trips in enumerate(step_trip_count)
         ]
     )

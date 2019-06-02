@@ -39,16 +39,18 @@ class EpisodeLog:
                     f"\n - {self.output_folder_service}"
                 )
 
-    def save_origins(self, origin_ids):
-        np.save(self.output_path + "/trip_origin_ids.npy", origin_ids)
+    def save_ods(self, origin_ids, destination_ids):
+        ods = {"origin": origin_ids, "destination": destination_ids}
+        np.save(self.output_path + "/trip_od_ids.npy", ods)
 
-    def load_origins(self):
+    def load_ods(self):
         try:
-            path_origin_ids = self.output_path + "/trip_origin_ids.npy"
-            return np.load(path_origin_ids)
+            path_od_ids = self.output_path + "/trip_od_ids.npy"
+            ods = np.load(path_od_ids).item()
+            return ods["origin"], ods["destination"]
 
         except Exception as e:
-            print(f'Origins at "{path_origin_ids}" could not be find {e}.')
+            print(f'Origins at "{path_od_ids}" could not be find {e}.')
             raise Exception
 
     def last_episode_stats(self):

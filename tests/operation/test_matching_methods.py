@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------#
 
     try:
-        origin_ids = episodeLog.load_origins()
+        origin_ids = episodeLog.load_ods()
         origins = [amod.points[p] for p in origin_ids]
         print(f"\n{len(origins)} origins loaded.")
 

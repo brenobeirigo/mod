@@ -16,6 +16,9 @@ FOLDER_SERVICE_PLOT = root + "/data/output/service_plot/"
 FOLDER_FLEET_PLOT = root + "/data/output/fleet_plot/"
 FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
 
+PROJECTION_MERCATOR = "MERCATOR"
+PROJECTION_GPS = "GPS"
+
 
 class Config:
 
@@ -52,6 +55,7 @@ class Config:
     COLS = "COLS"
     ORIGIN_CENTERS = "ORIGIN_CENTERS"
     ORIGIN_CENTER_ZONE_SIZE = "ORIGIN_CENTER_ZONE_SIZE"
+    DESTINATION_CENTERS = "DESTINATION_CENTERS"
 
     # Recharging
     RECHARGE_THRESHOLD = "RECHARGE_THRESHOLD"
@@ -79,6 +83,10 @@ class Config:
     STEP_SECONDS = "STEP_SECONDS"
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
+    LEVEL_DIST_LIST = "LEVEL_LIST"
+
+    # Demand
+    DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
 
     @property
     def label(self):
@@ -107,8 +115,20 @@ class Config:
         return self.config[Config.ORIGIN_CENTERS]
 
     @property
+    def destination_centers(self):
+        return self.config[Config.DESTINATION_CENTERS]
+
+    @property
     def origin_center_zone_size(self):
         return self.config[Config.ORIGIN_CENTER_ZONE_SIZE]
+
+        # What is the level covered by origin area?
+
+    @property
+    def demand_center_level(self):
+        # E.g., levels 1, 2, 3 = 60, 120, 180
+        # if level_origins = 3
+        return self.config[Config.DEMAND_CENTER_LEVEL]
 
     ####################################################################
     ### Battery info ###################################################
@@ -469,6 +489,7 @@ class ConfigStandard(Config):
 
         # Origin centers and number of surrounding layers
         self.config[Config.ORIGIN_CENTERS] = 4
+        self.config[Config.DESTINATION_CENTERS] = 4
         self.config[Config.ORIGIN_CENTER_ZONE_SIZE] = 3
 
         self.config["RECHARGE_THRESHOLD"] = 0.1  # 10%
@@ -514,6 +535,8 @@ class ConfigNetwork(ConfigStandard):
         # Speed cars (kmh) - 20KMH
         self.config["SPEED"] = 20
 
+        self.config["PROJECTION"] = PROJECTION_MERCATOR
+
         # Battery ######################################################
 
         self.config["RECHARGE_RATE"] = 483  # km/hour
@@ -541,6 +564,8 @@ class ConfigNetwork(ConfigStandard):
             / self.config["RECHARGE_RATE"]
         )
 
+        self.config[Config.DEMAND_CENTER_LEVEL] = 3
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -561,6 +586,16 @@ class ConfigNetwork(ConfigStandard):
     def step_seconds(self):
         """Speed in kmh"""
         return self.config["STEP_SECONDS"]
+
+    @property
+    def projection(self):
+        """Coordinates can be mercator or gps"""
+        return self.config["PROJECTION"]
+
+    @property
+    def level_dist_list(self):
+        """Coordinates can be mercator or gps"""
+        return self.config[Config.LEVEL_DIST_LIST]
 
     @property
     def neighborhood_level(self):
@@ -590,5 +625,6 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.AGGREGATION_LEVELS]}_"
             f"{self.config[Config.TIME_INCREMENT]:02}_"
             f"{self.config[Config.STEP_SECONDS]:04}_"
-            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}"
+            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
+            f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}"
         )

@@ -28,100 +28,108 @@ from random import random
 from threading import Thread
 import time
 
-from bokeh.models import ColumnDataSource
+from bokeh.models import (
+    ColumnDataSource,
+    Toggle,
+    BoxAnnotation,
+    CheckboxButtonGroup,
+    GridBox,
+    Label,
+    Slider,
+)
+from bokeh.themes import built_in_themes
 from bokeh.plotting import curdoc, figure
-
+from bokeh.layouts import layout, column, row
 from tornado import gen
-
 from collections import defaultdict
-
 from bokeh.tile_providers import get_provider, Vendors
 
 tile_provider = get_provider(Vendors.CARTODBPOSITRON)
 
-# this must only be modified from a Bokeh session callback
-source = ColumnDataSource(data=dict(x=[0], y=[0]))
-source_points_g = ColumnDataSource(data=dict(x=[0], y=[0]))
-source_points_r = ColumnDataSource(data=dict(x=[0], y=[0]))
-
+# Plot steps
+plot = False
 
 # This is important! Save curdoc() to make sure all threads
 # see the same document.
 doc = curdoc()
-
-
-@gen.coroutine
-def update(x, y):
-    source_points_g.data = dict(x=[x], y=[y])
-    source_points_r.data = dict(x=[y], y=[x])
-
-    # source_points_g.data = up[Car.REBALANCE]
-
-
-# p = figure(x_range=[0, 1], y_range=[0, 1])
+doc.theme = "caliber"
+doc.title = "Simulation"
 
 # create a plot and style its properties
 p = figure(
-    title="My first interactive plot!",
+    title="Simulation",
     x_axis_type="mercator",
     y_axis_type="mercator",
-    # sizing_mode='scale_width',
     plot_height=800,
-    plot_width=800,
 )
-p.border_fill_color = "black"
+
+p.border_fill_color = "white"
 p.background_fill_color = "white"
 p.outline_line_color = None
 p.grid.grid_line_color = None
-
+p.title.text_font_size = "25px"
+p.title.align = "center"
 p.add_tile(tile_provider)
 
+car_fill_alpha = 0.3
+
 # Bokeh plot
-point_r = p.circle(
+point_r = p.triangle(
     x=[],
     y=[],
     size=8,
-    color="red",
-    fill_alpha=0.2,
+    color="firebrick",
+    fill_alpha=car_fill_alpha,
     line_width=0,
+    muted_alpha=0.1,
     legend=Car.REBALANCE,
 )
 
-point_centers = p.circle(
-    x=[],
-    y=[],
-    size=6,
-    color="white",
-    line_width=1,
-    line_color="red",
-    legend="Center",
-)
-
-point_g = p.circle(
+point_g = p.triangle(
     x=[],
     y=[],
     size=8,
     color="green",
-    fill_alpha=0.2,
+    fill_alpha=car_fill_alpha,
     line_width=0,
+    muted_alpha=0.1,
     legend=Car.ASSIGN,
 )
-point_s = p.circle(
+
+# https://bokeh.pydata.org/en/latest/docs/reference/models/annotations.html#bokeh.models.annotations.Label
+# label = Label(
+#     x_units="screen",
+#     y_units="screen",
+#     x_offset=200,
+#     y_offset=200,
+#     text="Some Stuf dfd fdf df d fd fdf df df df dfdf df df dfdf d fdf ddf df df df dff",
+#     render_mode="css",
+#     background_fill_color="white",
+#     background_fill_alpha=1.0,
+#     text_font_size="14px",
+# )
+
+# p.add_layout(label)
+
+point_s = p.triangle(
     x=[],
     y=[],
     size=8,
-    color="blue",
-    fill_alpha=0.2,
-    line_width=0,
+    # color="navy",
+    fill_alpha=0.0,
+    line_width=0.5,
+    line_color="navy",
+    muted_alpha=0.1,
     legend=Car.IDLE,
 )
-point_b = p.circle(
+point_b = p.triangle(
     x=[],
     y=[],
-    size=15,
-    color="black",
+    size=8,
+    color="purple",
     line_width=0,
-    fill_alpha=0.5,
+    fill_alpha=car_fill_alpha,
+    muted_alpha=0.1,
     legend=Car.RECHARGING,
 )
 
@@ -129,34 +137,24 @@ point_o = p.circle(
     x=[],
     y=[],
     size=15,
-    color="white",
-    fill_alpha=0.5,
-    line_width=1,
-    line_color="green",
+    color="green",
+    fill_alpha=0.3,
+    line_width=0,
+    # line_color="green",
+    muted_alpha=0.1,
     legend="Origins",
 )
 point_d = p.circle(
     x=[],
     y=[],
     size=15,
-    color="white",
-    fill_alpha=0.5,
-    line_width=1,
-    line_color="red",
+    color="firebrick",
+    fill_alpha=0.3,
+    line_width=0,
+    # line_color="firebrick",
+    muted_alpha=0.1,
     legend="Destinations",
 )
-
-point_regular = p.circle(
-    x=[],
-    y=[],
-    size=1,
-    color="black",
-    fill_alpha=0.5,
-    line_width=0.1,
-    legend="regular",
-)
-
-lines = p.multi_line([], [], line_color="red", line_alpha=0.05)
 
 source_points = {
     Car.REBALANCE: point_r,
@@ -165,67 +163,132 @@ source_points = {
     Car.RECHARGING: point_b,
     "o": point_o,
     "d": point_d,
-    "center": point_centers,
-    "lines": lines,
-    "regular": point_regular,
 }
 
-doc.add_root(p)
+p.legend.click_policy = "mute"
+
+center_lines = []
+
+slide_alpha = Slider(
+    title="Opacity lines", start=0, end=1, value=0.1, step=0.05, width=150
+)
 
 
 @gen.coroutine
-def update_first(lines, regular, centers):
+def update_line_alpha_centers(attrname, old, new):
 
-    source_points["regular"].data_source.data["x"] = regular["x"]
-    source_points["regular"].data_source.data["y"] = regular["y"]
-    source_points["center"].data_source.data = centers
+    for c_lines in center_lines:
+        c_lines.glyph.line_alpha = slide_alpha.value
 
-    source_points["lines"].data_source.data["xs"] = lines["xs"]
-    source_points["lines"].data_source.data["ys"] = lines["ys"]
+
+slide_alpha.on_change("value", update_line_alpha_centers)
 
 
 @gen.coroutine
-def update_timestep(status_fleet, trips):
+def update_first(lines, regular, centers, levels, level_demand, level_fleet):
+
+    point_regular = p.circle(
+        x=[], y=[], size=1, color="black", fill_alpha=0.5, line_width=0.1
+    )
+
+    list_toggle = []
+
+    point_regular.data_source.data = regular
+
+    for i, level in enumerate(levels):
+        if i == 0:
+            continue
+        active = False
+        region_fleet = ""
+        region_demand = ""
+        if i == level_demand:
+            region_demand = " [D] "
+            active = True
+        if i == level_fleet:
+            region_fleet = "[F] "
+            active = True
+
+        lines_level_glyph = p.multi_line(
+            [],
+            [],
+            line_color="firebrick",
+            line_alpha=0.05,
+            muted_alpha=0.00,
+            visible=active,
+        )
+
+        center_lines.append(lines_level_glyph)
+
+        point_centers = p.circle(
+            x=[],
+            y=[],
+            size=6,
+            color="white",
+            line_width=1,
+            line_color="firebrick",
+            visible=active,
+        )
+
+        toggle = Toggle(
+            label=f"Level {i:>2} ({level:>3}){region_demand}{region_fleet}",
+            button_type="success",
+            active=active,
+            width=150,
+        )
+
+        toggle.js_link("active", lines_level_glyph, "visible")
+        toggle.js_link("active", point_centers, "visible")
+        # slide_alpha.js_link("value", lines_level_glyph, "opacity")
+
+        list_toggle.append(toggle)
+
+        point_centers.data_source.data = centers[level]
+        lines_level_glyph.data_source.data = lines[level]
+
+    list_toggle.append(slide_alpha)
+
+    doc.add_root(row(column(*list_toggle), p))
+
+    return center_lines
+
+
+@gen.coroutine
+def update_timestep(status_fleet, trips, episode, timestep):
+
+    p.title.text = f"Episode: {episode:>5} - " f"Time step: {timestep:>5}"
 
     for status in status_fleet:
         source_points[status].data_source.data = status_fleet[status]
 
-    for p in trips:
-        source_points[p].data_source.data = trips[p]
+    for t in trips:
+        source_points[t].data_source.data = trips[t]
 
 
-def wgs84_to_web_mercator(lon, lat):
-    k = 6378137
-    x = lon * (k * np.pi / 180.0)
-    y = np.log(np.tan((90 + lat) * np.pi / 360.0)) * k
-    return x, y
+def plot_centers(points, levels, level_demand, level_fleet):
 
-
-def plot_centers(points, level):
-
-    center_lines = defaultdict(list)
+    center_lines = defaultdict(lambda: defaultdict(list))
     regular = defaultdict(list)
-    center_points = defaultdict(list)
+    center_points = defaultdict(lambda: defaultdict(list))
     center_ids = set()
 
     for p in points:
-        px, py = wgs84_to_web_mercator(p.x, p.y)
-        regular["x"] += [px]
-        regular["y"] += [py]
+        regular["x"] += [p.x]
+        regular["y"] += [p.y]
 
-        cid = p.id_level(level)
-        print(p.id, cid)
-        c_point = points[cid]
+        for i, level in enumerate(levels):
+            if i == 0:
+                continue
+            cid = p.id_level(i)
 
-        cx, cy = wgs84_to_web_mercator(c_point.x, c_point.y)
-        center_lines["xs"].append([cx, px])
-        center_lines["ys"].append([cy, py])
+            c_point = points[cid]
 
-        if c_point.id not in center_ids:
-            cx, cy = wgs84_to_web_mercator(c_point.x, c_point.y)
-            center_points["x"].append(cx)
-            center_points["y"].append(cy)
-            center_ids.add(c_point.id)
+            center_lines[level]["xs"].append([c_point.x, p.x])
+            center_lines[level]["ys"].append([c_point.y, p.y])
+
+            if c_point.id not in center_ids:
+                center_points[level]["x"].append(c_point.x)
+                center_points[level]["y"].append(c_point.y)
+                center_ids.add(c_point.id)
 
     doc.add_next_tick_callback(
         partial(
@@ -233,37 +296,69 @@ def plot_centers(points, level):
             lines=center_lines,
             regular=regular,
             centers=center_points,
+            levels=levels,
+            level_fleet=level_fleet,
+            level_demand=level_demand,
         )
     )
 
 
-def plot_fleet(cars, trips):
+def plot_fleet(cars, trips, episode, timestep):
 
-    xy_status = defaultdict(lambda: defaultdict(list))
-
+    # xy_status = defaultdict(lambda: defaultdict(list))
+    # print(
+    #     f"### {timestep} ##########################################################"
+    # )
+    car_sp = dict()
     for c in cars:
-        x, y = wgs84_to_web_mercator(c.point.x, c.point.y)
-        xy_status[c.status]["x"].append(x)
-        xy_status[c.status]["y"].append(y)
+        # xy_status[c.status]["x"].append(c.point.x)
+        # xy_status[c.status]["y"].append(c.point.y)
+        sp = nw.query_sp(c.previous, c.point, "MERCATOR")
+        car_sp[c.id] = sp
+        # print(
+        #     f"{c.id:>04} - {c.status:>12} = {c.previous.id:>04}->{c.point.id:>04} - SP:{sp}"
+        # )
 
     xy_trips = defaultdict(lambda: defaultdict(list))
+    xy_trips["o"]["x"] = []
+    xy_trips["o"]["y"] = []
 
     # Origin, destination coordinates
     for t in trips:
-        ox, oy = wgs84_to_web_mercator(t.o.x, t.o.y)
-        xy_trips["o"]["x"].append(ox)
-        xy_trips["o"]["y"].append(oy)
+        xy_trips["o"]["x"].append(t.o.x)
+        xy_trips["o"]["y"].append(t.o.y)
 
-        dx, dy = wgs84_to_web_mercator(t.d.x, t.d.y)
-        xy_trips["d"]["x"].append(dx)
-        xy_trips["d"]["y"].append(dy)
+        xy_trips["d"]["x"].append(t.d.x)
+        xy_trips["d"]["y"].append(t.d.y)
 
-    doc.add_next_tick_callback(
-        partial(update_timestep, status_fleet=xy_status, trips=xy_trips)
-    )
+    while True:
+        xy_status = defaultdict(lambda: defaultdict(list))
+        count_finished = 0
+        for c in cars:
+            if len(car_sp[c.id]) > 1:
+                x, y = car_sp[c.id].pop(0)
+            else:
+                x, y = car_sp[c.id][0]
+                count_finished += 1
+
+            xy_status[c.status]["x"].append(x)
+            xy_status[c.status]["y"].append(y)
+
+        doc.add_next_tick_callback(
+            partial(
+                update_timestep,
+                status_fleet=xy_status,
+                trips=xy_trips,
+                episode=episode,
+                timestep=timestep,
+            )
+        )
+        time.sleep(0.0001)
+        if count_finished == len(cars):
+            break
 
 
-def sim(plot=False):
+def sim(plot):
 
     # -----------------------------------------------------------------#
     # Amod environment #################################################
@@ -273,7 +368,7 @@ def sim(plot=False):
     config.update(
         {
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 500,
+            ConfigNetwork.FLEET_SIZE: 1500,
             ConfigNetwork.BATTERY_LEVELS: 20,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -283,29 +378,33 @@ def sim(plot=False):
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 30,
             # Demand spawn from how many centers?
-            ConfigNetwork.ORIGIN_CENTERS: 3,
+            ConfigNetwork.ORIGIN_CENTERS: 2,
+            # Demand arrives in how many centers?
+            ConfigNetwork.DESTINATION_CENTERS: 2,
+            # OD level extension
+            ConfigNetwork.DEMAND_CENTER_LEVEL: 3,
             # Cars rebalance to up to #region centers
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: 4,
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: 8,
             # Cars can access locations within region centers
             # established in which neighborhood level?
-            ConfigNetwork.NEIGHBORHOOD_LEVEL: 3,
-            ConfigNetwork.AGGREGATION_LEVELS: 10,
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 2,
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 180, 300, 600],
+            # How many levels separated by step seconds? If None, ad-hoc
+            # LEVEL_DIST_LIST must be filled
+            ConfigNetwork.AGGREGATION_LEVELS: 7,
             ConfigNetwork.SPEED: 30,
         }
     )
+
+    # "centers":{"30":684,"60":235,"90":119,"120":73,"150":50,"180":37,"210":32,"240":24,"270":19,"300":16,"330":13,"360":11,"390":9,"420":9,"450":8,"480":7,"510":6,"540":5,"570":5,"600":4}
 
     # ################################################################ #
     # Slice demand ################################################### #
     # ################################################################ #
 
-    # What is the level covered by origin area?
-    # E.g., levels 1, 2, 3 = 60, 120, 180
-    # if level_origins = 3
-    level_origins = 4
-
     # Data correspond to 1 day NY demand
-    total_hours = 24
-    earliest_hour = 0
+    total_hours = 12
+    earliest_hour = 14
     resize_factor = 1
     max_steps = int(total_hours * 60 / config.time_increment)
     earliest_step_min = int(earliest_hour * 60 / config.time_increment)
@@ -313,7 +412,7 @@ def sim(plot=False):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 270
+    episodes = 290
     episodeLog = EpisodeLog(config=config)
     amod = AmodNetwork(config)
 
@@ -321,7 +420,12 @@ def sim(plot=False):
     # Plot centers and guidelines #################################### #
     # ---------------------------------------------------------------- #
     if plot:
-        plot_centers(amod.points, config.neighborhood_level)
+        plot_centers(
+            amod.points,
+            nw.Point.levels,
+            config.demand_center_level,
+            config.neighborhood_level,
+        )
     # ---------------------------------------------------------------- #
     # ---------------------------------------------------------------- #
     # ---------------------------------------------------------------- #
@@ -339,22 +443,39 @@ def sim(plot=False):
     # ---------------------------------------------------------------- #
 
     try:
-        origin_ids = episodeLog.load_origins()
-        origins = [amod.points[p] for p in origin_ids]
-        print(f"\n{len(origins)} origins loaded.")
+        o_ids, d_ids = episodeLog.load_ods()
+        origins = [amod.points[o] for o in o_ids]
+        destinations = [amod.points[d] for d in d_ids]
+        print(
+            f"Loading {len(origins)} origins and "
+            f"{len(destinations)} destinations."
+        )
 
-    except:
+    except Exception as e:
+
+        print(f"Error!{e}")
 
         # Create random centers from where trips come from
         # TODO choose level to query origins
-        origins = nw.query_demand_origin_centers(
+        origins = nw.query_centers(
             amod.points,
             amod.config.origin_centers,
-            amod.config.get_step_level(level_origins),
+            amod.config.demand_center_level,
         )
 
-        print(f"\nSaving {len(origins)} origins.")
-        episodeLog.save_origins([o.id for o in origins])
+        destinations = nw.query_centers(
+            amod.points,
+            amod.config.destination_centers,
+            amod.config.demand_center_level,
+        )
+
+        print(
+            f"\nSaving {len(origins)} origins and "
+            f"{len(destinations)} destinations."
+        )
+        episodeLog.save_ods(
+            [o.id for o in origins], [d.id for d in destinations]
+        )
 
     # Get demand pattern from NY city
     step_trip_count = get_trip_count_step(
@@ -369,12 +490,6 @@ def sim(plot=False):
         f"### DEMAND ###"
         f" - min: {min(step_trip_count)}"
         f" - max: {max(step_trip_count)}"
-    )
-
-    destinations = nw.query_demand_origin_centers(
-        amod.points,
-        amod.config.origin_centers,
-        amod.config.get_step_level(level_origins),
     )
 
     # ---------------------------------------------------------------- #
@@ -400,6 +515,12 @@ def sim(plot=False):
         # Resetting environment
         amod.reset()
 
+        # ------------------------------------------------------------ #
+        # Plot fleet current status ################################## #
+        # ------------------------------------------------------------ #
+        if plot:
+            plot_fleet(amod.cars, [], n, 0)
+
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
@@ -421,7 +542,8 @@ def sim(plot=False):
             # Plotting fleet activity ################################ #
             # ---------------------------------------------------------#
             if plot:
-                plot_fleet(amod.cars, trips)
+                plot_fleet(amod.cars, trips, n, step + 1)
+                # time.sleep(0.5)
 
             # # Show time step statistics
             # step_log.show_info()
@@ -447,5 +569,7 @@ def sim(plot=False):
     episodeLog.compute_learning()
 
 
-thread = Thread(target=sim)
+# sim(False)
+# if __name__ == "__main__":
+thread = Thread(target=partial(sim, plot))
 thread.start()

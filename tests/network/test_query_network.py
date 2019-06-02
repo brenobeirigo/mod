@@ -19,7 +19,7 @@ if __name__ == "__main__":
             print(f"level={g:>2} / unique node ids={len(set(nodes))}")
 
     print("\n##### POINT LIST #########################################")
-    point_list = nw.query_point_list(4, step=60)
+    point_list = nw.query_point_list(4, projection="GPS", step=60)
     print(point_list)
 
     print("\n##### NEIGHBORS ##########################################")
@@ -35,3 +35,4 @@ if __name__ == "__main__":
                 "distances=",
                 [f"{nw.get_distance(p.id, n):.2f}" for n in neighbors],
             )
+max_levels

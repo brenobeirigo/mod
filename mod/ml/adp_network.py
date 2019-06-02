@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------- #
 
     try:
-        origin_ids = episodeLog.load_origins()
+        origin_ids = episodeLog.load_ods()
         origins = [amod.points[p] for p in origin_ids]
         print(f"\n{len(origins)} origins loaded.")
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
         # Create random centers from where trips come from
         # TODO choose level to query origins
-        origins = nw.query_demand_origin_centers(
+        origins = nw.query_centers(
             amod.points,
             amod.config.origin_centers,
             amod.config.get_step_level(level_origins),
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         f" - max: {max(step_trip_count)}"
     )
 
-    destinations = nw.query_demand_origin_centers(
+    destinations = nw.query_centers(
         amod.points,
         amod.config.origin_centers,
         amod.config.get_step_level(level_origins),

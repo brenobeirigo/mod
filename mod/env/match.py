@@ -283,18 +283,23 @@ def adp_network(
         # Each car can rebalance to its immediate neighbors. This
         # prevents vehicles are busy rebalancing to far away zones.
         if car.attribute not in dict_attribute_rebalance:
-            dict_attribute_rebalance[car.point.id] = env.get_neighbors(
+            dict_attribute_rebalance[car.point.id] = env.get_zone_neighbors(
                 car.point,
-                level=0,
+                level=neighborhood_level,
                 n_neighbors=n_neighbors
             )
+
+            # dict_attribute_rebalance[car.point.id] = env.get_neighbors(
+            #     car.point,
+            #     reach=2
+            # )
 
         # Was this position already processed?
         car_pos_id = car.point.id_level(neighborhood_level)
         if car_pos_id not in dict_attribute_neighbors:
 
             # Get zones around current car regions
-            nearby_zones = env.get_neighbors(
+            nearby_zones = env.get_zone_neighbors(
                 car.point,
                 level=neighborhood_level,
                 n_neighbors=n_neighbors

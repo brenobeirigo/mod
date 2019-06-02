@@ -838,16 +838,16 @@ class AmodNetwork(Amod):
         self.zones = zones.reshape((self.config.rows, self.config.cols))
 
         # Defining map points with aggregation_levels
-        self.points = nw.query_point_list(
-            self.config.aggregation_levels,
-            step=self.config.step_seconds
+        self.points, distance_levels = nw.query_point_list(
+            step=self.config.step_seconds,
+            max_levels=self.config.aggregation_levels,
+            projection=self.config.projection,
+            level_dist_list=self.config.level_dist_list,
         )
 
-        # # aggregation level -> point id -> point object
-        # self.dict_points = defaultdict(dict)
-        # for p in self.points:
-        #     for g in range(self.config.aggregation_levels):
-        #         self.dict_points[g][p.id_level(g)] = p
+        # Levels correspond to distances queried in the server.
+        # E.g., [0, 30, 60, 120, 300]
+        Point.levels = sorted(distance_levels)
 
         # ------------------------------------------------------------ #
         # Battery ######################################################
@@ -953,8 +953,11 @@ class AmodNetwork(Amod):
         """
         return nw.get_distance(o.id, d.id)
 
-    def get_neighbors(self, center, level=0, n_neighbors=4):
-        step = self.config.get_step_level(level)
+    def get_neighbors(self, center_point, reach=1):
+        return nw.query_neighbors(center_point.id, reach=reach)
+    
+    def get_zone_neighbors(self, center, level=0, n_neighbors=4):
+        step = Point.levels[level]
         return nw.query_neighbor_zones(
             center.level_ids_dic[step],
             step,
@@ -963,12 +966,12 @@ class AmodNetwork(Amod):
 
     def get_level_neighbors(self, center, level):
         return nw.query_level_neighbors(
-            center.id_level(level), self.config.get_step_level(level)
+            center.id_level(level), Point.levels[level]
         )
 
     def get_region_elements(self, center, level):
         return nw.query_level_neighbors(
-            center, self.config.get_step_level(level)
+            center, Point.levels[level]
         )
 
     @lru_cache(maxsize=None)

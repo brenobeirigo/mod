@@ -157,6 +157,8 @@ class Amod:
 
     def reset(self):
 
+        Car.count = 0
+
         self.cars = [
             Car(
                 point,
@@ -824,6 +826,8 @@ class AmodNetwork(Amod):
         """
 
         super().__init__(config)
+
+        self.reset()
 
         self.config = config
         self.time_steps = config.time_steps

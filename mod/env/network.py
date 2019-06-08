@@ -1,6 +1,7 @@
 import numpy as np
 from random import choices
 import functools
+import pprint
 
 
 class Point:
@@ -281,7 +282,9 @@ def query_point_list(
         ]
 
     point_list.sort(key=lambda p: p.id)
+    # pprint.pprint(point_list)
 
+    # pprint.pprint([p.level_ids_dic for p in point_list])
     return point_list, distance_levels
 
 
@@ -475,9 +478,77 @@ def query_centers(points, n_centers, level):
     return [points[n] for n in nodes]
 
 
-def query_sp(o, d, projection="GPS"):
-    # Get all ids for each level
-    query = f"{url}/sp/{o.id}/{d.id}/{projection}"
+def query_info():
+    query = f"{url}/info"
+
+    info = requests.get(url=query).json()
+
+    center_count = info["centers"]
+    edge_count = info["edge_count"]
+    node_count = info["node_count"]
+    region = info["region"]
+    label = info["label"]
+
+    return region, label, node_count, center_count, edge_count
+
+
+def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):
+
+    if not waypoint:
+        waypoint = o
+
+    query = (
+        f"{url}/sp_sliced/{o.id}/{d.id}/{waypoint.id}/"
+        f"{n_points}/{steps}/{projection}"
+    )
+
+    # print(query)
     r = requests.get(url=query)
     sp_coords = r.json()["sp"]
+
+    # pprint.pprint(sp_coords)
     return sp_coords
+
+
+def query_segmented_sp(
+    o, d, n_points, step_duration, projection="GPS", waypoint=None
+):
+
+    if not waypoint:
+        waypoint = o
+
+    query = (
+        f"{url}/sp_segmented/{o.id}/{d.id}/{waypoint.id}/"
+        f"{n_points}/{step_duration}/{projection}"
+    )
+
+    # print(query)
+    r = requests.get(url=query)
+    sp_coords = r.json()["sp"]
+
+    # pprint.pprint(sp_coords)
+    return sp_coords
+
+
+@functools.lru_cache(maxsize=None)
+def query_sp(o, d, projection="GPS", waypoint=None):
+
+    if waypoint:
+        # Get all ids for each level
+        query_o_waypoint = f"{url}/sp/{o.id}/{waypoint.id}/{projection}"
+        r_o_waypoint = requests.get(url=query_o_waypoint)
+        sp_coords_o_waypoint = r_o_waypoint.json()["sp"]
+
+        # Get all ids for each level
+        query_waypoint_d = f"{url}/sp/{waypoint.id}/{d.id}/{projection}"
+        r_waypoint_d = requests.get(url=query_waypoint_d)
+        sp_coords_waypoint_d = r_waypoint_d.json()["sp"]
+
+        return sp_coords_o_waypoint[:-1] + sp_coords_waypoint_d
+
+    else:
+        # Get all ids for each level
+        query = f"{url}/sp/{o.id}/{d.id}/{projection}"
+        r = requests.get(url=query)
+        sp_coords = r.json()["sp"]
+        return sp_coords

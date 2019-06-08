@@ -85,8 +85,17 @@ class Config:
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     LEVEL_DIST_LIST = "LEVEL_LIST"
 
-    # Demand
+    # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
+
+    DEMAND_TOTAL_HOURS = "DEMAND_TOTAL_HOURS"
+    DEMAND_EARLIEST_HOUR = "DEMAND_EARLIEST_HOUR"
+    DEMAND_RESIZE_FACTOR = "DEMAND_RESIZE_FACTOR"
+    DEMAND_MAX_STEPS = "DEMAND_MAX_STEPS"
+    EARLIEST_STEP_MIN = "EARLIEST_STEP_MIN"
+
+    NAME = "NAME"
+    REGION = "REGION"
 
     @property
     def label(self):
@@ -536,6 +545,7 @@ class ConfigNetwork(ConfigStandard):
         self.config["SPEED"] = 20
 
         self.config["PROJECTION"] = PROJECTION_MERCATOR
+        self.config[Config.LEVEL_DIST_LIST] = []
 
         # Battery ######################################################
 
@@ -565,6 +575,40 @@ class ConfigNetwork(ConfigStandard):
         )
 
         self.config[Config.DEMAND_CENTER_LEVEL] = 3
+
+        # DEMAND DATA ##################################################
+        # Data correspond to 1 day NY demand
+        self.config[Config.DEMAND_TOTAL_HOURS] = 12
+        self.config[Config.DEMAND_EARLIEST_HOUR] = 12
+        self.config[Config.DEMAND_RESIZE_FACTOR] = 1
+        self.config[Config.DEMAND_MAX_STEPS] = int(
+            self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.time_increment
+        )
+        self.config[Config.EARLIEST_STEP_MIN] = int(
+            self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
+        )
+
+    #
+
+    @property
+    def demand_total_hours(self):
+        return self.config[Config.DEMAND_TOTAL_HOURS]
+
+    @property
+    def demand_earliest_hour(self):
+        return self.config[Config.DEMAND_EARLIEST_HOUR]
+
+    @property
+    def demand_resize_factor(self):
+        return self.config[Config.DEMAND_RESIZE_FACTOR]
+
+    @property
+    def demand_max_steps(self):
+        return self.config[Config.DEMAND_TOTAL_HOURS]
+
+    @property
+    def demand_earliest_step_min(self):
+        return self.config[Config.EARLIEST_STEP_MIN]
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -615,11 +659,10 @@ class ConfigNetwork(ConfigStandard):
         return self.config["N_CLOSEST_NEIGHBORS"]
 
     # ---------------------------------------------------------------- #
-
     @property
-    def label(self):
+    def label(self, name=""):
         return (
-            "network_"
+            f"network_{self.config[Config.NAME]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
             f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"{self.config[Config.AGGREGATION_LEVELS]}_"

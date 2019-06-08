@@ -13,6 +13,7 @@ class Car:
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):
         self.id = Car.count
         self.point = o
+        self.waypoint = None
         self.previous = o
         self.origin = o
 
@@ -25,6 +26,7 @@ class Car:
 
         Car.count += 1
         self.arrival_time = 0
+        self.previous_arrival = 0
         self.step = 0
         self.revenue = 0
         self.n_trips = 0
@@ -63,6 +65,7 @@ class Car:
         )
         status = (
             f"C{self.id:04}[{self.status:>15}]"
+            f" - Previous arrival: {self.previous_arrival:>5}"
             f" - Arrival: {self.arrival_time:>5}"
             f"(step={self.step:>5})"
             f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
@@ -107,6 +110,8 @@ class Car:
             self.status = Car.IDLE
             self.trip = None
             self.previous = self.point
+            self.previous_arrival = self.arrival_time
+            self.waypoint = None
 
             # Update route
             if self.point != self.point_list[-1]:
@@ -159,6 +164,8 @@ class Car:
 
         self.revenue += revenue
 
+        self.previous_arrival = self.arrival_time
+
         self.arrival_time += max(duration_service, time_increment)
 
         self.step += max(int(duration_service / time_increment), 1)
@@ -204,9 +211,13 @@ class Car:
 
         self.previous = self.point
 
+        self.previous_arrival = self.arrival_time
+
         self.previous_battery_level = self.battery_level
 
         self.point = trip.d
+
+        self.waypoint = trip.o
 
         self.battery_level_miles -= distance_traveled
 
@@ -258,8 +269,9 @@ class Car:
         # Update final battery level
         self.battery_level_miles = self.battery_level_miles_max
         self.battery_level = self.battery_level_max
-
+        self.waypoint = None
         self.recharging_cost += cost
+        self.previous_arrival = self.arrival_time
         self.arrival_time += max(duration_recharging, time_increment)
         self.step += max(int(duration_recharging / time_increment), 1)
 
@@ -271,8 +283,10 @@ class Car:
 
     def reset(self, battery_level):
         self.point = self.origin
+        self.waypoint = None
         self.point_list = [self.point]
         self.arrival_time = 0
+        self.previous_arrival = 0
         self.revenue = 0
         self.distance_traveled = 0
         self.battery_level = battery_level

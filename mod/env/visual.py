@@ -1,6 +1,7 @@
 from collections import defaultdict
 from mod.env.car import Car
 from mod.env.network import Point
+import mod.env.network as nw
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -13,6 +14,56 @@ sns.set_context("paper")
 
 
 class EpisodeLog:
+
+    def get_od_lists(self, amod):
+        try:
+            # Load last episode
+            progress = self.load_progress()
+            amod.load_progress(progress)
+
+        except Exception as e:
+            print(f"No previous episodes were saved {e}.")
+
+        # ---------------------------------------------------------------- #
+        # Trips ########################################################## #
+        # ---------------------------------------------------------------- #
+
+        try:
+            o_ids, d_ids = self.load_ods()
+            origins = [amod.points[o] for o in o_ids]
+            destinations = [amod.points[d] for d in d_ids]
+            print(
+                f"Loading {len(origins)} origins and "
+                f"{len(destinations)} destinations."
+            )
+
+        except Exception as e:
+
+            print(f"Error!{e}")
+
+            # Create random centers from where trips come from
+            # TODO choose level to query origins
+            origins = nw.query_centers(
+                amod.points,
+                amod.config.origin_centers,
+                amod.config.demand_center_level,
+            )
+
+            destinations = nw.query_centers(
+                amod.points,
+                amod.config.destination_centers,
+                amod.config.demand_center_level,
+            )
+
+            print(
+                f"\nSaving {len(origins)} origins and "
+                f"{len(destinations)} destinations."
+            )
+            self.save_ods(
+                [o.id for o in origins], [d.id for d in destinations]
+            )
+        return origins, destinations
+
     def __init__(self, config=None):
         self.n = 0
         self.reward = list()
@@ -40,6 +91,16 @@ class EpisodeLog:
                 )
 
     def save_ods(self, origin_ids, destination_ids):
+        """Save trip ods in .npy file. When method is restarted, same
+        ods can be used to guarantee consistency.
+        
+        Parameters
+        ----------
+        origin_ids : list of ints
+            Origin ids
+        destination_ids : list of ints
+            Destination ids
+        """
         ods = {"origin": origin_ids, "destination": destination_ids}
         np.save(self.output_path + "/trip_od_ids.npy", ods)
 
@@ -463,3 +524,238 @@ class StepLog:
         else:
             plt.show()
         plt.close()
+
+
+# BOKEH ################################################################
+def compute_trips(trips):
+
+    xy_trips = defaultdict(lambda: defaultdict(list))
+    xy_trips["o"]["x"] = []
+    xy_trips["o"]["y"] = []
+
+    # Origin, destination coordinates
+    for t in trips:
+        xy_trips["o"]["x"].append(t.o.x)
+        xy_trips["o"]["y"].append(t.o.y)
+
+        xy_trips["d"]["x"].append(t.d.x)
+        xy_trips["d"]["y"].append(t.d.y)
+
+    return xy_trips
+
+
+def plot_centers(
+    list_center_level,
+    levels,
+    level_demand,
+    level_fleet,
+    show_sp_lines=True,
+    show_lines=True,
+):
+
+    print("-------- Plotting region centers --------")
+
+    list_center_level = defaultdict(lambda: defaultdict(list))
+    set_center_ids_level = defaultdict(set)
+
+    # Lines connecting region centers to nodes
+    center_lines_xy = defaultdict(lambda: {"xs": [], "ys": [], "o": [], "d": [], "level": []})
+    center_lines_sp_xy = defaultdict(lambda: {"xs": [], "ys": []})
+
+    for p in list_center_level:
+        # print("Ids dic:", p.level_ids_dic)
+        list_center_level[0]["x"] += [p.x]
+        list_center_level[0]["y"] += [p.y]
+
+        # print(f"{i_p} - ids: {p.level_ids_dic}")
+
+        # Ids and levels (i.e., 30, 60, 90)
+        for i, level in enumerate(levels):
+            # print("\n\n\n###################### LEVEL", i, "-", level, "##################")
+            if i == 0:
+                continue
+
+            center_point = list_center_level[p.id_level(i)]
+
+            if show_sp_lines and center_point.id != p.id:
+
+                xy_sp = nw.query_sp(center_point, p, projection="MERCATOR")
+
+                # Get list of x and y coordinates (e.g., [x1,x2,x3] and
+                # [y1,y2,y3])
+                sp_x, sp_y = zip(*xy_sp)
+
+                sp_x = list(sp_x)
+                sp_x_pair = [list(pairx) for pairx in zip(sp_x[:-1], sp_x[1:])]
+
+                sp_y = list(sp_y)
+                sp_y_pair = [list(pairy) for pairy in zip(sp_y[:-1], sp_y[1:])]
+
+                center_lines_sp_xy[level]["xs"].extend(sp_x_pair)
+                center_lines_sp_xy[level]["ys"].extend(sp_y_pair)
+
+            if show_lines and center_point.id != p.id:
+                # print(
+                #     center_point, p, nw.get_distance(center_point, p)
+                # )
+                center_lines_xy[level]["xs"].append([center_point.x, p.x])
+                center_lines_xy[level]["ys"].append([center_point.y, p.y])
+
+
+                # ("index", "$index"),
+                # ("(x,y)", "($x, $y)"),
+                # ("Origin", "@o"),
+                # ("Destination", "@d"),
+                # ("Level", "@level"),
+
+            if center_point.id not in set_center_ids_level[level]:
+                list_center_level[level]["x"].append(center_point.x)
+                list_center_level[level]["y"].append(center_point.y)
+                set_center_ids_level[level].add(center_point.id)
+
+    return list_center_level, center_lines_xy, center_lines_sp_xy
+
+STRAIGHT_LINE = 'OD'
+SP_LINE = 'SP'
+
+def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
+
+    print("-------- Plotting region centers --------")
+
+    # X,Y coordinates of points at each level
+    centers = defaultdict(lambda: defaultdict(list))
+
+    # Unique center ids per level
+    center_ids = defaultdict(set)
+
+    # Lines connecting region centers to nodes
+    lines = defaultdict(lambda: defaultdict(lambda: {"xs": [], "ys": []}))
+
+    for p in points:
+
+        # Ids and levels (i.e., 30, 60, 90)
+        for i, level in enumerate(levels):
+
+            # Get center considering level
+            center_point = points[p.id_level(i)]
+
+            # Add points (level 0 contains all nodes)
+            if center_point.id not in center_ids[level]:
+                centers[level]["x"].append(center_point.x)
+                centers[level]["y"].append(center_point.y)
+
+                # Guarantees centers are not included twice
+                center_ids[level].add(center_point.id)
+
+            # ######################################################## #
+            # Adding outbound lines from centers ##################### #
+            # ######################################################## #
+
+            # Filter o == d
+            if center_point.id != p.id:
+
+                # If shortest paths from centers
+                if sp_lines:
+
+                    xy_sp = nw.query_sp(center_point, p, projection="MERCATOR")
+
+                    # Get list of x and y coordinates (e.g., [x1,x2,x3] and
+                    # [y1,y2,y3])
+                    sp_x, sp_y = zip(*xy_sp)
+
+                    sp_x = list(sp_x)
+                    sp_x_pair = [
+                        list(pairx) for pairx in zip(sp_x[:-1], sp_x[1:])
+                    ]
+
+                    sp_y = list(sp_y)
+                    sp_y_pair = [
+                        list(pairy) for pairy in zip(sp_y[:-1], sp_y[1:])
+                    ]
+
+                    lines[STRAIGHT_LINE][level]["xs"].extend(sp_x_pair)
+                    lines[STRAIGHT_LINE][level]["ys"].extend(sp_y_pair)
+
+                # If straight lines from centers
+                if direct_lines:
+
+                    lines[SP_LINE][level]["xs"].append([center_point.x, p.x])
+                    lines[SP_LINE][level]["ys"].append([center_point.y, p.y])
+
+    return centers, lines
+
+
+def compute_movements(step, cars, step_car_path, n_points=30):
+
+    # Get car paths
+    for c in cars:
+
+        # Car path was stored in previous step since its route covers
+        # more than one time step
+        if c.id not in step_car_path[step]:
+
+            # segmented_sp = nw.query_segmented_sp(
+            #     c.previous,
+            #     c.point,
+            #     n_points,
+            #     step_duration,
+            #     projection="MERCATOR",
+            #     waypoint=c.waypoint,
+            # )
+
+            dif = c.arrival_time - c.previous_arrival
+
+            # If vehice is parked
+            if dif == 0:
+                segmented_sp = [[[c.point.x, c.point.y]]]
+            # Vehicle is moving
+            else:
+                segmented_sp = nw.query_sp_sliced(
+                    c.previous,
+                    c.point,
+                    n_points * dif,
+                    dif,
+                    projection="MERCATOR",
+                    waypoint=c.waypoint,
+                )
+
+            # if segmented_sp[0]:
+            #     print(f'{c.id} - INSERT TW: ({c.previous_arrival},{c.arrival_time}) Segmented SP: {len(segmented_sp)}')
+            #     print("S:", c.previous, c.point)
+            # Update car movement in step
+            for i, s in enumerate(segmented_sp):
+                step_car_path[step + i][c.id] = (c.status, s)
+
+        # else:
+        #     print(
+        #         # f"Segmented: {[len(s) for status, s in movement_step_fleet_dict[step]]}."
+        #         f"\n################ {c} ##############################"
+        #         f"\n-           Status: {c.status} "
+        #         f"\n- Previous arrival: {c.previous_arrival} "
+        #         f"\n-          Arrival: {c.arrival_time} "
+        #         f"\n-             Step: {c.step}/{step} "
+        #     )
+        
+def get_next_frame(step_car_path, step):
+
+    if step in step_car_path and step_car_path[step]:
+
+        xy_status = defaultdict(lambda: dict(x=[], y=[]))
+        count_finished = 0
+
+        for status, path_car in step_car_path[step].values():
+
+            if len(path_car) > 1:
+                x, y = path_car.pop(0)
+                xy_status[status]["x"].append(x)
+                xy_status[status]["y"].append(y)
+            else:
+                x, y = path_car[0]
+                count_finished += 1
+                xy_status[status]["x"].append(x)
+                xy_status[status]["y"].append(y)
+
+        if count_finished == len(step_car_path[step].keys()):
+            return xy_status, step + 1
+        else:
+            return xy_status, step

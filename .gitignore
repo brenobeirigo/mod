@@ -1,5 +1,6 @@
 # Log files
 *.log
+*.txt
 
 # Gurobi models
 *.lp

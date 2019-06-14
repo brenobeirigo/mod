@@ -17,3 +17,6 @@
 # Images
 *.png
 *.jpg
+
+# Results
+data/output/

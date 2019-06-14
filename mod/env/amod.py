@@ -98,6 +98,7 @@ class Amod:
                 )
                 for point in self.car_origin_points
             ]
+        
         else:
             # Creating fleet starting from pre-determined positions
             self.cars = [
@@ -108,6 +109,9 @@ class Amod:
                 )
                 for point in car_positions
             ]
+        
+        # List of available vehicles
+        self.available = self.cars
 
         # -------------------------------------------------------------#
         # Learning #####################################################
@@ -155,7 +159,13 @@ class Amod:
             lambda: defaultdict(lambda: defaultdict(float))
         )
 
-    def reset(self):
+    def reset(self, use_previous_car_positions=False):
+
+        if not use_previous_car_positions or not self.cars:
+            new_origins = random.choices(self.points, k=self.fleet_size)
+        else:
+            print("Using previous car positions...")
+            new_origins = [c.point for c in self.cars]
 
         Car.count = 0
 
@@ -167,7 +177,7 @@ class Amod:
             )
             for point in [
                 point
-                for point in random.choices(self.points, k=self.fleet_size)
+                for point in new_origins
             ]
         ]
 
@@ -757,6 +767,39 @@ class Amod:
 
         pprint(dict(count_status))
 
+
+    def update_fleet_status(self, time_step):
+        
+        available = []
+
+        for car in self.cars:
+            # Check if vehicles finished their tasks
+            # Where are the cars?
+            # What are they doing at the current step?
+            # t ----- t+1 ----- t+2 ----- t+3 ----- t+4 ------- t+5
+            # --trips----trips------trips-----trips------trips-----
+            car.update(time_step, time_increment=self.config.time_increment)
+
+            # Discard busy vehicles
+            if not car.busy:
+                available.append(car)
+
+        self.available = available
+
+
+    def print_fleet_stats_summary(self):
+        count_status = dict()
+
+        # Start all car statuses with 0
+        for s in Car.status_list:
+            count_status[s] = 0
+
+        # Count how many car per status
+        for c in self.cars:
+            count_status[c.status] += 1
+
+        pprint(dict(count_status))
+
     def get_fleet_status(self):
         """Number of cars per status and total battery level
         in miles.
@@ -827,7 +870,7 @@ class AmodNetwork(Amod):
 
         super().__init__(config)
 
-        self.reset()
+        # self.reset()
 
         self.config = config
         self.time_steps = config.time_steps
@@ -961,6 +1004,23 @@ class AmodNetwork(Amod):
         return nw.query_neighbors(center_point.id, reach=reach)
     
     def get_zone_neighbors(self, center, level=0, n_neighbors=4):
+        """Get the ids of "n_neighbors" neighboring region centers
+        considering aggregation level around center.
+        
+        Parameters
+        ----------
+        center : id of region center
+            [description]
+        level : int, optional
+            [description], by default 0
+        n_neighbors : int, optional
+            [description], by default 4
+        
+        Returns
+        -------
+        [type]
+            [description]
+        """
         step = Point.levels[level]
         return nw.query_neighbor_zones(
             center.level_ids_dic[step],

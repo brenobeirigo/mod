@@ -84,6 +84,7 @@ class Config:
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     LEVEL_DIST_LIST = "LEVEL_LIST"
+    REBALANCE_LEVEL = "REBALANCE_LEVEL"
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -96,6 +97,9 @@ class Config:
 
     NAME = "NAME"
     REGION = "REGION"
+    NODE_COUNT = "NODE_COUNT"
+    EDGE_COUNT = "EDGE_COUNT"
+    CENTER_COUNT = "CENTER_COUNT"
 
     @property
     def label(self):
@@ -385,6 +389,13 @@ class Config:
             Config.COST_RECHARGE_SINGLE_INCREMENT
         ] = self.calculate_cost_recharge(self.time_increment)
 
+        self.config[Config.DEMAND_MAX_STEPS] = int(
+            self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.time_increment
+        )
+        self.config[Config.EARLIEST_STEP_MIN] = int(
+            self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
+        )
+
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -567,6 +578,8 @@ class ConfigNetwork(ConfigStandard):
         self.config["N_CLOSEST_NEIGHBORS"] = 4
         self.config["NEIGHBORHOOD_LEVEL"] = 1
 
+        self.config[Config.REBALANCE_LEVEL] = 1
+
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
             60
@@ -578,8 +591,8 @@ class ConfigNetwork(ConfigStandard):
 
         # DEMAND DATA ##################################################
         # Data correspond to 1 day NY demand
-        self.config[Config.DEMAND_TOTAL_HOURS] = 12
-        self.config[Config.DEMAND_EARLIEST_HOUR] = 12
+        self.config[Config.DEMAND_TOTAL_HOURS] = 24
+        self.config[Config.DEMAND_EARLIEST_HOUR] = 0
         self.config[Config.DEMAND_RESIZE_FACTOR] = 1
         self.config[Config.DEMAND_MAX_STEPS] = int(
             self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.time_increment
@@ -604,7 +617,7 @@ class ConfigNetwork(ConfigStandard):
 
     @property
     def demand_max_steps(self):
-        return self.config[Config.DEMAND_TOTAL_HOURS]
+        return self.config[Config.DEMAND_MAX_STEPS]
 
     @property
     def demand_earliest_step_min(self):
@@ -671,3 +684,29 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}"
         )
+
+    @property
+    def name(self):
+        return self.config[Config.NAME]
+
+    @property
+    def region(self):
+        return self.config[Config.REGION]
+
+    @property
+    def node_count(self):
+        return self.config[Config.NODE_COUNT]
+
+    @property
+    def edge_count(self):
+        return self.config[Config.EDGE_COUNT]
+
+    @property
+    def center_count_dict(self):
+        return self.config[Config.CENTER_COUNT]
+
+    @property
+    def rebalance_level(self):
+        """Level of centers cars rebalance to"""
+        return self.config[Config.REBALANCE_LEVEL]
+

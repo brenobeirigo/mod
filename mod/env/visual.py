@@ -9,6 +9,8 @@ from mod.env.config import FOLDER_OUTPUT
 import os
 from pprint import pprint
 
+import pandas as pd
+import itertools as it
 sns.set(style="ticks")
 sns.set_context("paper")
 
@@ -75,12 +77,17 @@ class EpisodeLog:
             self.output_path = FOLDER_OUTPUT + config.label
             self.output_folder_fleet = self.output_path + "/fleet/"
             self.output_folder_service = self.output_path + "/service/"
+            self.folder_fleet_status_data = self.output_folder_fleet + "data/"
+            self.folder_demand_status_data = self.output_folder_service + "data/"
 
             # Creating folders to log episodes
-            if not os.path.exists(self.output_path):
-
+            if not os.path.exists(self.output_folder_fleet):
                 os.makedirs(self.output_folder_fleet)
+                os.makedirs(self.folder_fleet_status_data)
+
+            if not os.path.exists(self.output_folder_service):
                 os.makedirs(self.output_folder_service)
+                os.makedirs(self.folder_demand_status_data)
 
                 print(
                     f"\n### Saving episodes at:"
@@ -145,7 +152,7 @@ class EpisodeLog:
         )
 
     def compute_episode(
-        self, step_log, weights=None, plots=True, progress=False
+        self, step_log, weights=None, plots=True, progress=False, save_df=True
     ):
 
         # Increment number of episodes
@@ -174,6 +181,19 @@ class EpisodeLog:
                 file_path=self.output_folder_service + f"{self.n:04}",
                 file_format="png",
                 dpi=150,
+            )
+        
+        if save_df:
+            df1 = step_log.get_step_status_count()
+            df1.to_csv(
+                self.folder_fleet_status_data
+                + f"e_fleet_status_{self.n:04}.csv"
+            )
+
+            df2 = step_log.get_step_demand_status()
+            df2.to_csv(
+                self.folder_demand_status_data
+                + f"e_demand_status_{self.n:04}.csv"
             )
 
         # Save what was learned so far
@@ -342,14 +362,8 @@ class StepLog:
         self.total_battery = list()
         self.n = 0
 
-    def add_record(self, reward, serviced, rejected):
-        self.n += 1
-        self.reward_list.append(reward)
-        self.serviced_list.append(len(serviced))
-        self.rejected_list.append(len(rejected))
-        total = len(serviced) + len(rejected)
-        self.total_list.append(total)
-
+    def compute_fleet_status(self):
+        
         # Get number of cars per status in a time step
         # and aggregate battery level
         dict_status, battery_level = self.env.get_fleet_status()
@@ -360,6 +374,15 @@ class StepLog:
         # Number of vehicles per status
         for k in Car.status_list:
             self.car_statuses[k].append(dict_status.get(k, 0))
+
+    def add_record(self, reward, serviced, rejected):
+        self.n += 1
+        self.reward_list.append(reward)
+        self.serviced_list.append(len(serviced))
+        self.rejected_list.append(len(rejected))
+        total = len(serviced) + len(rejected)
+        self.total_list.append(total)
+
 
     @property
     def total_reward(self):
@@ -425,11 +448,11 @@ class StepLog:
 
         # Configure x axis
         x_ticks = 6
-        x_stride = 20
+        x_stride = 60*3
         max_x = np.math.ceil(self.n / x_stride) * x_stride
         xticks = np.arange(0, max_x + x_stride, x_stride)
-        plt.xticks(xticks)
-        plt.xlabel("Time (15min)")
+        plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
+        plt.xlabel("Time")
 
         # Configure y axis
         plt.ylabel("# Cars")
@@ -453,6 +476,27 @@ class StepLog:
             plt.show()
         plt.close()
 
+    def get_step_status_count(self):
+
+        self.step_df = pd.DataFrame()
+        for status_label, status_count_step in self.car_statuses.items():
+            self.step_df[status_label] = pd.Series(status_count_step)
+
+        self.step_df.index.name = "step"
+
+        return self.step_df
+
+    def get_step_demand_status(self):
+
+        self.step_demand_status = pd.DataFrame()
+        self.step_demand_status["Total demand"] = pd.Series(self.total_list)
+        self.step_demand_status["Serviced demand"] = pd.Series(self.serviced_list)
+        self.step_demand_status["Battery level"] = pd.Series(self.total_battery)
+        self.step_demand_status.index.name = "step"
+
+        return self.step_demand_status
+
+
     def plot_service_status(self, file_path=None, file_format="png", dpi=150):
 
         max_battery_level = len(self.env.cars) * (
@@ -471,7 +515,7 @@ class StepLog:
         steps = np.arange(self.n)
 
         fig, ax1 = plt.subplots()
-        ax1.set_xlabel("Time (15min)")
+        ax1.set_xlabel("Time")
         ax1.set_ylabel("Trips")
         ax1.plot(steps, self.total_list, label="Total demand", color="b")
         ax1.plot(steps, self.serviced_list, label="Met demand", color="g")
@@ -484,11 +528,11 @@ class StepLog:
 
         # Configure ticks x axis
         x_ticks = 6
-        x_stride = 20
+        x_stride = 60*3
         max_x = np.math.ceil(self.n / x_stride) * x_stride
         xticks = np.arange(0, max_x + x_stride, x_stride)
-        plt.xticks(xticks)
-
+        plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
+        
         # Configure ticks y axis (battery level)
         y_ticks = 5  # apart from 0
         y_stride = max_battery_level_10 / y_ticks
@@ -618,6 +662,7 @@ def plot_centers(
 STRAIGHT_LINE = 'OD'
 SP_LINE = 'SP'
 
+
 def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
 
     print("-------- Plotting region centers --------")
@@ -673,14 +718,14 @@ def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
                         list(pairy) for pairy in zip(sp_y[:-1], sp_y[1:])
                     ]
 
-                    lines[STRAIGHT_LINE][level]["xs"].extend(sp_x_pair)
-                    lines[STRAIGHT_LINE][level]["ys"].extend(sp_y_pair)
+                    lines[SP_LINE][level]["xs"].extend(sp_x_pair)
+                    lines[SP_LINE][level]["ys"].extend(sp_y_pair)
 
                 # If straight lines from centers
                 if direct_lines:
 
-                    lines[SP_LINE][level]["xs"].append([center_point.x, p.x])
-                    lines[SP_LINE][level]["ys"].append([center_point.y, p.y])
+                    lines[STRAIGHT_LINE][level]["xs"].append([center_point.x, p.x])
+                    lines[STRAIGHT_LINE][level]["ys"].append([center_point.y, p.y])
 
     return centers, lines
 
@@ -735,7 +780,8 @@ def compute_movements(step, cars, step_car_path, n_points=30):
         #         f"\n-          Arrival: {c.arrival_time} "
         #         f"\n-             Step: {c.step}/{step} "
         #     )
-        
+
+
 def get_next_frame(step_car_path, step):
 
     if step in step_car_path and step_car_path[step]:
@@ -749,11 +795,14 @@ def get_next_frame(step_car_path, step):
                 x, y = path_car.pop(0)
                 xy_status[status]["x"].append(x)
                 xy_status[status]["y"].append(y)
-            else:
+            elif len(path_car) == 1:
                 x, y = path_car[0]
                 count_finished += 1
                 xy_status[status]["x"].append(x)
                 xy_status[status]["y"].append(y)
+            else:
+                print("WHAT", status, path_car)
+                pprint(step_car_path)
 
         if count_finished == len(step_car_path[step].keys()):
             return xy_status, step + 1

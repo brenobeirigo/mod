@@ -1,5 +1,5 @@
 from functools import partial
-from bokeh.models import ColumnDataSource, Toggle, Slider
+from bokeh.models import ColumnDataSource, Toggle, Slider, Div
 from threading import Thread
 from bokeh.themes import built_in_themes
 from bokeh.plotting import curdoc, figure
@@ -14,12 +14,15 @@ import mod.env.visual as vi
 import mod.env.network as nw
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from pprint import pprint
+from mod.env.config import FOLDER_OUTPUT
+import os
 
 
 class PlotTrack:
 
     # Plot steps
-    ENABLE_PLOT = True
+    ENABLE_PLOT = False
     # Delay after each assignment (in seconds)
 
     STEP_DELAY = 0
@@ -33,25 +36,37 @@ class PlotTrack:
     PLOT_STEP = 0
     OPT_STEP = 1
     PLOT_EPISODE = 2
-    AMOD = 3
+
+    REGION_CENTER_LINE_WIDHT = 1
+    REGION_CENTER_LINE_ALPHA = 0.3
 
     # Number of coordinates composing the car paths within a step
-    SHOW_SP_LINES = False
+    SHOW_SP_LINES = True
     SHOW_LINES = True
 
-    N_POINTS = 20
+    N_POINTS = 60
     STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1
 
-    def __init__(self, episode, step, opt_step):
+    def __init__(self, config):
+        self.config = config
+        self.output_path = FOLDER_OUTPUT + config.label
+        self.output_folder_simulation = self.output_path + "/simulation/"
+
+        # Creating folder to save partial info
+        if not os.path.exists(self.output_folder_simulation):
+            os.makedirs(self.output_folder_simulation)
+
+        self.path_region_center_data = (
+            self.output_folder_simulation + "region_center_data.npy"
+        )
 
         # -------------------------------------------------------------------- #
         # Slide steps ahead ################################################## #
         # -------------------------------------------------------------------- #
 
         self.steps_ahead = 0
-
         self.slide_alpha = Slider(
             title="Opacity lines",
             start=0,
@@ -67,6 +82,8 @@ class PlotTrack:
         self.doc = curdoc()
         self.doc.theme = "caliber"
         self.doc.title = "Simulation"
+
+        # All lines (alpha control)
         self.center_lines = []
 
         # create a plot and style its properties
@@ -75,17 +92,19 @@ class PlotTrack:
             x_axis_type="mercator",
             y_axis_type="mercator",
             plot_height=800,
+            plot_width=1000,
             border_fill_color="white",
             background_fill_color="white",
         )
 
         self.p.title.text_font_size = "25px"
-        self.p.add_tile(get_provider(Vendors.CARTODBPOSITRON_RETINA))
         self.p.title.align = "center"
+        self.p.add_tile(get_provider(Vendors.CARTODBPOSITRON_RETINA))
 
-        self.plot_step = step
-        self.plot_episode = episode
-        self.opt_step = opt_step
+        self.plot_step = 0
+        self.plot_episode = 0
+        self.opt_step = 0
+        self.opt_episode = 0
         self.env = None
         self.trips_dict = dict()
         self.step_car_path_dict = defaultdict(lambda: defaultdict(dict))
@@ -118,7 +137,7 @@ class PlotTrack:
                 color="firebrick",
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend=Car.REBALANCE,
             ),
             Car.ASSIGN: self.p.triangle(
@@ -128,7 +147,7 @@ class PlotTrack:
                 color="green",
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend=Car.ASSIGN,
             ),
             Car.IDLE: self.p.triangle(
@@ -139,7 +158,7 @@ class PlotTrack:
                 fill_alpha=0.0,
                 line_width=0.5,
                 line_color="navy",
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend=Car.IDLE,
             ),
             Car.RECHARGING: self.p.triangle(
@@ -149,7 +168,7 @@ class PlotTrack:
                 color="purple",
                 line_width=0,
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend=Car.RECHARGING,
             ),
             "o": self.p.circle(
@@ -159,8 +178,7 @@ class PlotTrack:
                 color="green",
                 fill_alpha=0.3,
                 line_width=0,
-                # line_color="green",
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend="Origins",
             ),
             "d": self.p.circle(
@@ -170,8 +188,7 @@ class PlotTrack:
                 color="firebrick",
                 fill_alpha=0.3,
                 line_width=0,
-                # line_color="firebrick",
-                muted_alpha=0.1,
+                muted_alpha=0.0,
                 legend="Destinations",
             ),
         }
@@ -321,19 +338,13 @@ class PlotTrack:
             attribute=self.value_function, value=values, param="fill_alpha"
         )
 
-    def start_animation(self, sim):
+    def create_value_function_points(self, points):
+        self.value_function.data_source.data = {
+            **{"fill_alpha": np.zeros(len(points["x"]))},
+            **points,
+        }
 
-        thread = Thread(target=partial(sim, plot_track=self))
-
-        thread.start()
-        self.doc.add_periodic_callback(
-            self.update_plot_frame, PlotTrack.FRAME_UPDATE_DELAY
-        )
-
-    @gen.coroutine
-    def update_first(self, lines, level_centers, level_demand, level_fleet):
-
-        print("Drawing centers...")
+    def create_regular_points(self, points):
 
         point_regular = self.p.circle(
             x=[],
@@ -346,79 +357,145 @@ class PlotTrack:
             muted_alpha=0,
         )
 
-        column_elements = []
+        point_regular.data_source.data = points
+        self.all_points = points
 
-        source_point_value = self.value_function.data_source
+    def get_region_center_toggle(
+        self, lines_xy, i_level, level, level_demand, level_fleet, centers
+    ):
+
+        active = False
+        region_fleet = ""
+        region_demand = ""
+
+        if level == level_demand:
+            region_demand = " [D] "
+            active = True
+
+        if level == level_fleet:
+            region_fleet = "[F] "
+            active = True
+
+        lines_level_glyph = self.p.multi_line(
+            [],
+            [],
+            line_color="firebrick",
+            line_alpha=PlotTrack.REGION_CENTER_LINE_ALPHA,
+            line_width=PlotTrack.REGION_CENTER_LINE_WIDHT,
+            muted_alpha=0.00,
+            visible=active,
+        )
+        self.center_lines.append(lines_level_glyph)
+
+        point_centers = self.p.circle(
+            x=[],
+            y=[],
+            size=6,
+            color="white",
+            line_width=1,
+            line_color="firebrick",
+            visible=active,
+        )
+
+        point_centers.data_source.data = centers
+        lines_level_glyph.data_source.data = lines_xy[level]
+
+        toggle = Toggle(
+            label=(
+                f"Level {i_level:>2} ({level:>3}s)"
+                f"{region_demand + region_fleet:>7}"
+            ),
+            active=active,
+            width=150,
+        )
+
+        toggle.js_link("active", lines_level_glyph, "visible")
+        toggle.js_link("active", point_centers, "visible")
+
+        return toggle
+
+    @staticmethod
+    def default_to_regular(d):
+        if isinstance(d, defaultdict):
+            d = {k: PlotTrack.default_to_regular(v) for k, v in d.items()}
+        return d
+
+    @gen.coroutine
+    @without_document_lock
+    def update_first(self, lines, level_centers, level_demand, level_fleet):
+
+        print("Drawing centers...")
+
+        column_elements = []
 
         toggles = defaultdict(list)
         i = -1
         for level, centers in level_centers.items():
             i += 1
-            # Ignore level 0
+            # Level 0 corresponds to regular intersections
             if level == 0:
-                regular = centers
-                self.all_points = regular
-                point_regular.data_source.data = regular
-                source_point_value.data = {
-                    **{"fill_alpha": np.zeros(len(centers["x"]))},
-                    **regular,
-                }
+                self.create_regular_points(centers)
+                self.create_value_function_points(centers)
                 continue
 
+            # Line types = Direct lines or Shortest Path lines, from
+            #           centers to elements.
+            # Lines xy =  Dicitionary of line coordinates, for example,
+            #           {x=[[x1, x2], [x1, x3]], y=[[y1, y2], [y1, y3]]}
             for line_type, lines_xy in lines.items():
 
-                active = False
-                region_fleet = ""
-                region_demand = ""
-                if level == level_demand:
-                    region_demand = " [D] "
-                    active = True
-                if level == level_fleet:
-                    region_fleet = "[F] "
-                    active = True
-
-                lines_level_glyph = self.p.multi_line(
-                    [],
-                    [],
-                    line_color="firebrick",
-                    line_alpha=0.05,
-                    line_width=3,
-                    muted_alpha=0.00,
-                    visible=active,
+                toggle = self.get_region_center_toggle(
+                    lines_xy, i, level, level_demand, level_fleet, centers
                 )
-                self.center_lines.append(lines_level_glyph)
-
-                point_centers = self.p.circle(
-                    x=[],
-                    y=[],
-                    size=6,
-                    color="white",
-                    line_width=1,
-                    line_color="firebrick",
-                    visible=active,
-                )
-
-                point_centers.data_source.data = centers
-                lines_level_glyph.data_source.data = lines_xy[level]
-
-                toggle = Toggle(
-                    label=f"Level {i:>2} ({level:>3}){region_demand}{region_fleet}",
-                    active=active,
-                    width=150,
-                )
-
-                toggle.js_link("active", lines_level_glyph, "visible")
-                toggle.js_link("active", point_centers, "visible")
 
                 toggles[line_type].append(toggle)
 
+        # Add all toggles to column
         for line_type in lines:
+            # Title before region center toggles
+            line_type_title = Div(
+                text=f"<h3>{line_type} lines</h3>", width=150
+            )
+            column_elements.append(line_type_title)
+
+            # Toggles
             column_elements.extend(toggles[line_type])
 
         column_elements.append(self.slide_alpha)
         column_elements.append(self.slide_time_ahead)
 
-        self.doc.add_root(row(column(*column_elements), self.p))
+        title = Div(
+            text=(f"<h1>{self.env.config.region}</h1>"), align="center"
+        )
+
+        network_info = Div(
+            text=(
+                f"<h2>{self.env.config.node_count} nodes & "
+                f"{self.env.config.edge_count} edges</h2>"
+            ),
+            align="center",
+        )
+
+        center_count = Div(
+            text=(
+                " - ".join(
+                    [
+                        f"<b>{dist}</b>({count})"
+                        for dist, count in self.env.config.center_count_dict.items()
+                    ]
+                )
+            )
+        )
+
+        self.doc.add_root(
+            column(
+                title,
+                network_info,
+                row(column(*column_elements), self.p),
+                center_count,
+            )
+        )
+
         self.config_figure()
 
         print("Centers, toggles, and slides created.")
@@ -431,11 +508,35 @@ class PlotTrack:
         level_fleet,
         show_sp_lines=True,
         show_lines=True,
+        path_center_data=None,
     ):
 
-        centers_xy, lines_xy = vi.get_center_elements(
-            points, levels, sp_lines=show_sp_lines, direct_lines=show_lines
-        )
+        try:
+            print("\nReading center data...")
+            center_lines_dict = np.load(self.path_region_center_data).item()
+            centers_xy = center_lines_dict["centers_xy"]
+            lines_xy = center_lines_dict["lines_xy"]
+            print("Center data loaded successfully.")
+
+        # Centers were not previously saved
+        except Exception as e:
+
+            print(
+                f"\nFailed reading center data. Exception: {e} "
+                "\nPulling center data from server..."
+            )
+            centers_xy, lines_xy = vi.get_center_elements(
+                points, levels, sp_lines=show_sp_lines, direct_lines=show_lines
+            )
+            print("Saving center data...")
+            np.save(
+                self.path_region_center_data,
+                {
+                    "centers_xy": PlotTrack.default_to_regular(centers_xy),
+                    "lines_xy": PlotTrack.default_to_regular(lines_xy),
+                },
+            )
+            print(f"Center data saved at '{self.path_region_center_data}'")
 
         self.doc.add_next_tick_callback(
             partial(
@@ -447,7 +548,7 @@ class PlotTrack:
             )
         )
 
-        print("---- Finished plotting centers.")
+        print("Finished plotting centers.")
 
     @gen.coroutine
     def update_time_ahead(self, attrname, old, new):
@@ -524,13 +625,55 @@ class PlotTrack:
                     x, y = path_car.pop(0)
                     xy_status[status]["x"].append(x)
                     xy_status[status]["y"].append(y)
-                else:
+
+                # Does not erase last position visited by car
+                # When number of coordinates vary, it is desirible that
+                # cars that have already travelled their paths wait in
+                # the last position they visited.
+
+                elif len(path_car) == 1:
                     x, y = path_car[0]
                     count_finished += 1
                     xy_status[status]["x"].append(x)
                     xy_status[status]["y"].append(y)
 
+                else:
+                    print(step)
+                    pprint(self.step_car_path_dict)
+                    pprint(self.step_car_path_dict[step])
+
+                    # pass
+                    # TODO Sometimes path_car[0] does no exist. This
+                    # cannot happen since coordinates are popped when
+                    # there are more than 2 elements.
+                    # Multithreading? path_car was not populated
+                    # correctly in the first place?
+
             if count_finished == len(self.step_car_path_dict[step].keys()):
                 return xy_status, step + 1
             else:
                 return xy_status, step
+
+    # ################################################################ #
+    # START ########################################################## #
+    # ################################################################ #
+
+    def start_animation(self, opt_method):
+        """Start animation using opt_method as a base.
+        
+        In opt_method, movements are computed and passed to simulator.
+        
+        Parameters
+        ----------
+        opt_method : def
+            Function where optimization takes place.
+        """
+
+        thread = Thread(
+            target=partial(opt_method, plot_track=self, config=self.config)
+        )
+
+        thread.start()
+        self.doc.add_periodic_callback(
+            self.update_plot_frame, PlotTrack.FRAME_UPDATE_DELAY
+        )

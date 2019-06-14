@@ -71,6 +71,7 @@ def extract_solution(var_list, flow_cars=None):
 
     return decisions, duals
 
+
 # #################################################################### #
 # Manipulate decisions ############################################### #
 # #################################################################### #
@@ -135,12 +136,12 @@ def get_decision_tuples(car_attributes, neighbors, trip_ods):
 
 
 def get_decision_set(
-        car_attributes,
-        neighbors,
-        trip_ods,
-        rebalance_neighbors,
-        max_battery_level=20,
-    ):
+    car_attributes,
+    neighbors,
+    trip_ods,
+    rebalance_neighbors,
+    max_battery_level=20,
+):
     decisions = set()
 
     for (pos_level, battery), car_list in car_attributes.items():
@@ -185,20 +186,22 @@ def get_decision_set(
 
     return decisions
 
+
 # #################################################################### #
 # Methods ############################################################ #
 # #################################################################### #
 
 
 def adp_network(
-        env,
-        trips,
-        time_step,
-        charge=True,
-        agg_level=None,
-        myopic=False,
-        neighborhood_level=0,
-        n_neighbors=4):
+    env,
+    trips,
+    time_step,
+    charge=True,
+    agg_level=None,
+    myopic=False,
+    neighborhood_level=0,
+    n_neighbors=4,
+):
     """Assign trips to available vehicles optimally at the current
         time step.
 
@@ -237,7 +240,6 @@ def adp_network(
 
     # Disables all logging (file and console)
     m.setParam("OutputFlag", 0)
-    
 
     # if log_path:
     #     m.Params.LogFile = "{}/region_centers_{}.log".format(
@@ -252,94 +254,30 @@ def adp_network(
     # SORT CARS ########################################################
     # ##################################################################
 
-    # How many cars per attribute
-    cars_with_attribute_neighborhood = defaultdict(list)
-    cars_with_attribute_zero = defaultdict(list)
-
-    # Which positions are surrounding each car position
-    dict_attribute_neighbors = dict()
-    dict_attribute_rebalance = dict()
-
-    # Reachable points
-    rechable_points = set()
-
-    for car in env.cars:
-
-        # Check if vehicles finished their tasks
-        # Where are the cars? What are they doing at the current step?
-        # t ------- t+1 ------- t+2 ------- t+3 ------- t+4 ------- t+5
-        # ---trips-------trips-------trips-------trips-------trips-----
-        car.update(time_step, time_increment=env.config.time_increment)
-
-        # Discard busy vehicles
-        if car.busy:
-            continue
-
-        # List of cars with the same attribute (pos, battery level)
-        a_level = car.attribute_level(neighborhood_level)
-        cars_with_attribute_neighborhood[a_level].append(car)
-        cars_with_attribute_zero[car.attribute].append(car)
-
-        # Each car can rebalance to its immediate neighbors. This
-        # prevents vehicles are busy rebalancing to far away zones.
-        if car.attribute not in dict_attribute_rebalance:
-            dict_attribute_rebalance[car.point.id] = env.get_zone_neighbors(
-                car.point,
-                level=neighborhood_level,
-                n_neighbors=n_neighbors
-            )
-
-            # dict_attribute_rebalance[car.point.id] = env.get_neighbors(
-            #     car.point,
-            #     reach=2
-            # )
-
-        # Was this position already processed?
-        car_pos_id = car.point.id_level(neighborhood_level)
-        if car_pos_id not in dict_attribute_neighbors:
-
-            # Get zones around current car regions
-            nearby_zones = env.get_zone_neighbors(
-                car.point,
-                level=neighborhood_level,
-                n_neighbors=n_neighbors
-            )
-
-            # Update set of points cars can reach
-            rechable_points.update(nearby_zones)
-
-            dict_attribute_neighbors[car_pos_id] = nearby_zones
+    (
+        reachable_points,
+        cars_with_attribute_neighborhood,
+        dict_attribute_neighbors,
+        dict_attribute_rebalance,
+        cars_with_attribute_zero,
+    ) = sortout_fleet(
+        env,
+        time_step,
+        neighborhood_level,
+        env.config.rebalance_level,
+        n_neighbors
+    )
 
     # ##################################################################
     # SORT TRIPS #######################################################
     # ##################################################################
 
     #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
-    trips_with_attribute_neighborhood = defaultdict(list)
-    trips_with_attribute_zero = defaultdict(list)
-
-    # Trips that cannot be picked up
-    rejected = list()
-    for t in trips:
-
-        if t.o.id_level(neighborhood_level) in rechable_points:
-
-            od_level_neighborhood = (
-                t.o.id_level(neighborhood_level),
-                t.d.id_level(neighborhood_level)
-            )
-
-            od_level_zero = (
-                t.o.id,
-                t.d.id
-            )
-
-            trips_with_attribute_neighborhood[od_level_neighborhood].append(t)
-            trips_with_attribute_zero[od_level_zero].append(t)
-
-        # If no vehicle can reach the trip, it is immediately rejected
-        else:
-            rejected.append(t)
+    (
+        trips_with_attribute_neighborhood,
+        trips_with_attribute_zero,
+        rejected
+    ) = sortout_trips(trips, neighborhood_level, reachable_points)
 
     # ##################################################################
     # VARIABLES ########################################################
@@ -422,7 +360,7 @@ def adp_network(
 
     # Optimize
     m.optimize()
-    #m.write(f"mip/adp{time_step:04}.lp")
+    # m.write(f"mip/adp{time_step:04}.lp")
 
     if m.status == GRB.Status.UNBOUNDED:
         print("The model cannot be solved because it is unbounded")
@@ -479,6 +417,101 @@ def adp_network(
         for c in m.getConstrs():
             if c.IISConstr:
                 print("%s" % c.constrName)
+
+
+
+def sortout_trips(trips, neighborhood_level, reachable_points):
+
+    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+    trips_with_attribute_neighborhood = defaultdict(list)
+    trips_with_attribute_zero = defaultdict(list)
+
+    # Trips that cannot be picked up
+    rejected = list()
+    for t in trips:
+
+        if t.o.id_level(neighborhood_level) in reachable_points:
+
+            od_level_neighborhood = (
+                t.o.id_level(neighborhood_level),
+                t.d.id_level(neighborhood_level),
+            )
+
+            od_level_zero = (t.o.id, t.d.id)
+
+            trips_with_attribute_neighborhood[od_level_neighborhood].append(t)
+            trips_with_attribute_zero[od_level_zero].append(t)
+
+        # If no vehicle can reach the trip, it is immediately rejected
+        else:
+            rejected.append(t)
+    return trips_with_attribute_neighborhood, trips_with_attribute_zero, rejected
+
+
+def sortout_fleet(
+        env,
+        time_step,
+        neighborhood_level,
+        rebalance_level,
+        n_neighbors
+    ):
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    # How many cars per attribute
+    cars_with_attribute_neighborhood = defaultdict(list)
+    cars_with_attribute_zero = defaultdict(list)
+
+    # Which positions are surrounding each car position
+    dict_attribute_neighbors = dict()
+    dict_attribute_rebalance = dict()
+
+    # Reachable points
+    rechable_points = set()
+    for car in env.available:
+
+        # List of cars with the same attribute (pos, battery level)
+        a_level = car.attribute_level(neighborhood_level)
+        cars_with_attribute_neighborhood[a_level].append(car)
+        cars_with_attribute_zero[car.attribute].append(car)
+
+        # Each car can rebalance to its immediate neighbors. This
+        # prevents vehicles are busy rebalancing to far away zones.
+        if car.attribute not in dict_attribute_rebalance:
+            dict_attribute_rebalance[car.point.id] = env.get_zone_neighbors(
+                car.point, level=rebalance_level, n_neighbors=n_neighbors
+            )
+
+            # dict_attribute_rebalance[car.point.id] = env.get_neighbors(
+            #     car.point,
+            #     reach=2
+            # )
+
+        # Was this position already processed?
+        car_pos_id = car.point.id_level(neighborhood_level)
+        if car_pos_id not in dict_attribute_neighbors:
+
+            # Get zones around current car regions
+            # nearby_zones = env.get_zone_neighbors(
+            #     car.point, level=neighborhood_level, n_neighbors=n_neighbors
+            # )
+
+            # Get zones around current car regions
+            nearby_zones = [car_pos_id]
+
+            # Update set of points cars can reach
+            rechable_points.update(nearby_zones)
+
+            dict_attribute_neighbors[car_pos_id] = nearby_zones
+
+    return (
+        rechable_points,
+        cars_with_attribute_neighborhood,
+        dict_attribute_neighbors,
+        dict_attribute_rebalance,
+        cars_with_attribute_zero,
+    )
 
 
 def adp_grid(env, trips, time_step, charge=True, agg_level=None, myopic=False):
@@ -1005,14 +1038,15 @@ def myopic(env, trips, time_step, charge=True):
 
 
 def adp_low_resolution(
-        env,
-        trips,
-        time_step,
-        charge=True,
-        agg_level=None,
-        myopic=False,
-        neighborhood_level=0,
-        n_neighbors=4):
+    env,
+    trips,
+    time_step,
+    charge=True,
+    agg_level=None,
+    myopic=False,
+    neighborhood_level=0,
+    n_neighbors=4,
+):
     """Assign trips to available vehicles optimally at the current
         time step.
 
@@ -1096,9 +1130,7 @@ def adp_low_resolution(
 
             # Get zones around current car regions
             nearby_zones = env.get_neighbors(
-                car.point,
-                level=neighborhood_level,
-                n_neighbors=n_neighbors
+                car.point, level=neighborhood_level, n_neighbors=n_neighbors
             )
 
             # Update set of points cars can reach
@@ -1121,7 +1153,7 @@ def adp_low_resolution(
 
             od_level_tuple = (
                 t.o.id_level(neighborhood_level),
-                t.d.id_level(neighborhood_level)
+                t.d.id_level(neighborhood_level),
             )
             trips_with_attribute[od_level_tuple].append(t)
 

@@ -21,22 +21,16 @@ import mod.env.network as nw
 from mod.env.simulator import PlotTrack
 
 
-run_plot = PlotTrack(0, 0, 0)
+def get_sim_config():
 
-
-def sim(plot_track):
-
-    step_delay = PlotTrack.STEP_DELAY
-    enable_plot = PlotTrack.ENABLE_PLOT
-
-    print(step_delay, enable_plot)
+    config = ConfigNetwork()
     # Pull graph info
     region, label, node_count, center_count, edge_count = nw.query_info()
 
     info = (
         "##############################################################"
-        f"### Region: {region} G(V={node_count}, E={edge_count})"
-        f"### Center count: {center_count}"
+        f"\n### Region: {region} G(V={node_count}, E={edge_count})"
+        f"\n### Center count: {center_count}"
     )
 
     print(info)
@@ -44,51 +38,66 @@ def sim(plot_track):
     # Amod environment #################################################
     # -----------------------------------------------------------------#
 
-    config = ConfigNetwork()
     config.update(
         {
+            # Network
             ConfigNetwork.NAME: label,
+            ConfigNetwork.REGION: region,
+            ConfigNetwork.NODE_COUNT: node_count,
+            ConfigNetwork.EDGE_COUNT: edge_count,
+            ConfigNetwork.CENTER_COUNT: center_count,
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1500,
+            ConfigNetwork.FLEET_SIZE: 400,
             ConfigNetwork.BATTERY_LEVELS: 20,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.OFFSET_REPOSIONING: 2,
+            ConfigNetwork.OFFSET_REPOSIONING: 15,
             ConfigNetwork.OFFSET_TERMINATION: 30,
             # NETWORK ##################################################
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 30,
             # Demand spawn from how many centers?
-            ConfigNetwork.ORIGIN_CENTERS: 2,
+            ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
-            ConfigNetwork.DESTINATION_CENTERS: 2,
+            ConfigNetwork.DESTINATION_CENTERS: 3,
             # OD level extension
             ConfigNetwork.DEMAND_CENTER_LEVEL: 3,
             # Cars rebalance to up to #region centers
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: 2,
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: 8,
             # Cars can access locations within region centers
             # established in which neighborhood level?
-            ConfigNetwork.NEIGHBORHOOD_LEVEL: 1,
-            # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 180, 300, 600],
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 3,
+            # Cars can rebalance to neighbor centers of level:
+            ConfigNetwork.REBALANCE_LEVEL: 1,
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 300],
             # How many levels separated by step seconds? If None, ad-hoc
             # LEVEL_DIST_LIST must be filled
-            ConfigNetwork.AGGREGATION_LEVELS: 8,
+            ConfigNetwork.AGGREGATION_LEVELS: 5,
             ConfigNetwork.SPEED: 30,
+            # Demand
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 6,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 14,
         }
     )
+    return config
 
-    # "centers":{"30":684,"60":235,"90":119,"120":73,"150":50,"180":37,"210":32,"240":24,"270":19,"300":16,"330":13,"360":11,"390":9,"420":9,"450":8,"480":7,"510":6,"540":5,"570":5,"600":4}
+
+run_plot = PlotTrack(get_sim_config())
+
+
+def sim(plot_track, config):
+
+    step_delay = PlotTrack.STEP_DELAY
+    enable_plot = PlotTrack.ENABLE_PLOT
 
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 600
-    episodeLog = EpisodeLog(config=config)
+    episodes = 1500
+    episode_log = EpisodeLog(config=config)
     amod = AmodNetwork(config)
 
     plot_track.env = amod
-
-    step_car_path = plot_track.step_car_path_dict
 
     # ---------------------------------------------------------------- #
     # Plot centers and guidelines #################################### #
@@ -103,7 +112,7 @@ def sim(plot_track):
             show_lines=PlotTrack.SHOW_LINES,
         )
 
-    origins, destinations = episodeLog.get_od_lists(amod)
+    origins, destinations = episode_log.get_od_lists(amod)
 
     # Get demand pattern from NY city
     step_trip_count = get_trip_count_step(
@@ -125,9 +134,9 @@ def sim(plot_track):
     # ---------------------------------------------------------------- #
 
     # Loop all episodes, pick up trips, and learn where they are
-    for n in range(episodeLog.n, episodes):
+    for n in range(episode_log.n, episodes):
 
-        plot_track.plot_episode = n
+        plot_track.opt_episode = n
 
         # Create all episode trips
         step_trip_list = get_trips_random_ods(
@@ -145,7 +154,7 @@ def sim(plot_track):
         # Resetting environment
         amod.reset()
 
-        # ---------step_car_path--------------------------- #
+        # ------------------------------------------------------------ #
         # Plot fleet current status ################################## #
         # ------------------------------------------------------------ #
         if enable_plot:
@@ -157,16 +166,30 @@ def sim(plot_track):
         for step, trips in enumerate(step_trip_list):
 
             if enable_plot:
+                # Update optimization time step
                 plot_track.opt_step = step
+
+                # Assign trips at step
                 plot_track.trips_dict[step] = vi.compute_trips(trips)
 
+            # Loop cars and update their current status as well as the
+            # the list of available vehicles.
+            amod.update_fleet_status(step)
+
+            # Compute fleet status
+            step_log.compute_fleet_status()
+
+            # Stats summary
+            # print(" - Pre-decision statuses:")
+            # amod.print_fleet_stats_summary()
+
+            # Optimize
             revenue, serviced, rejected = adp_network(
                 amod,
                 trips,
                 step + 1,
                 neighborhood_level=config.neighborhood_level,
                 n_neighbors=config.n_neighbors,
-                # agg_level=amod.config.incumbent_aggregation_level,
             )
 
             # ---------------------------------------------------------#
@@ -180,15 +203,19 @@ def sim(plot_track):
             # What each vehicle is doing?
             # amod.print_fleet_stats()
 
+            # Stats summary
+            # print(" - Post-decision statuses")
+            # amod.print_fleet_stats_summary()
+
             # ---------------------------------------------------------#
             # Plotting fleet activity ################################ #
             # ---------------------------------------------------------#
-            print("Computing movements...")
+            # print("Computing movements...")
             if enable_plot:
                 plot_track.compute_movements(step + 1)
-            print("Finished computing...")
+                # print("Finished computing...")
 
-            time.sleep(step_delay)
+                time.sleep(step_delay)
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################
@@ -199,11 +226,11 @@ def sim(plot_track):
         #     f"- {episodeLog.last_episode_stats()} "
         #     f"#######"
         # )
-        episodeLog.compute_episode(
+        episode_log.compute_episode(
             step_log, weights=amod.get_weights(), progress=True
         )
 
-    episodeLog.compute_learning()
+    episode_log.compute_learning()
 
 
 run_plot.start_animation(sim)

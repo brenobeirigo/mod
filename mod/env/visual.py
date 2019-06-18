@@ -363,7 +363,7 @@ class StepLog:
         self.n = 0
 
     def compute_fleet_status(self):
-        
+
         # Get number of cars per status in a time step
         # and aggregate battery level
         dict_status, battery_level = self.env.get_fleet_status()
@@ -403,15 +403,20 @@ class StepLog:
 
         try:
             sr = self.serviced_list[-1] / self.total_list[-1]
+            reward = self.reward_list[-1]
+            total = self.total_list[-1]
         except:
             sr = 0
+            reward = 0
+            total = 0
 
+        status, battery = self.env.get_fleet_status()
         print(
             f"### Time step: {self.n:>3}"
-            f" ### Profit: {self.reward_list[-1]:>10.2f}"
+            f" ### Profit: {reward:>10.2f}"
             f" ### Service level: {sr:>6.2%}"
-            f" ### Trips: {self.total_list[-1]:>3}"
-            " ###"
+            f" ### Trips: {total:>3}"
+            f" ### Status: {dict(status)}"
         )
 
     def overall_log(self, label="Operational"):
@@ -795,13 +800,18 @@ def get_next_frame(step_car_path, step):
                 x, y = path_car.pop(0)
                 xy_status[status]["x"].append(x)
                 xy_status[status]["y"].append(y)
+
             elif len(path_car) == 1:
                 x, y = path_car[0]
                 count_finished += 1
                 xy_status[status]["x"].append(x)
                 xy_status[status]["y"].append(y)
+
             else:
+
                 print("WHAT", status, path_car)
+                # pass
+
                 pprint(step_car_path)
 
         if count_finished == len(step_car_path[step].keys()):

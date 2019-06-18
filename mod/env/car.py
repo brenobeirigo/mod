@@ -8,6 +8,12 @@ class Car:
     ASSIGN = "With passenger"
     REBALANCE = "Rebalancing"
 
+    COMPANY_OWNED_ORIGIN = "FREE"
+    COMPANY_OWNED_CONTRACT_DURATION = "INF"
+
+    TYPE_FLEET = "AV"
+    TYPE_HIRED = "FV"
+
     status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
 
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):
@@ -16,6 +22,7 @@ class Car:
         self.waypoint = None
         self.previous = o
         self.origin = o
+        self.type = Car.TYPE_FLEET
 
         # Needs to reset
         self.battery_level_miles = battery_level_miles_max
@@ -43,6 +50,15 @@ class Car:
     def attribute(self, level=0):
         return (self.point.id_level(level), self.battery_level)
 
+    @property
+    def attribute2(self, level=0):
+        return (
+            Car.COMPANY_OWNED_ORIGIN,
+            self.point.id_level(level),
+            self.battery_level,
+            Car.COMPANY_OWNED_CONTRACT_DURATION,
+        )
+
     def attribute_level(self, level):
         return (self.point.id_level(level), self.battery_level)
 
@@ -59,10 +75,14 @@ class Car:
 
     def status_log(self):
         trip = (
-            f" - Trip: [{self.trip.o.level_ids},{self.trip.d.level_ids}]"
+            (
+                f" - Trip: [{self.trip.o.id},{self.trip.d.id}] "
+                f"(dropoff={self.trip.dropoff_time:04})"
+            )
             if self.trip is not None
             else ""
         )
+
         status = (
             f"C{self.id:04}[{self.status:>15}]"
             f" - Previous arrival: {self.previous_arrival:>5}"
@@ -74,6 +94,8 @@ class Car:
             f" - Traveled: {self.distance_traveled:>6.2f}"
             f" - Revenue: {self.revenue:>6.2f}"
             f" - #Trips: {self.n_trips:>3}"
+            f" - #Previous: {self.previous.id:>4}"
+            f" - #Waypoint: {self.waypoint.id:>4}"
             f" - Attribute: ({self.point},{self.battery_level})"
             f"{trip}"
         )
@@ -123,6 +145,9 @@ class Car:
             self.arrival_time = step * time_increment
             self.step = step
 
+        if not self.busy:
+            self.arrival_time = step * time_increment
+
     def has_power(self, distance):
         """Check if car has power to travel distane
         
@@ -133,6 +158,9 @@ class Car:
             boolean -- True, if vehicle can travel distance
         """
         return self.battery_level_miles - distance > 0
+
+    def same_region_point(self, pos, level=0):
+        return self.point.id_level(level) == self.point.id_level(level)
 
     def move(
         self,
@@ -227,6 +255,9 @@ class Car:
 
         self.arrival_time += max(duration_service, time_increment)
 
+        trip.dropoff_time = self.arrival_time
+        trip.picked_by = self
+
         # If service duration is lower than time increment, car have
         # to be free in the next time step
         self.step += max(int(duration_service / time_increment), 1)
@@ -307,4 +338,43 @@ class Car:
             f"Car{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
+
+
+class HiredCar(Car):
+    def __init__(
+        self,
+        o,
+        battery_level_max,
+        contract_duration,
+        current_step=0,
+        current_arrival=0,
+        battery_level_miles_max=200,
+    ):
+        super().__init__(o, battery_level_max, battery_level_miles_max)
+        self.contract_duration = contract_duration
+        self.start_end_point = o
+        self.type = Car.TYPE_HIRED
+        self.started_contract = False
+        self.step = current_step
+        self.arrival_time = current_arrival
+        self.previous_arrival = current_arrival
+
+    @property
+    def attribute2(self, level=0):
+        return (
+            self.start_end_point.id_level(level),
+            self.point.id_level(level),
+            self.battery_level,
+            self.contract_duration,
+        )
+
+    def can_service(self, trip, time_step, get_distance, get_travel_time):
+        dist_to_origin = get_distance(self.point, self.trip.o)
+        dist_od = get_distance(self.point.o, self.trip.d)
+        dist_d_start = get_distance(self.trip.d, self.start_end_point)
+
+        total_dist = dist_to_origin + dist_od + dist_d_start
+
+        # Next arrival
+        duration_min = get_travel_time(total_dist)
 

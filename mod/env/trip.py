@@ -15,6 +15,7 @@ class Trip:
         self.id = Trip.trip_count
         Trip.trip_count += 1
         self.picked_by = None
+        self.dropoff_time = None
 
     def attribute(self, level):
         return (self.o.id_level(level), self.d.id_level(level))
@@ -29,6 +30,42 @@ class Trip:
             f"id={self.id:03},"
             f"o={self.o.level_ids},"
             f"d={self.d.level_ids},"
+            f"time={self.time:03}}}"
+        )
+
+    def can_be_picked_by(self, car, level=0):
+        return self.o.id_level(level) == car.point.id_level(level)
+
+
+class ClassedTrip(Trip):
+    SQ_CLASS_1 = "A"
+    SQ_CLASS_2 = "B"
+
+    sq_classes = dict(A=0.8, B=0.6)
+    sq_level_class = dict(A=[1, 2], B=[2, 3])
+
+    def __init__(self, o, d, time, sq_class):
+        super().__init__(o, d, time)
+        self.sq_class = sq_class
+        self.sq1_level = ClassedTrip.sq_level_class[sq_class][0]
+        self.sq2_level = ClassedTrip.sq_level_class[sq_class][1]
+        self.id_sq1_level = self.o.id_level(self.sq1_level)
+        self.id_sq2_level = self.o.id_level(self.sq2_level)
+
+    def attribute(self, level):
+        return (self.o.id_level(level), self.d.id_level(level), self.sq_class)
+
+    def __str__(self):
+        return f"{self.sq_class}{self.id:02}({self.o},{self.d})"
+
+    def __repr__(self):
+
+        return (
+            f"Trip{{"
+            f"id={self.id:03},"
+            f"o={self.o.level_ids},"
+            f"d={self.d.level_ids},"
+            f"sq={self.sq_class},"
             f"time={self.time:03}}}"
         )
 
@@ -92,7 +129,19 @@ def get_random_trips(
         d = random.choice(to_locations)
 
         if o != d:
-            trips.append(Trip(o, d, time_step))
+            # trips.append(Trip(o, d, time_step))
+            trips.append(
+                ClassedTrip(
+                    o,
+                    d,
+                    time_step,
+                    (
+                        ClassedTrip.SQ_CLASS_1
+                        if random.random() < 0.3
+                        else ClassedTrip.SQ_CLASS_2
+                    ),
+                )
+            )
 
     return trips
 

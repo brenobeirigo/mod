@@ -10,6 +10,8 @@ class Point:
 
     levels = []
 
+    level_count = []
+
     def __init__(self, x, y, point_id, level_ids=None, level_ids_dic=None):
         self.x = x
         self.y = y
@@ -248,7 +250,7 @@ def query_point_list(
     if max_levels or level_dist_list:
         # Dictionary of levels(distances from region centers) and
         # corresponding node ids (in referrence to region centers)
-        point_level_ids, distance_levels = query_aggregated_centers(
+        point_level_ids, distance_levels, level_count = query_aggregated_centers(
             step=step, n_levels=max_levels, dist_list=level_dist_list
         )
 
@@ -285,7 +287,7 @@ def query_point_list(
     # pprint.pprint(point_list)
 
     # pprint.pprint([p.level_ids_dic for p in point_list])
-    return point_list, distance_levels
+    return point_list, distance_levels, level_count
 
 
 @functools.lru_cache(maxsize=None)
@@ -448,7 +450,9 @@ def query_aggregated_centers(n_levels=None, dist_list=None, step=60):
         level_grid_list.append(np.array(level_node_ids))
         distances.append(int(distance))
 
-    return level_grid_list, distances
+    count_points_level = {k:len(set(n)) for k, n in node_region_ids.items()}
+
+    return level_grid_list, distances, count_points_level
 
 
 def query_centers(points, n_centers, level):

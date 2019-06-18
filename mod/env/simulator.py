@@ -1,5 +1,5 @@
 from functools import partial
-from bokeh.models import ColumnDataSource, Toggle, Slider, Div
+from bokeh.models import ColumnDataSource, Toggle, Slider, Div, Label
 from threading import Thread
 from bokeh.themes import built_in_themes
 from bokeh.plotting import curdoc, figure
@@ -9,7 +9,7 @@ from bokeh.document import without_document_lock
 from collections import defaultdict
 from bokeh.tile_providers import get_provider, Vendors
 
-from mod.env.car import Car
+from mod.env.car import Car, HiredCar
 import mod.env.visual as vi
 import mod.env.network as nw
 import numpy as np
@@ -44,10 +44,13 @@ class PlotTrack:
     SHOW_SP_LINES = True
     SHOW_LINES = True
 
-    N_POINTS = 60
+    N_POINTS = 30
     STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1
+
+    def update_label_text(self, main_fleet, secondary_fleet, trips):
+        pass
 
     def __init__(self, config):
         self.config = config
@@ -75,6 +78,11 @@ class PlotTrack:
             step=0.05,
             width=150,
         )
+
+        self.fleet_stats = dict()
+        self.decisions = dict()
+
+        self.stats = Div(text="", align="center")
 
         self.all_points = dict(x=[], y=[])
         # This is important! Save curdoc() to make sure all threads
@@ -220,6 +228,8 @@ class PlotTrack:
             for od, trips in self.trips_dict[self.plot_step].items():
                 self.source[od].data_source.data = trips
 
+        # print("###############", self.plot_step, "<", self.opt_step)
+        # pprint(self.step_car_path_dict)
         if (
             self.plot_step < self.opt_step
             and self.plot_step in self.step_car_path_dict
@@ -250,6 +260,9 @@ class PlotTrack:
                     f"Episode: {self.plot_episode:>5} - "
                     f"Time step: {self.plot_step:>5}"
                 )
+
+                # Stats
+                self.stats.text = self.get_fleet_stats(self.plot_step)
 
                 # Update attribute value functions
                 self.update_value_function(self.plot_step, 20)
@@ -420,6 +433,40 @@ class PlotTrack:
             d = {k: PlotTrack.default_to_regular(v) for k, v in d.items()}
         return d
 
+    def get_fleet_stats(self, step):
+
+        # text = "<h4>### FLEET STATS </h4>"
+        text = "<table>"
+        for fleet_type, status_count in self.fleet_stats[step].items():
+
+            text += f"<tr><td style='font-size:16px;text-align:right'><b>{fleet_type}</b></td>"
+
+            for status, count in status_count.items():
+                text += (
+                    f"<td style='text-align:right'>"
+                    f"<b>{status}:</b>"
+                    "</td><td style='width:15px'>"
+                    f"{count}"
+                    "<td>"
+                )
+            text += "</tr>"
+
+        text += "</table>"
+
+        # text = "<h4>### FLEET STATS </h4>"
+        text += "<table>"
+        for decision, count in self.decisions[step].items():
+            text += (
+                f"<tr><td style='text-align:right'>"
+                f"<b>{decision}:</b>"
+                "</td><td style='width:15px'>"
+                f"{count}"
+                "<td></tr>"
+            )
+
+        text += "</table>"
+        return text
+
     @gen.coroutine
     @without_document_lock
     def update_first(self, lines, level_centers, level_demand, level_fleet):
@@ -491,6 +538,7 @@ class PlotTrack:
             column(
                 title,
                 network_info,
+                self.stats,
                 row(column(*column_elements), self.p),
                 center_count,
             )
@@ -563,11 +611,20 @@ class PlotTrack:
 
     def compute_movements(self, step):
 
-        # Get car paths
-        for car in self.env.cars:
+        self.fleet_stats[step] = self.env.get_fleet_stats()
+        self.decisions[step] = self.env.decision_dict
 
-            # Car path was stored in previous step since its route covers
-            # more than one time step
+        # Get car paths
+        for car in self.env.cars + self.env.hired_cars:
+
+            if isinstance(car, HiredCar) and not car.started_contract:
+                continue
+
+            # if car.status == Car.IDLE:
+            #     continue
+
+            # Car path was stored in previous step since its route
+            # covers more than one time step
             if car.id not in self.step_car_path_dict[step]:
 
                 # segmented_sp = nw.query_segmented_sp(
@@ -579,13 +636,14 @@ class PlotTrack:
                 #     waypoint=c.waypoint,
                 # )
 
-                dif = car.arrival_time - car.previous_arrival
-
-                # If vehice is parked
-                if dif == 0:
+                if car.previous == car.point:
                     segmented_sp = [[[car.point.x, car.point.y]]]
+
                 # Vehicle is moving
                 else:
+                    # TODO should be current time?
+                    dif = car.arrival_time - car.previous_arrival
+
                     segmented_sp = nw.query_sp_sliced(
                         car.previous,
                         car.point,
@@ -600,6 +658,11 @@ class PlotTrack:
                 #     print("S:", c.previous, c.point)
                 # Update car movement in step
                 for i, s in enumerate(segmented_sp):
+                    if not s:
+                        print(
+                            f"NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO TYPE: {car.type}  -  STATUS: {car.status} - dif:{dif} - arrival:{car.arrival_time}/previous:{car.previous_arrival}- Segmented: {segmented_sp}"
+                        )
+
                     self.step_car_path_dict[step + i][car.id] = (car.status, s)
 
             # else:
@@ -612,47 +675,48 @@ class PlotTrack:
             #         f"\n-             Step: {c.step}/{step} "
             #     )
 
-    def get_next_frame(self, step):
+    # def get_next_frame(self, step):
 
-        if step in self.step_car_path_dict and self.step_car_path_dict[step]:
+    #     if step in self.step_car_path_dict and self.step_car_path_dict[step]:
 
-            xy_status = defaultdict(lambda: dict(x=[], y=[]))
-            count_finished = 0
+    #         xy_status = defaultdict(lambda: dict(x=[], y=[]))
+    #         count_finished = 0
 
-            for status, path_car in self.step_car_path_dict[step].values():
+    #         for status, path_car in self.step_car_path_dict[step].values():
 
-                if len(path_car) > 1:
-                    x, y = path_car.pop(0)
-                    xy_status[status]["x"].append(x)
-                    xy_status[status]["y"].append(y)
+    #             if len(path_car) > 1:
+    #                 x, y = path_car.pop(0)
+    #                 xy_status[status]["x"].append(x)
+    #                 xy_status[status]["y"].append(y)
 
-                # Does not erase last position visited by car
-                # When number of coordinates vary, it is desirible that
-                # cars that have already travelled their paths wait in
-                # the last position they visited.
+    #             # Does not erase last position visited by car
+    #             # When number of coordinates vary, it is desirible that
+    #             # cars that have already travelled their paths wait in
+    #             # the last position they visited.
 
-                elif len(path_car) == 1:
-                    x, y = path_car[0]
-                    count_finished += 1
-                    xy_status[status]["x"].append(x)
-                    xy_status[status]["y"].append(y)
+    #             elif len(path_car) == 1:
+    #                 x, y = path_car[0]
+    #                 count_finished += 1
+    #                 xy_status[status]["x"].append(x)
+    #                 xy_status[status]["y"].append(y)
 
-                else:
-                    print(step)
-                    pprint(self.step_car_path_dict)
-                    pprint(self.step_car_path_dict[step])
+    #             else:
+    #                 print(step)
 
-                    # pass
-                    # TODO Sometimes path_car[0] does no exist. This
-                    # cannot happen since coordinates are popped when
-                    # there are more than 2 elements.
-                    # Multithreading? path_car was not populated
-                    # correctly in the first place?
+    #                 # pprint(self.step_car_path_dict)
+    #                 # pprint(self.step_car_path_dict[step])
 
-            if count_finished == len(self.step_car_path_dict[step].keys()):
-                return xy_status, step + 1
-            else:
-                return xy_status, step
+    #                 # pass
+    #                 # TODO Sometimes path_car[0] does no exist. This
+    #                 # cannot happen since coordinates are popped when
+    #                 # there are more than 2 elements.
+    #                 # Multithreading? path_car was not populated
+    #                 # correctly in the first place?
+
+    #         if count_finished == len(self.step_car_path_dict[step].keys()):
+    #             return xy_status, step + 1
+    #         else:
+    #             return xy_status, step
 
     # ################################################################ #
     # START ########################################################## #
@@ -660,9 +724,9 @@ class PlotTrack:
 
     def start_animation(self, opt_method):
         """Start animation using opt_method as a base.
-        
+
         In opt_method, movements are computed and passed to simulator.
-        
+
         Parameters
         ----------
         opt_method : def

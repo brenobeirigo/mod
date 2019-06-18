@@ -1,4 +1,4 @@
-from mod.env.car import Car
+from mod.env.car import Car, HiredCar
 from mod.env.trip import Trip
 from mod.env.network import Point
 import mod.env.network as nw
@@ -22,18 +22,22 @@ class Amod:
     #  - stay in zone z1 = z2
     TRIP_STAY_DECISION = 'XXX'
 
-    TRIP_DECISION = 'T'
+    TRIP_DECISION = 'TRIP'
 
-    STAY_DECISION = 'S'
+    STAY_DECISION = 'STAY'
+
+    HIRE_DECISION = 'HIRE'
+
+    END_CONTRACT_DECISION = "ENDC"
 
     # In a zoned environment with (z1, z2) cells signals:
     #  - rebalance from z1 to z2
     #  - recharge in zone z1 = z2
     RECHARGE_REBALANCE_DECISION = 'YYY'
 
-    RECHARGE_DECISION = 'P'
+    RECHARGE_DECISION = 'CHAR'
 
-    REBALANCE_DECISION = 'R'
+    REBALANCE_DECISION = 'REBA'
 
     def __init__(self, config, car_positions=[]):
         """Start AMoD environment
@@ -109,7 +113,7 @@ class Amod:
                 )
                 for point in car_positions
             ]
-        
+
         # List of available vehicles
         self.available = self.cars
 
@@ -181,6 +185,8 @@ class Amod:
             ]
         ]
 
+        self.available = self.cars
+
         # self.cars = [
         #     Car(
         #         point,
@@ -237,6 +243,7 @@ class Amod:
         # Get point object associated to position
         point = self.points[post_pos]
 
+        # Value function of level 0 in previous iteration
         v_ta_0 = (
             self.values[post_t][0][(post_pos, post_battery)]
             if post_t in self.values
@@ -269,18 +276,9 @@ class Amod:
 
             # Bias due to smoothing of transient data series (value
             # function change every iteration)
-            transient_bias = self.get_transient_bias(
-                post_t,
-                g,
-                ta_g,
-                v_ta_0,
-                value_vector[g],
-                self.step_size_func[post_t][g][ta_g],
-            )
+            transient_bias = self.transient_bias[t][g][ta_g]
 
-            variance_g = self.get_variance_g(
-                post_t, g, ta_g, v_ta_0, value_vector[g], self.config.stepsize
-            )
+            variance_g = self.variance_g[t][g][ta_g]
 
             # Lambda stepsize from iteration n-1
             lambda_step_size = self.lambda_stepsize[post_t][g][ta_g]
@@ -314,6 +312,12 @@ class Amod:
         self.counts += 1
         self.weight_track += weight_vector
 
+        if self.weight_track[0] > 0:
+            pass
+            #print(f'{self.weight_track} = {value_estimation}')
+        elif self.weight_track[0] < 0:
+            print(f'Deu merda {self.weight_track} = {value_estimation}')
+
         return value_estimation
 
     def get_total_variance(
@@ -334,25 +338,28 @@ class Amod:
             (1 - fixed_stepsize) * self.variance_g[t][g][a_g]
         ) + fixed_stepsize * ((v - v_g) ** 2)
 
-    def get_lambda_stepsize(self, t, a_g, g, stepsize, lambda_stepsize):
+    def get_lambda_stepsize(self, current_stepsize, lambda_stepsize):
 
-        return (((1 - stepsize) ** 2) * lambda_stepsize) + (stepsize ** 2)
+        return (
+            (((1 - current_stepsize) ** 2) * lambda_stepsize)
+            +(current_stepsize ** 2)
+        )
 
-    def get_transient_bias(self, t, g, a_g, v, v_g, stepsize):
+    def get_transient_bias(self, current_bias, v, v_g, stepsize):
 
         # The transient bias (due to smoothing): When we smooth on past
         # observations, we obtain an estimate v[-,s,g,n-1] that tends to
         #  underestimate (or overestimate if v(^,n) tends to decrease)
         # the true mean of v[^,n].
-        transient_bias = (1 - stepsize) * self.transient_bias[t][g][
-            a_g
-        ] + stepsize * (v - v_g)
+        transient_bias = (1 - stepsize) * current_bias + stepsize * (v - v_g)
 
         return transient_bias
 
     def get_weights(self):
 
-        avg = self.weight_track / self.counts
+        level_count = np.array(Point.level_count) * self.config.battery_levels
+
+        avg = self.weight_track * (self.counts/level_count)
         total = sum(avg)
         if total > 0:
             avg = avg / total
@@ -373,9 +380,7 @@ class Amod:
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery)
 
-                # Step size from previous iteration
-                current_stepsize = self.step_size_func[t][g][a_g]
-
+                
                 # Current value function of attribute at level g
                 v_ta_g = self.values[t][g][a_g]
 
@@ -383,31 +388,37 @@ class Amod:
 
                 # Updating
 
-                # Account for a_g
-                self.count[t][g][a_g] += 1
-
-                # TODO what if several values aggregate up to a_g???
-                new_stepsize = 1 / self.count[t][g][a_g]
-                self.step_size_func[t][g][a_g] = new_stepsize
+                
 
                 # Bias due to smoothing of transient data series (value
                 # function change every iteration)
+                current_transient_bias = self.transient_bias[t][g][a_g]
                 self.transient_bias[t][g][a_g] = self.get_transient_bias(
-                    t, g, a_g, v_ta, v_ta_g, self.config.stepsize
+                    current_transient_bias, v_ta, v_ta_g, self.config.stepsize
                 )
 
                 self.variance_g[t][g][a_g] = self.get_variance_g(
                     t, g, a_g, v_ta, v_ta_g, self.config.stepsize
                 )
 
+                # Step size from previous iteration
+                current_stepsize = self.step_size_func[t][g][a_g]
+                current_lambda_stepsize = self.lambda_stepsize[t][g][a_g]
                 self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
-                    t, a_g, g, current_stepsize, new_stepsize
+                    current_stepsize, current_lambda_stepsize
                 )
 
                 # Update value function at gth level with smoothing
                 self.values[t][g][a_g] = (
                     1 - self.step_size_func[t][g][a_g]
                 ) * v_ta_g + self.step_size_func[t][g][a_g] * v_ta
+
+
+                # TODO what if several values aggregate up to a_g???
+                # Account for a_g
+                self.count[t][g][a_g] += 1
+                new_stepsize = 1 / self.count[t][g][a_g]
+                self.step_size_func[t][g][a_g] = new_stepsize
 
     ####################################################################
     # True averaging ###################################################
@@ -753,7 +764,7 @@ class Amod:
         print("\nFleet:")
         pprint(self.cars)
 
-    def print_fleet_stats(self):
+    def print_fleet_stats(self, filter_status=[]):
         count_status = dict()
 
         # Start all car statuses with 0
@@ -762,6 +773,9 @@ class Amod:
 
         # Count how many car per status
         for c in self.cars:
+            if filter_status and c.status not in filter_status:
+                continue
+
             print(c.status_log())
             count_status[c.status] += 1
 
@@ -785,7 +799,6 @@ class Amod:
                 available.append(car)
 
         self.available = available
-
 
     def print_fleet_stats_summary(self):
         count_status = dict()
@@ -875,6 +888,8 @@ class AmodNetwork(Amod):
         self.config = config
         self.time_steps = config.time_steps
 
+        self.decision_dict = None
+
         # ------------------------------------------------------------ #
         # Network ######################################################
         # -------------------------------------------------------------#
@@ -885,7 +900,7 @@ class AmodNetwork(Amod):
         self.zones = zones.reshape((self.config.rows, self.config.cols))
 
         # Defining map points with aggregation_levels
-        self.points, distance_levels = nw.query_point_list(
+        self.points, distance_levels, level_count = nw.query_point_list(
             step=self.config.step_seconds,
             max_levels=self.config.aggregation_levels,
             projection=self.config.projection,
@@ -895,6 +910,9 @@ class AmodNetwork(Amod):
         # Levels correspond to distances queried in the server.
         # E.g., [0, 30, 60, 120, 300]
         Point.levels = sorted(distance_levels)
+
+        # Unique ids per distance
+        Point.level_count = [level_count[str(d)] for d in Point.levels]
 
         # ------------------------------------------------------------ #
         # Battery ######################################################
@@ -970,7 +988,7 @@ class AmodNetwork(Amod):
         )
 
         self.step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
+            lambda: defaultdict(lambda: defaultdict(lambda:1.0))
         )
 
         self.lambda_stepsize = defaultdict(
@@ -1125,3 +1143,339 @@ class AmodNetwork(Amod):
     #         serviced,
     #         list(it.chain.from_iterable(a_trips.values())),
     #     )
+
+
+class AmodNetworkHired(AmodNetwork):
+
+    def __init__(self, config, car_positions=[]):
+        super().__init__(config, car_positions=car_positions)
+
+        # Third-party fleet can be hired to assist main fleet
+        self.hired_cars = []
+        self.available_hired = []
+
+    def get_fleet_stats(self):
+
+        stats = dict()
+        count_status = defaultdict(int)
+        count_status_sec = defaultdict(int)
+
+        # Start all car statuses with 0
+        for s in Car.status_list:
+            count_status[s] = 0
+            count_status_sec[s] = 0
+
+        # Count how many car per status
+        for c in self.cars:
+            count_status[c.status] += 1
+
+        for c in self.hired_cars:
+            count_status_sec[c.status] += 1
+
+        stats["Main fleet"] = dict(count_status)
+        stats["Secondary fleet"] = dict(count_status_sec)
+        stats["Available"] = {
+            "Cars": len(self.cars), "Hired": len(self.hired_cars)
+        }
+
+        return stats
+
+
+    @lru_cache(maxsize=None)
+    def cost_func(self, car_type, action, o, d):
+
+        profit_margin = 1
+        if car_type == Car.TYPE_HIRED:
+            profit_margin = self.config.profit_margin
+
+        if action == Amod.STAY_DECISION:
+            # Stay
+            return 0
+
+        elif action == Amod.TRIP_DECISION:
+            # Pick up
+            distance_trip = self.get_distance(
+                self.points[o], self.points[d]
+            )
+
+            reward = self.config.calculate_fare(distance_trip)
+
+            return profit_margin * reward
+
+        elif action == Amod.RECHARGE_DECISION:
+            # Recharge
+            cost = self.config.cost_recharge_sigle_increment
+            return -cost
+
+        else:
+            # Rebalance
+            return 0
+
+    def realize_decision(self, t, decisions, a_trips, dict_a_cars):
+        total_reward = 0
+        serviced = list()
+
+        decision_dict = defaultdict(int)
+
+        matched_cars = set()
+
+        for decision in decisions:
+
+            action, point, level, o, d, car_type, times = decision
+
+            decision_dict[action] += times
+
+            cars_with_attribute = dict_a_cars[car_type][(point, level)]
+
+            n = 0
+
+            # Main fleet cars are in the beggining of the list
+
+            # Only 'times' cars will execute decision determined in 
+            # action 'a'
+            while cars_with_attribute and n < times:
+                n += 1
+                car = cars_with_attribute.pop(0)
+
+                # Check if car was already used. If so, try next car
+                if car not in matched_cars:
+                    matched_cars.add(car)
+
+                else:
+                    # Some decision was already applied to this car
+                    continue
+
+                # If car belongs to main fleet, profit margin is 100%
+                profit_margin = 1
+
+                # Start contract, if not started
+                if car_type == Car.TYPE_HIRED:
+
+                    profit_margin = self.config.profit_margin
+
+                    # First time hired vehicle service user
+                    if not car.started_contract:
+                        # print(f"*** HIRING {action}!")
+                        car.started_contract = True
+                    # else:
+                    #     print(f"*** ALREADY HIRED & {action}!")
+
+                if action == Amod.RECHARGE_DECISION:
+                    # Recharging ##################################### #
+                    cost_recharging = self.recharge(
+                        car, self.config.recharge_time_single_level
+                    )
+
+                    # Subtract cost of recharging
+                    total_reward -= cost_recharging
+
+                elif action == Amod.REBALANCE_DECISION:
+                    # Rebalancing #################################### #
+                    duration, distance, reward = self.rebalance(
+                        car, self.points[d]
+                    )
+
+                    car.move(
+                        duration,
+                        distance,
+                        reward,
+                        self.points[d],
+                        time_increment=self.config.time_increment
+                    )
+
+                elif action == Amod.STAY_DECISION:
+                    # Car settings are updated all together when time 
+                    # step finishes
+                    pass
+
+                # elif action == Amod.HIRE_DECISION:
+                #     # Hire car #########################################
+                #     duration, distance, reward = self.rebalance(
+                #         car, self.points[d]
+                #     )
+
+                #     car.move(
+                #         duration,
+                #         distance,
+                #         -5,
+                #         self.points[d],
+                #         time_increment=self.config.time_increment
+                #     )
+
+                # elif action == Amod.END_CONTRACT_DECISION:
+                #     # End contract decision ########################## #
+                #     duration, distance, reward = self.rebalance(
+                #         car, self.points[d]
+                #     )
+
+                #     car.move(
+                #         duration,
+                #         distance,
+                #         reward,
+                #         self.points[d],
+                #         time_increment=self.config.time_increment
+                #     )
+
+                elif action == Amod.TRIP_DECISION:
+                    # Servicing ###################################### #
+
+                    # Get closest trip
+                    iclosest_pk = np.argmin(
+                        [
+                            self.get_distance(car.point, trip.o)
+                            for trip in a_trips[(o, d)]
+                        ]
+                    )
+
+                    # Get a trip to apply decision
+                    trip = a_trips[(o, d)].pop(iclosest_pk)
+                    # trip = a_trips[(o, d)].pop()
+
+                    duration, distance, reward = self.pickup(trip, car)
+
+                    car.update_trip(
+                        duration,
+                        distance,
+                        reward,
+                        trip,
+                        time_increment=self.config.time_increment
+                    )
+
+                    serviced.append(trip)
+                    total_reward += profit_margin*reward
+
+            # Remove cars already used to fulfill decisions
+            # cars_with_attribute = cars_with_attribute[times:]
+
+        self.decision_dict = decision_dict
+
+        return (
+            total_reward,
+            serviced,
+            list(
+                it.chain.from_iterable(a_trips.values())
+            ),
+        )
+
+    @lru_cache(maxsize=None)
+    def preview_move(self, car_pos, o, d):
+
+        distance = self.get_distance(self.points[o], self.points[d])
+
+        # Car is not in the same zone, of pickup point. Therefore, it
+        # has to drive there first
+        if car_pos != o:
+            distance += self.get_distance(self.points[car_pos], self.points[o])
+
+        dropped_levels = int(
+            round(distance / self.config.battery_distance_level)
+        )
+
+        duration = self.get_travel_time(distance, unit="step")
+
+        return duration, dropped_levels
+
+
+    def update_fleet_status(self, time_step):
+
+        available = []
+
+        for car in self.cars:
+            # Check if vehicles finished their tasks
+            # Where are the cars?
+            # What are they doing at the current step?
+            # t ----- t+1 ----- t+2 ----- t+3 ----- t+4 ------- t+5
+            # --trips----trips------trips-----trips------trips-----
+            car.update(time_step, time_increment=self.config.time_increment)
+
+            # Discard busy vehicles
+            if not car.busy:
+                available.append(car)
+
+        available_hired = []
+        for car in self.hired_cars:
+            # Check if vehicles finished their tasks
+            # Where are the cars?
+            # What are they doing at the current step?
+            # t ----- t+1 ----- t+2 ----- t+3 ----- t+4 ------- t+5
+            # --trips----trips------trips-----trips------trips-----
+            car.update(time_step, time_increment=self.config.time_increment)
+
+            # Discard busy vehicles
+            if car.started_contract and not car.busy:
+                available_hired.append(car)
+
+        self.available = available
+        self.available_hired = available_hired
+
+
+    def preview_decision(self, time_step, decision):
+        """Apply decision to attribute
+
+        Arguments:
+            time_step {int} -- [description]
+            decision {tuple} -- (
+                 action = {rebalance, recharge, stay, service},
+                  point = id car position,
+                battery = attribute battery level,
+                      o = decision pickup
+                      d = decision delivery
+            )
+
+        Returns:
+            tuple -- time_step, point, battery
+        """
+
+        action, point, battery, o, d, type_car = decision
+        battery_post = battery
+        if action == Amod.RECHARGE_DECISION:
+
+            # Recharging ###############################################
+            battery_post = min(self.battery_levels, battery + 1)
+            time_step += self.config.recharge_time_single_level
+
+        elif action == Amod.REBALANCE_DECISION:
+            # Rebalancing ##############################################
+
+            duration, battery_drop = self.preview_move(point, o, d)
+            time_step += max(1, duration)
+            battery_post = max(0, battery - battery_drop)
+            point = d
+
+        elif action == Amod.STAY_DECISION:
+            # Staying ##################################################
+            time_step += 1
+
+        else:
+            # Servicing ################################################
+            duration, battery_drop = self.preview_move(point, o, d)
+            time_step += max(1, duration)
+            battery_post = max(0, battery - battery_drop)
+            point = d
+
+        return time_step, point, battery_post
+
+    def get_fleet_status(self):
+        """Number of cars per status and total battery level
+        in miles.
+
+        Returns:
+            dict, float -- #cars per status, total battery level
+        """
+        status_count = defaultdict(int)
+        total_battery_level = 0
+        for c in self.cars:
+            total_battery_level += c.battery_level_miles
+            status_count[c.status] += 1
+
+        for c in [c for c in self.hired_cars if c.started_contract]:
+            total_battery_level += c.battery_level_miles
+            status_count[c.status] += 1
+
+        return status_count, total_battery_level
+
+    def reset(self):
+        
+        super().reset()
+        self.hired_cars = []
+        self.available_hired = []

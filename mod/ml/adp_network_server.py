@@ -9,12 +9,12 @@ import time
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.amod import AmodNetwork
+from mod.env.amod import AmodNetwork, AmodNetworkHired
 from mod.env.visual import StepLog, EpisodeLog
 import mod.env.visual as vi
-from mod.env.config import ConfigNetwork, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp_network
-from mod.env.car import Car
+from mod.env.config import ConfigNetwork, FOLDER_OUTPUT, NY_TRIPS_EXCERPT_DAY
+from mod.env.match import adp_network, adp_network_hired
+from mod.env.car import Car, HiredCar
 from mod.env.trip import get_trip_count_step, get_trips_random_ods
 import mod.env.network as nw
 
@@ -47,12 +47,12 @@ def get_sim_config():
             ConfigNetwork.EDGE_COUNT: edge_count,
             ConfigNetwork.CENTER_COUNT: center_count,
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 400,
+            ConfigNetwork.FLEET_SIZE: 500,
             ConfigNetwork.BATTERY_LEVELS: 20,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.OFFSET_TERMINATION: 30,
+            ConfigNetwork.OFFSET_TERMINATION: 15,
             # NETWORK ##################################################
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 30,
@@ -68,15 +68,17 @@ def get_sim_config():
             # established in which neighborhood level?
             ConfigNetwork.NEIGHBORHOOD_LEVEL: 3,
             # Cars can rebalance to neighbor centers of level:
-            ConfigNetwork.REBALANCE_LEVEL: 1,
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 300],
+            # Why not max rebalance level?
+            ConfigNetwork.REBALANCE_LEVEL: 2,
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120],
             # How many levels separated by step seconds? If None, ad-hoc
             # LEVEL_DIST_LIST must be filled
-            ConfigNetwork.AGGREGATION_LEVELS: 5,
+            ConfigNetwork.AGGREGATION_LEVELS: 4,
             ConfigNetwork.SPEED: 30,
             # Demand
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 6,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 14,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
         }
     )
     return config
@@ -93,9 +95,9 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 1500
+    episodes = 15000
     episode_log = EpisodeLog(config=config)
-    amod = AmodNetwork(config)
+    amod = AmodNetworkHired(config)
 
     plot_track.env = amod
 
@@ -174,34 +176,64 @@ def sim(plot_track, config):
 
             # Loop cars and update their current status as well as the
             # the list of available vehicles.
-            amod.update_fleet_status(step)
+
+            # Show time step statistics
+            # step_log.show_info()
+            # print(f"### STEP {step:>4} ###############################")
 
             # Compute fleet status
             step_log.compute_fleet_status()
+
+            # What each vehicle is doing?
+            # if len(trips) == 0:
+            # amod.print_fleet_stats(filter_status=[Car.ASSIGN])
+
+            # ######################################################## #
+            # TIME INCREMENT HAS PASSED ############################## #
+            # ######################################################## #
+
+            # ***Change available and available_hired
+            amod.update_fleet_status(step)
+
+            # Compute fleet status
+            # step_log.compute_fleet_status()
 
             # Stats summary
             # print(" - Pre-decision statuses:")
             # amod.print_fleet_stats_summary()
 
+            contract_duration = 4
+            hired_cars = []
+            # Hired fleet is appearing in trip origins
+            # hired_cars = [
+            #     HiredCar(
+            #         t.o,
+            #         amod.battery_levels,
+            #         20,
+            #         current_step=step,
+            #         current_arrival=step * config.time_increment,
+            #         battery_level_miles_max=amod.battery_size_distances,
+            #     )
+            #     for t in trips
+            # ]
+
+            # Add hired fleet to model
+            amod.hired_cars.extend(hired_cars)
+            amod.available_hired.extend(hired_cars)
+
             # Optimize
-            revenue, serviced, rejected = adp_network(
+            revenue, serviced, rejected = adp_network_hired(
                 amod,
                 trips,
                 step + 1,
-                neighborhood_level=config.neighborhood_level,
-                n_neighbors=config.n_neighbors,
+                sq_guarantee=False,
+                # log_path=config.folder_mip,
             )
 
             # ---------------------------------------------------------#
             # Update log with iteration ################################
             # ---------------------------------------------------------#
             step_log.add_record(revenue, serviced, rejected)
-
-            # Show time step statistics
-            step_log.show_info()
-
-            # What each vehicle is doing?
-            # amod.print_fleet_stats()
 
             # Stats summary
             # print(" - Post-decision statuses")

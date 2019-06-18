@@ -101,6 +101,9 @@ class Config:
     EDGE_COUNT = "EDGE_COUNT"
     CENTER_COUNT = "CENTER_COUNT"
 
+    # HIRING
+    PROFIT_MARGIN = "PROFIT_MARGIN"
+
     @property
     def label(self):
         return (
@@ -396,6 +399,12 @@ class Config:
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
 
+        # Creating folders to log MIP models
+        self.folder_mip = FOLDER_OUTPUT + self.label + "/mip/"
+        if not os.path.exists(self.folder_mip):
+            os.makedirs(self.folder_mip+"log/")
+            os.makedirs(self.folder_mip+"lp/")
+
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -601,6 +610,9 @@ class ConfigNetwork(ConfigStandard):
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
 
+        # HIRING ##################################################### #
+        self.config[Config.PROFIT_MARGIN] = 0.3
+
     #
 
     @property
@@ -682,7 +694,8 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.TIME_INCREMENT]:02}_"
             f"{self.config[Config.STEP_SECONDS]:04}_"
             f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
-            f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}"
+            f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
+            f"{self.config[Config.REBALANCE_LEVEL]:02}"
         )
 
     @property
@@ -710,3 +723,7 @@ class ConfigNetwork(ConfigStandard):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
 
+    @property
+    def profit_margin(self):
+        """Level of centers cars rebalance to"""
+        return self.config[Config.PROFIT_MARGIN]

@@ -35,7 +35,7 @@ update_rate = 5 * 1000 * 60  # 5 min
 doc = curdoc()
 
 # exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-exp_name = "network_delft-the-netherlands_0400_0020_5_01_0030_02_03"
+exp_name = "network_delft-the-netherlands_0500_0020_5_01_0030_02_04_02"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -211,9 +211,9 @@ def load_episode(e, smooth_sigma=0):
         count = list(d[status])
 
         # Smooth values
-        if smooth_sigma>0:
+        if smooth_sigma > 0:
             count = fi.gaussian_filter1d(count, sigma=smooth_sigma)
-        
+
         e_data_dict = dict(x=steps, y=count)
         source_fleet[status].data = e_data_dict
         episode_fleet_dict[e][status] = count
@@ -241,7 +241,7 @@ def load_episode_demand(e, smooth_sigma=0):
         # Smooth values
         if smooth_sigma > 0:
             count = fi.gaussian_filter1d(count, sigma=smooth_sigma)
-        
+
         e_data_dict = dict(x=steps, y=count)
         source_demand[status].data = e_data_dict
         episode_demand_dict[e]["status_count"][status] = count

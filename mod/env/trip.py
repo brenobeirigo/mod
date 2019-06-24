@@ -42,7 +42,14 @@ class ClassedTrip(Trip):
     SQ_CLASS_2 = "B"
 
     sq_classes = dict(A=0.8, B=0.6)
-    sq_level_class = dict(A=[1, 2], B=[2, 3])
+    sq_level_class = dict(A=[3, 4], B=[3, 4])
+
+    @classmethod
+    def get_levels(cls):
+        class_levels = set()
+        for levels in cls.sq_level_class.values():
+            class_levels.update(levels)
+        return class_levels
 
     def __init__(self, o, d, time, sq_class):
         super().__init__(o, d, time)
@@ -102,6 +109,7 @@ def get_random_trips(
     max_trips,
     origins=None,
     destinations=None,
+    classed=False,
 ):
     """ Return a random number of trips
     """
@@ -129,19 +137,23 @@ def get_random_trips(
         d = random.choice(to_locations)
 
         if o != d:
-            # trips.append(Trip(o, d, time_step))
-            trips.append(
-                ClassedTrip(
-                    o,
-                    d,
-                    time_step,
-                    (
-                        ClassedTrip.SQ_CLASS_1
-                        if random.random() < 0.3
-                        else ClassedTrip.SQ_CLASS_2
-                    ),
+
+            if classed:
+                trips.append(
+                    ClassedTrip(
+                        o,
+                        d,
+                        time_step,
+                        (
+                            ClassedTrip.SQ_CLASS_1
+                            if random.random() < 0.3
+                            else ClassedTrip.SQ_CLASS_2
+                        ),
+                    )
                 )
-            )
+
+            else:
+                trips.append(Trip(o, d, time_step))
 
     return trips
 
@@ -174,6 +186,7 @@ def get_trips_random_ods(
     offset_end=0,
     origins=None,
     destinations=None,
+    classed=False,
 ):
 
     # Populate first steps with empty lists
@@ -188,6 +201,7 @@ def get_trips_random_ods(
                 n_trips,
                 origins=origins,
                 destinations=destinations,
+                classed=classed,
             )
             for t, n_trips in enumerate(step_trip_count)
         ]

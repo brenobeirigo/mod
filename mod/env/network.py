@@ -450,7 +450,7 @@ def query_aggregated_centers(n_levels=None, dist_list=None, step=60):
         level_grid_list.append(np.array(level_node_ids))
         distances.append(int(distance))
 
-    count_points_level = {k:len(set(n)) for k, n in node_region_ids.items()}
+    count_points_level = {k: len(set(n)) for k, n in node_region_ids.items()}
 
     return level_grid_list, distances, count_points_level
 

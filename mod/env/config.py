@@ -78,13 +78,15 @@ class Config:
 
     # LEARNING
     STEPSIZE = "STEPSIZE"
+    DISCOUNT_FACTOR = "DISCOUNT_FACTOR"
 
     # Network
-    STEP_SECONDS = "STEP_SECONDS"
+    STEP_SECONDS = "STEP_SECONDS"  # In km/h
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     LEVEL_DIST_LIST = "LEVEL_LIST"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
+    REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -103,20 +105,6 @@ class Config:
 
     # HIRING
     PROFIT_MARGIN = "PROFIT_MARGIN"
-
-    @property
-    def label(self):
-        return (
-            f"{self.config[Config.ROWS]:04}_"
-            f"{self.config[Config.COLS]:04}_"
-            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
-            f"{self.config[Config.AGGREGATION_LEVELS]}_"
-            f"{self.config[Config.FLEET_SIZE]:04}_"
-            f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}_"
-            f"{self.config[Config.TIME_INCREMENT]:02}_"
-            f"{self.config[Config.STEP_SECONDS]:04}"
-        )
 
     def __init__(self, config):
 
@@ -137,8 +125,6 @@ class Config:
     @property
     def origin_center_zone_size(self):
         return self.config[Config.ORIGIN_CENTER_ZONE_SIZE]
-
-        # What is the level covered by origin area?
 
     @property
     def demand_center_level(self):
@@ -173,7 +159,7 @@ class Config:
         return self.config["RECHARGE_RATE"]
 
     @property
-    def cost_recharge_sigle_increment(self):
+    def cost_recharge_single_increment(self):
         """Trip base fare in dollars"""
         return self.config[Config.COST_RECHARGE_SINGLE_INCREMENT]
 
@@ -242,6 +228,10 @@ class Config:
     def battery_size_kwh_distance(self):
         """Maximum battery size in miles"""
         return self.config["BATTERY_SIZE_KWH_DISTANCE"]
+
+    @property
+    def recharge_time_single_level(self):
+        return self.config["RECHARGE_TIME_SINGLE_LEVEL"]
 
     ####################################################################
     # Trip #############################################################
@@ -367,10 +357,17 @@ class Config:
             self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
-        # Total number of time periods
+        # # Total number of time periods
+        # self.config["TIME_PERIODS"] = int(
+        #     self.config["OFFSET_REPOSIONING"]
+        #     + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+        #     + self.config["OFFSET_TERMINATION"]
+        # )
+
+#       Total number of time periods
         self.config["TIME_PERIODS"] = int(
             self.config["OFFSET_REPOSIONING"]
-            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+            + self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.config["TIME_INCREMENT"]
             + self.config["OFFSET_TERMINATION"]
         )
 
@@ -401,10 +398,38 @@ class Config:
 
         # Creating folders to log MIP models
         self.folder_mip = FOLDER_OUTPUT + self.label + "/mip/"
-        if not os.path.exists(self.folder_mip):
-            os.makedirs(self.folder_mip+"log/")
-            os.makedirs(self.folder_mip+"lp/")
+        self.folder_mip_log = self.folder_mip + "log/"
+        self.folder_mip_lp = self.folder_mip + "lp/"
 
+        if not os.path.exists(self.folder_mip):
+            os.makedirs(self.folder_mip_log)
+            os.makedirs(self.folder_mip_lp)
+
+    @property
+    def step_seconds(self):
+        """Speed in kmh"""
+        return self.config["STEP_SECONDS"]
+
+    ## Demand ######################################################## #
+    @property
+    def demand_total_hours(self):
+        return self.config[Config.DEMAND_TOTAL_HOURS]
+
+    @property
+    def demand_earliest_hour(self):
+        return self.config[Config.DEMAND_EARLIEST_HOUR]
+
+    @property
+    def demand_resize_factor(self):
+        return self.config[Config.DEMAND_RESIZE_FACTOR]
+
+    @property
+    def demand_max_steps(self):
+        return self.config[Config.DEMAND_MAX_STEPS]
+
+    @property
+    def demand_earliest_step_min(self):
+        return self.config[Config.EARLIEST_STEP_MIN]
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -451,31 +476,11 @@ class ConfigStandard(Config):
         )
 
         ################################################################
-        # Demand characteristics #######################################
-        ################################################################
-
-        self.config["MEAN_TRIP_DISTANCE"] = 24.8  # miles
-        self.config["SD_TRIP_DISTANCE"] = 7  # TODO it was guessed
-        self.config["MINIMUM_TRIP_DISTANCE"] = 2  # 5th percentile is 6
-        self.config["MAXIMUM_TRIP_DISTANCE"] = 65  # 95th percentile is 57.5
-        # Simulation parameters
-        self.config["TRIP_BASE_FARE"] = 2.4  # dollar
-        # TODO can vary according to:
-        # - Where trip originates
-        # - time of the day
-        # - surge pricing
-        self.config["TRIP_COST_DISTANCE"] = 1  # dollar
-
-        # Total number of trips (min, max) = (40, 640) in period
-        self.config["TOTAL_TRIPS"] = 32874
-        self.config["MIN_TRIPS"] = 40
-        self.config["MAX_TRIPS"] = 640
-        ################################################################
         # Time  ########################################################
         ################################################################
 
         # Lenght of time incremnts (min) - default is 15min
-        self.config["TIME_INCREMENT"] = 15
+        self.config[Config.TIME_INCREMENT] = 15
 
         # Total horizon (h)
         self.config["TOTAL_TIME"] = 24
@@ -492,6 +497,9 @@ class ConfigStandard(Config):
             + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
             + self.config["OFFSET_TERMINATION"]
         )
+
+        # Step in seconds
+        self.config[Config.STEP_SECONDS] = 60
 
         ################################################################
         # Map settings #################################################
@@ -529,6 +537,13 @@ class ConfigStandard(Config):
             Config.COST_RECHARGE_SINGLE_INCREMENT
         ] = self.calculate_cost_recharge(self.time_increment)
 
+        # How much time does it take (min) to recharge one single level?
+        self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
+            60
+            * self.config["BATTTERY_SIZE_DISTANCE_LEVEL"]
+            / self.config["RECHARGE_RATE"]
+        )
+
         ################################################################
         # Fleet economics ##############################################
         ################################################################
@@ -548,12 +563,56 @@ class ConfigStandard(Config):
 
         self.config[Config.STEPSIZE] = 0.1
 
+        ################################################################
+        # Demand characteristics #######################################
+        ################################################################
+
+        self.config["MEAN_TRIP_DISTANCE"] = 24.8  # miles
+        self.config["SD_TRIP_DISTANCE"] = 7  # TODO it was guessed
+        self.config["MINIMUM_TRIP_DISTANCE"] = 2  # 5th percentile is 6
+        self.config["MAXIMUM_TRIP_DISTANCE"] = 65  # 95th percentile is 57.5
+        # Simulation parameters
+        self.config["TRIP_BASE_FARE"] = 2.4  # dollar
+        # TODO can vary according to:
+        # - Where trip originates
+        # - time of the day
+        # - surge pricing
+        self.config["TRIP_COST_DISTANCE"] = 1  # dollar
+
+        # Total number of trips (min, max) = (40, 640) in period
+        self.config["TOTAL_TRIPS"] = 32874
+        self.config["MIN_TRIPS"] = 40
+        self.config["MAX_TRIPS"] = 640
+
+        # DEMAND DATA ##################################################
+        # Data correspond to 1 day NY demand
+        self.config[Config.DEMAND_TOTAL_HOURS] = 24
+        self.config[Config.DEMAND_EARLIEST_HOUR] = 0
+        self.config[Config.DEMAND_RESIZE_FACTOR] = 1
+        self.config[Config.DEMAND_MAX_STEPS] = int(
+            self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.time_increment
+        )
+        self.config[Config.EARLIEST_STEP_MIN] = int(
+            self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
+        )
+
+    @property
+    def label(self):
+
+        return (
+            f"{self.config[Config.ROWS]:04}_"
+            f"{self.config[Config.COLS]:04}_"
+            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
+            f"{self.config[Config.AGGREGATION_LEVELS]}_"
+            f"{self.config[Config.FLEET_SIZE]:04}_"
+            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"{self.config[Config.INCUMBENT_AGGREGATION_LEVEL]:01}_"
+            f"{self.config[Config.TIME_INCREMENT]:02}_"
+            f"{self.config[Config.STEP_SECONDS]:04}"
+        )
+
 
 class ConfigNetwork(ConfigStandard):
-
-    # In km/h
-    STEP_SECONDS = "STEP_SECONDS"
-
     def __init__(self, config=None):
 
         if not config:
@@ -583,11 +642,12 @@ class ConfigNetwork(ConfigStandard):
 
         # Time #########################################################
 
-        self.config["STEP_SECONDS"] = 60
+        self.config[Config.STEP_SECONDS] = 60
         self.config["N_CLOSEST_NEIGHBORS"] = 4
-        self.config["NEIGHBORHOOD_LEVEL"] = 1
+        self.config["NEIGHBORHOOD_LEVEL"] = [1]
 
-        self.config[Config.REBALANCE_LEVEL] = 1
+        self.config[Config.REBALANCE_LEVEL] = [1]
+        self.config[Config.REBALANCE_MULTILEVEL] = False
 
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
@@ -613,35 +673,10 @@ class ConfigNetwork(ConfigStandard):
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
 
-    #
-
-    @property
-    def demand_total_hours(self):
-        return self.config[Config.DEMAND_TOTAL_HOURS]
-
-    @property
-    def demand_earliest_hour(self):
-        return self.config[Config.DEMAND_EARLIEST_HOUR]
-
-    @property
-    def demand_resize_factor(self):
-        return self.config[Config.DEMAND_RESIZE_FACTOR]
-
-    @property
-    def demand_max_steps(self):
-        return self.config[Config.DEMAND_MAX_STEPS]
-
-    @property
-    def demand_earliest_step_min(self):
-        return self.config[Config.EARLIEST_STEP_MIN]
-
+        self.config[Config.DISCOUNT_FACTOR] = 1
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
-
-    @property
-    def recharge_time_single_level(self):
-        return self.config["RECHARGE_TIME_SINGLE_LEVEL"]
 
     @property
     def battery_size_distance(self):
@@ -650,11 +685,6 @@ class ConfigNetwork(ConfigStandard):
 
     def get_step_level(self, level):
         return level * self.config["STEP_SECONDS"]
-
-    @property
-    def step_seconds(self):
-        """Speed in kmh"""
-        return self.config["STEP_SECONDS"]
 
     @property
     def projection(self):
@@ -684,19 +714,8 @@ class ConfigNetwork(ConfigStandard):
         return self.config["N_CLOSEST_NEIGHBORS"]
 
     # ---------------------------------------------------------------- #
-    @property
-    def label(self, name=""):
-        return (
-            f"network_{self.config[Config.NAME]}_"
-            f"{self.config[Config.FLEET_SIZE]:04}_"
-            f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"{self.config[Config.AGGREGATION_LEVELS]}_"
-            f"{self.config[Config.TIME_INCREMENT]:02}_"
-            f"{self.config[Config.STEP_SECONDS]:04}_"
-            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
-            f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
-            f"{self.config[Config.REBALANCE_LEVEL]:02}"
-        )
+    # Network data ################################################### #
+    # ---------------------------------------------------------------- #
 
     @property
     def name(self):
@@ -724,6 +743,42 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.REBALANCE_LEVEL]
 
     @property
+    def rebalance_multilevel(self):
+        """If True, rebalance to all levels below REBALANCE LEVEL set"""
+        return self.config[Config.REBALANCE_MULTILEVEL]
+
+    @property
     def profit_margin(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.PROFIT_MARGIN]
+
+    @property
+    def discount_factor(self):
+        """Post cost is multiplied by weight in [0,1]"""
+        return self.config[Config.DISCOUNT_FACTOR]
+
+    @property
+    def label(self, name=""):
+
+        reb_neigh = "_".join([
+            f'{level}={n_neighbors}'
+            for level, n_neighbors in list(zip(
+                self.config[Config.REBALANCE_LEVEL],
+                self.config[Config.N_CLOSEST_NEIGHBORS]
+            ))])
+
+        return (
+            f"network_{self.config[Config.NAME]}_"
+            f"{self.config[Config.FLEET_SIZE]:04}_"
+            f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"{self.config[Config.AGGREGATION_LEVELS]}_"
+            f"{self.config[Config.TIME_INCREMENT]:02}_"
+            f"{self.config[Config.STEP_SECONDS]:04}_"
+            f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
+            f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
+            f"{reb_neigh}_"
+            f"{self.config[Config.DEMAND_EARLIEST_HOUR]:02}_"
+            f"{self.config[Config.DEMAND_TOTAL_HOURS]:02}_"
+            f"{self.config[Config.DEMAND_RESIZE_FACTOR]:02}_"
+            f"{self.config[Config.DISCOUNT_FACTOR]:02}"
+        )

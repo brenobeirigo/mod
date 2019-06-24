@@ -74,6 +74,7 @@ class Car:
         return True
 
     def status_log(self):
+
         trip = (
             (
                 f" - Trip: [{self.trip.o.id},{self.trip.d.id}] "
@@ -89,16 +90,17 @@ class Car:
             f" - Arrival: {self.arrival_time:>5}"
             f"(step={self.step:>5})"
             f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
-            f"[{self.battery_level_miles:>6.2f}/"
-            f"{self.battery_level_miles_max}]"
-            f" - Traveled: {self.distance_traveled:>6.2f}"
-            f" - Revenue: {self.revenue:>6.2f}"
-            f" - #Trips: {self.n_trips:>3}"
-            f" - #Previous: {self.previous.id:>4}"
-            f" - #Waypoint: {self.waypoint.id:>4}"
-            f" - Attribute: ({self.point},{self.battery_level})"
-            f"{trip}"
+            # f"[{self.battery_level_miles:>6.2f}/"
+            # f"{self.battery_level_miles_max}]"
+            # f" - Traveled: {self.distance_traveled:>6.2f}"
+            # f" - Revenue: {self.revenue:>6.2f}"
+            # f" - #Trips: {self.n_trips:>3}"
+            # f" - #Previous: {self.previous.id:>4}"
+            # f" - #Waypoint: {self.waypoint.id:>4}"
+            # f" - Attribute: ({self.point},{self.battery_level})"
+            # f"{trip}"
         )
+
         return status
 
     def need_recharge(self, threshold):

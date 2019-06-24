@@ -35,7 +35,7 @@ update_rate = 5 * 1000 * 60  # 5 min
 doc = curdoc()
 
 # exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-exp_name = "network_delft-the-netherlands_0500_0020_5_01_0030_02_04_02"
+exp_name = "network_manhattan-island-new-york-city-new-york-usa_0400_0020_6_01_0030_02_05_2=8_3=4_4=4_09_01_01_0.1"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 

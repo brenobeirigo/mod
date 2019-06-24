@@ -9,7 +9,8 @@ import time
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.amod import AmodNetwork, AmodNetworkHired
+from mod.env.amod.AmodNetworkHired import AmodNetworkHired
+from mod.env.amod.AmodNetwork import AmodNetwork
 from mod.env.visual import StepLog, EpisodeLog
 import mod.env.visual as vi
 from mod.env.config import ConfigNetwork, FOLDER_OUTPUT, NY_TRIPS_EXCERPT_DAY
@@ -19,6 +20,7 @@ from mod.env.trip import get_trip_count_step, get_trips_random_ods
 import mod.env.network as nw
 
 from mod.env.simulator import PlotTrack
+from mod.env import match
 
 
 def get_sim_config():
@@ -34,51 +36,60 @@ def get_sim_config():
     )
 
     print(info)
-    # -----------------------------------------------------------------#
-    # Amod environment #################################################
-    # -----------------------------------------------------------------#
+    # ---------------------------------------------------------------- #
+    # Amod environment ############################################### #
+    # ---------------------------------------------------------------- #
 
     config.update(
         {
-            # Network
-            ConfigNetwork.NAME: label,
-            ConfigNetwork.REGION: region,
-            ConfigNetwork.NODE_COUNT: node_count,
-            ConfigNetwork.EDGE_COUNT: edge_count,
-            ConfigNetwork.CENTER_COUNT: center_count,
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 500,
+            ConfigNetwork.FLEET_SIZE: 400,
             ConfigNetwork.BATTERY_LEVELS: 20,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
             ConfigNetwork.OFFSET_TERMINATION: 15,
-            # NETWORK ##################################################
+            # -------------------------------------------------------- #
+            # NETWORK ################################################ #
+            # -------------------------------------------------------- #
+            ConfigNetwork.NAME: label,
+            ConfigNetwork.REGION: region,
+            ConfigNetwork.NODE_COUNT: node_count,
+            ConfigNetwork.EDGE_COUNT: edge_count,
+            ConfigNetwork.CENTER_COUNT: center_count,
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 30,
+            # Cars rebalance to up to #region centers
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: (8,),
+            # Cars can access locations within region centers
+            # established in which neighborhood level?
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
+            # Cars can rebalance to neighbor centers of level:
+            # Why not max rebalance level?
+            ConfigNetwork.REBALANCE_LEVEL: (1,),
+            ConfigNetwork.REBALANCE_MULTILEVEL: False,
+            # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
+            # How many levels separated by step seconds? If None, ad-hoc
+            # LEVEL_DIST_LIST must be filled
+            ConfigNetwork.AGGREGATION_LEVELS: 6,
+            ConfigNetwork.SPEED: 30,
+            # -------------------------------------------------------- #
+            # DEMAND ################################################# #
+            # -------------------------------------------------------- #
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
             ConfigNetwork.DESTINATION_CENTERS: 3,
             # OD level extension
-            ConfigNetwork.DEMAND_CENTER_LEVEL: 3,
-            # Cars rebalance to up to #region centers
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: 8,
-            # Cars can access locations within region centers
-            # established in which neighborhood level?
-            ConfigNetwork.NEIGHBORHOOD_LEVEL: 3,
-            # Cars can rebalance to neighbor centers of level:
-            # Why not max rebalance level?
-            ConfigNetwork.REBALANCE_LEVEL: 2,
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120],
-            # How many levels separated by step seconds? If None, ad-hoc
-            # LEVEL_DIST_LIST must be filled
-            ConfigNetwork.AGGREGATION_LEVELS: 4,
-            ConfigNetwork.SPEED: 30,
-            # Demand
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
+            ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
+            # -------------------------------------------------------- #
+            # FUTURE COST ############################################ #
+            # -------------------------------------------------------- #
+            ConfigNetwork.DISCOUNT_FACTOR: 0.1,
         }
     )
     return config
@@ -95,11 +106,11 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 15000
+    episodes = 200
     episode_log = EpisodeLog(config=config)
     amod = AmodNetworkHired(config)
 
-    plot_track.env = amod
+    plot_track.set_env(amod)
 
     # ---------------------------------------------------------------- #
     # Plot centers and guidelines #################################### #
@@ -148,6 +159,7 @@ def sim(plot_track, config):
             offset_end=amod.config.offset_termination,
             origins=origins,
             destinations=destinations,
+            classed=True,
         )
 
         # Start saving data of each step in the adp_network
@@ -187,6 +199,7 @@ def sim(plot_track, config):
             # What each vehicle is doing?
             # if len(trips) == 0:
             # amod.print_fleet_stats(filter_status=[Car.ASSIGN])
+            # amod.print_fleet_stats(filter_status=[])
 
             # ######################################################## #
             # TIME INCREMENT HAS PASSED ############################## #
@@ -194,9 +207,6 @@ def sim(plot_track, config):
 
             # ***Change available and available_hired
             amod.update_fleet_status(step)
-
-            # Compute fleet status
-            # step_log.compute_fleet_status()
 
             # Stats summary
             # print(" - Pre-decision statuses:")
@@ -227,21 +237,27 @@ def sim(plot_track, config):
                 trips,
                 step + 1,
                 sq_guarantee=False,
+                charge=True,
+                myopic=False,
+                value_function_update=match.WEIGHTED_UPDATE,
+                # agg_level=0,
+                episode=n,
                 # log_path=config.folder_mip,
+                # sq_guarantee=False,
             )
 
-            # ---------------------------------------------------------#
-            # Update log with iteration ################################
-            # ---------------------------------------------------------#
+            # -------------------------------------------------------- #
+            # Update log with iteration ############################## #
+            # -------------------------------------------------------- #
             step_log.add_record(revenue, serviced, rejected)
 
             # Stats summary
             # print(" - Post-decision statuses")
             # amod.print_fleet_stats_summary()
 
-            # ---------------------------------------------------------#
+            # -------------------------------------------------------- #
             # Plotting fleet activity ################################ #
-            # ---------------------------------------------------------#
+            # -------------------------------------------------------- #
             # print("Computing movements...")
             if enable_plot:
                 plot_track.compute_movements(step + 1)
@@ -249,17 +265,20 @@ def sim(plot_track, config):
 
                 time.sleep(step_delay)
 
+        episode_log.compute_episode(
+            step_log,
+            weights=amod.get_weights(len(step_trip_list)),
+            progress=True,
+        )
+
         # -------------------------------------------------------------#
         # Compute episode info #########################################
         # -------------------------------------------------------------#
-        # print(
-        #     f"####### "
-        #     f"[Episode {n:>5}] "
-        #     f"- {episodeLog.last_episode_stats()} "
-        #     f"#######"
-        # )
-        episode_log.compute_episode(
-            step_log, weights=amod.get_weights(), progress=True
+        print(
+            f"####### "
+            f"[Episode {n:>5}] "
+            f"- {episode_log.last_episode_stats()} "
+            f"#######"
         )
 
     episode_log.compute_learning()

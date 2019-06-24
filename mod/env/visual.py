@@ -237,7 +237,7 @@ class EpisodeLog:
             )
 
     def load_progress(self):
-        """Load episodes learned so far
+        """Load episodes learned so farD
 
         Returns:
             values, counts -- Value functions and count per aggregation
@@ -261,10 +261,10 @@ class EpisodeLog:
             lambda: defaultdict(lambda: defaultdict(float))
         )
         step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
+            lambda: defaultdict(lambda: defaultdict(lambda: 1))
         )
         lambda_stepsize = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
+            lambda: defaultdict(lambda: defaultdict(lambda: 1))
         )
         aggregation_bias = defaultdict(
             lambda: defaultdict(lambda: defaultdict(float))
@@ -413,7 +413,7 @@ class StepLog:
         status, battery = self.env.get_fleet_status()
         print(
             f"### Time step: {self.n:>3}"
-            f" ### Profit: {reward:>10.2f}"
+            f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>6.2%}"
             f" ### Trips: {total:>3}"
             f" ### Status: {dict(status)}"

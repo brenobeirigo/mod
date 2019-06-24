@@ -9,10 +9,10 @@ import random
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.amod import Amod
+from mod.env.amod.AmodGrid import AmodGrid
 from mod.env.visual import StepLog, EpisodeLog
 from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp2, myopic, fcfs
+from mod.env.match import adp_grid, myopic, fcfs
 from mod.env.trip import (
     get_random_trips,
     get_trip_count_step,
@@ -20,6 +20,7 @@ from mod.env.trip import (
 )
 import mod.env.network as nw
 from pprint import pprint
+import mod.env.match as match
 
 
 if __name__ == "__main__":
@@ -31,29 +32,30 @@ if __name__ == "__main__":
     config = ConfigStandard()
     config.update(
         {
-            ConfigStandard.FLEET_SIZE: 20,
-            ConfigStandard.ROWS: 32,
-            ConfigStandard.COLS: 32,
+            ConfigStandard.FLEET_SIZE: 200,
+            ConfigStandard.ROWS: 50,
+            ConfigStandard.COLS: 50,
             ConfigStandard.BATTERY_LEVELS: 20,
-            ConfigStandard.PICKUP_ZONE_RANGE: 2,
+            ConfigStandard.PICKUP_ZONE_RANGE: 4,
             ConfigStandard.AGGREGATION_LEVELS: 4,
             ConfigStandard.INCUMBENT_AGGREGATION_LEVEL: 2,
             ConfigStandard.ORIGIN_CENTERS: 4,
             ConfigStandard.TIME_INCREMENT: 1,
             ConfigStandard.ORIGIN_CENTER_ZONE_SIZE: 3,
+            ConfigStandard.DEMAND_TOTAL_HOURS: 6,
         }
     )
 
     # -----------------------------------------------------------------#
     # Episodes #########################################################
     # -----------------------------------------------------------------#
-    episodes = 668
+    episodes = 2000
     episodeLog = EpisodeLog(config=config)
-    amod = Amod(config)
+    amod = AmodGrid(config)
 
     try:
         # Load last episode
-        values, counts = episodeLog.load()
+        values, counts = episodeLog.load_progress()
         amod.values = values
         amod.count = counts
 
@@ -80,11 +82,15 @@ if __name__ == "__main__":
         )
 
         print(f"\nSaving {len(origins)} origins.")
-        episodeLog.save_origins([o.id for o in origins])
+        # episodeLog.save_origins([o.id for o in origins])
 
     # Get demand pattern from NY city
     step_trip_count_15 = get_trip_count_step(
-        NY_TRIPS_EXCERPT_DAY, step=config.time_increment, multiply_for=1
+        NY_TRIPS_EXCERPT_DAY,
+        step=config.time_increment,
+        multiply_for=config.demand_resize_factor,
+        earliest_step=config.demand_earliest_step_min,
+        max_steps=config.demand_max_steps,
     )
 
     print(
@@ -103,6 +109,7 @@ if __name__ == "__main__":
             offset_start=amod.config.offset_repositioning,
             offset_end=amod.config.offset_termination,
             origins=origins,
+            classed=False,
         )
 
         # Start saving data of each step in the environment
@@ -114,10 +121,21 @@ if __name__ == "__main__":
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(step_trip_list):
 
-            revenue, serviced, rejected = adp2(
+            # Compute fleet status
+            step_log.compute_fleet_status()
+
+            # Show time step statistics
+            # step_log.show_info()
+
+            # What each vehicle is doing?
+            # amod.print_fleet_stats()
+
+            revenue, serviced, rejected = adp_grid(
                 amod,
                 trips,
                 step + 1,
+                value_function_update=match.AVERAGED_UPDATE,
+                myopic=True,
                 # agg_level=amod.config.incumbent_aggregation_level,
             )
 
@@ -126,12 +144,6 @@ if __name__ == "__main__":
             # ---------------------------------------------------------#
 
             step_log.add_record(revenue, serviced, rejected)
-
-            # Show time step statistics
-            step_log.show_info()
-
-            # What each vehicle is doing?
-            amod.print_fleet_stats()
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################
@@ -143,7 +155,7 @@ if __name__ == "__main__":
             f"#######"
         )
         episodeLog.compute_episode(
-            step_log, weights=amod.get_weights(), progress=True
+            step_log, weights=amod.get_weights(step), progress=True
         )
 
     episodeLog.compute_learning()

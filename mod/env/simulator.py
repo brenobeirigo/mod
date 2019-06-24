@@ -41,7 +41,7 @@ class PlotTrack:
     REGION_CENTER_LINE_ALPHA = 0.3
 
     # Number of coordinates composing the car paths within a step
-    SHOW_SP_LINES = True
+    SHOW_SP_LINES = False
     SHOW_LINES = True
 
     N_POINTS = 30
@@ -203,9 +203,24 @@ class PlotTrack:
 
         self.slide_alpha.on_change("value", self.update_line_alpha_centers)
         self.slide_time_ahead = Slider(
-            title="Steps ahead", start=0, end=30, value=0, step=1, width=150
+            title="Time step", start=1, end=15, value=1, step=1, width=150
         )
         self.slide_time_ahead.on_change("value", self.update_time_ahead)
+
+        self.slide_battery_level = Slider(
+            title="Battery level", start=0, end=20, value=20, step=1, width=150
+        )
+        self.slide_battery_level.on_change("value", self.update_time_ahead)
+
+        self.slide_agg_level = Slider(
+            title="Aggregation level", start=0, end=10, value=0, step=1, width=150
+        )
+        self.slide_agg_level.on_change("value", self.update_time_ahead)
+
+    def set_env(self, env):
+        self.env = env
+        self.slide_agg_level.end = env.config.aggregation_levels
+        self.slide_time_ahead.end = env.config.time_steps
 
     @gen.coroutine
     @without_document_lock
@@ -265,7 +280,11 @@ class PlotTrack:
                 self.stats.text = self.get_fleet_stats(self.plot_step)
 
                 # Update attribute value functions
-                self.update_value_function(self.plot_step, 20)
+                # self.update_value_function(
+                #     self.plot_step,
+                #     self.slide_battery_level.value,
+                #     self.slide_agg_level.value
+                # )
 
     @gen.coroutine
     def update_attribute(self, attribute, value, param):
@@ -288,7 +307,7 @@ class PlotTrack:
 
     @gen.coroutine
     @without_document_lock
-    def update_value_function(self, steps_ahead, battery_level):
+    def update_value_function(self, steps_ahead, battery_level, agg_level):
         """Update the alpha of all value function spots considering a number
         of steps ahead the current time step.
 
@@ -302,17 +321,17 @@ class PlotTrack:
             Number of steps ahead value functions should be shown.
         battery_level : int
             Show value functions corresponding to a battery level.
+        agg_level : int
+            Values correspond to aggregation level
+
         """
         print("Calculating value functions...")
 
         # Value function of all points
         values = np.zeros(len(self.env.points))
 
-        # Values correspond to aggregation level
-        agg_level = 0
-
         # Number of steps ahead value functions are visualized
-        future_step = self.plot_step + steps_ahead
+        future_step = steps_ahead
 
         # Get all valid value function throughout the map at a certain level
         for point in self.env.points:
@@ -323,14 +342,17 @@ class PlotTrack:
             attribute = (point.id, battery_level)
 
             # Checking whether value function was defined
-            if (
-                future_step in self.env.values
-                and agg_level in self.env.values[future_step]
-                and attribute in self.env.values[future_step][agg_level]
-            ):
-                values[point.id] = self.env.values[future_step][agg_level][
-                    attribute
-                ]
+            # if (
+            #     future_step in self.env.values
+            #     and agg_level in self.env.values[future_step]
+            #     and attribute in self.env.values[future_step][agg_level]
+            # ):
+            # id_g = point.id_level(agg_level)
+            estimate = self.env.get_weighted_value(
+                future_step, point.id, battery_level
+            )
+            values[point.id] = estimate
+            # self.env.values[future_step][agg_level][attribute]
 
         # Total value function throughout all points
         total = np.sum(values)
@@ -454,17 +476,16 @@ class PlotTrack:
         text += "</table>"
 
         # text = "<h4>### FLEET STATS </h4>"
-        text += "<table>"
+        text += "<table><tr>"
         for decision, count in self.decisions[step].items():
             text += (
-                f"<tr><td style='text-align:right'>"
-                f"<b>{decision}:</b>"
+                f"<td style='text-align:right'><b>{decision}:</b>"
                 "</td><td style='width:15px'>"
                 f"{count}"
-                "<td></tr>"
+                "<td>"
             )
 
-        text += "</table>"
+        text += "</tr> </table>"
         return text
 
     @gen.coroutine
@@ -510,6 +531,8 @@ class PlotTrack:
 
         column_elements.append(self.slide_alpha)
         column_elements.append(self.slide_time_ahead)
+        column_elements.append(self.slide_battery_level)
+        column_elements.append(self.slide_agg_level)
 
         title = Div(
             text=(f"<h1>{self.env.config.region}</h1>"), align="center"
@@ -601,8 +624,11 @@ class PlotTrack:
     @gen.coroutine
     def update_time_ahead(self, attrname, old, new):
         steps_ahead = self.slide_time_ahead.value
-        print("Changing global steps ahead", steps_ahead)
-        self.update_value_function(steps_ahead, 20)
+        battery_level = self.slide_battery_level.value
+        agg_level = self.slide_agg_level.value
+
+        print("Changing value function", steps_ahead, battery_level, agg_level)
+        self.update_value_function(steps_ahead, battery_level, agg_level)
 
     def multithreading(self, func, args, workers):
         with ThreadPoolExecutor(workers) as ex:
@@ -614,11 +640,20 @@ class PlotTrack:
         self.fleet_stats[step] = self.env.get_fleet_stats()
         self.decisions[step] = self.env.decision_dict
 
-        # Get car paths
-        for car in self.env.cars + self.env.hired_cars:
+        fleet = self.env.cars
 
-            if isinstance(car, HiredCar) and not car.started_contract:
-                continue
+        # If working with hired vehicles, only compute movements from those
+        # which started working, i.e., hired.
+        try:
+            active_hired = [
+                car for car in self.env.hired_cars if not car.started_contract
+            ]
+            fleet += active_hired
+
+        except:
+            pass
+        # Get car paths
+        for car in fleet:
 
             # if car.status == Car.IDLE:
             #     continue

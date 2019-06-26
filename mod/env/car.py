@@ -288,30 +288,50 @@ class Car:
 
         return recharge_need
 
-    def update_recharge(self, duration_recharging, cost, time_increment=15):
-        """[summary]
-        
-        Arguments:
-            recharge_rate {int} -- miles/hour
-            cost {[type]} -- [description]
-            next_point {[type]} -- [description]
+    def update_recharge(self, duration, cost, extra_dist, time_increment=15):
+        """Recharge car.
+
+        Parameters
+        ----------
+        duration : int
+            Minutes recharging
+        cost : float
+            Cost of recharging
+        extra_dist : int
+            Extra distance car can travel after recharging.
+        time_increment : int, optional
+            Time increment, by default 15
         """
 
+        # Store previous car info
         self.previous_battery_level = self.battery_level
-
-        # Update final battery level
-        self.battery_level_miles = self.battery_level_miles_max
-        self.battery_level = self.battery_level_max
-        self.waypoint = None
-        self.recharging_cost += cost
         self.previous_arrival = self.arrival_time
-        self.arrival_time += max(duration_recharging, time_increment)
-        self.step += max(int(duration_recharging / time_increment), 1)
+
+        # Sum increment to battery level (max = battery size)
+        self.battery_level_miles = min(
+            self.battery_level_miles + extra_dist, self.battery_level_miles_max
+        )
+
+        # Get new battery level
+        self.battery_level = int(
+            self.battery_level_miles
+            / self.battery_level_miles_max
+            * self.battery_level_max
+        )
+
+        # Update car's recharging cost
+        self.recharging_cost += cost
+
+        # when duration recharging is lower than time increment, car
+        # still moves to next time step.
+        self.arrival_time += max(duration, time_increment)
+        self.step += max(int(duration / time_increment), 1)
 
         # Cars tahte are busy fulfilling trips or recharging are not considered
         # to be reassigned for a decision
         self.status = Car.RECHARGING
 
+        # How many times has the car recharged?
         self.recharge_count += 1
 
     def reset(self, battery_level):

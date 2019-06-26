@@ -65,9 +65,9 @@ class PlotTrack:
             self.output_folder_simulation + "region_center_data.npy"
         )
 
-        # -------------------------------------------------------------------- #
-        # Slide steps ahead ################################################## #
-        # -------------------------------------------------------------------- #
+        # ------------------------------------------------------------ #
+        # Slide steps ahead ########################################## #
+        # ------------------------------------------------------------ #
 
         self.steps_ahead = 0
         self.slide_alpha = Slider(
@@ -213,7 +213,12 @@ class PlotTrack:
         self.slide_battery_level.on_change("value", self.update_time_ahead)
 
         self.slide_agg_level = Slider(
-            title="Aggregation level", start=0, end=10, value=0, step=1, width=150
+            title="Aggregation level",
+            start=0,
+            end=10,
+            value=0,
+            step=1,
+            width=150,
         )
         self.slide_agg_level.on_change("value", self.update_time_ahead)
 
@@ -271,9 +276,14 @@ class PlotTrack:
                 self.plot_step = next_step
 
                 # Updating title
+                current_time = self.config.get_time(
+                    self.plot_step,
+                    format='%I:%M %p'
+                )
                 self.p.title.text = (
                     f"Episode: {self.plot_episode:>5} - "
-                    f"Time step: {self.plot_step:>5}"
+                    f"Time: {current_time} - "
+                    f"Step: {self.plot_step:>5}/{self.config.time_steps:>5}"
                 )
 
                 # Stats

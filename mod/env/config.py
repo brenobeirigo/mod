@@ -1,12 +1,15 @@
 import os
 import sys
+from datetime import datetime, timedelta
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
 # Trip data to group in steps
-NY_TRIPS_EXCERPT_DAY = root + "/data/input/32874_samples_01_feb_2011_NY.csv"
+TRIPS_FILE_ALL = "231896_trips_NYC_2011-02-01.csv"
+TRIPS_FILE_4 = "32874_samples_01_feb_2011_NY.csv"
+NY_TRIPS_EXCERPT_DAY = root + f"/data/input/{TRIPS_FILE_ALL}"
 
 # Output folder
 FOLDER_OUTPUT = root + "/data/output/"
@@ -16,8 +19,31 @@ FOLDER_SERVICE_PLOT = root + "/data/output/service_plot/"
 FOLDER_FLEET_PLOT = root + "/data/output/fleet_plot/"
 FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
 
+# Map projections for visualization
 PROJECTION_MERCATOR = "MERCATOR"
 PROJECTION_GPS = "GPS"
+
+# #################################################################### #
+# SCENARIOS ########################################################## #
+# #################################################################### #
+
+# Trip ODs are uniformly distributed on the map at random
+SCENARIO_BALANCED = "BALANCED"
+
+# Trip origins are concentrated to production areas and destinations
+# to attraction areas
+SCENARIO_UNBALANCED = "UNBALANCED"
+
+# Trip origins are uniformly distributed while the destinations are
+# fixed to one point (e.g. an access station).
+SCENARIO_FIRST_MILE = "FIRST_MILE"
+
+# Trip origins are fixed to one point (e.g., station) and destinations
+# are uniformly distributed
+SCENARIO_LAST_MILE = "LAST_MILE"
+
+# Uses the real-world New York city data from 2011-02-01
+SCENARIO_NYC = "NYC"
 
 
 class Config:
@@ -25,7 +51,6 @@ class Config:
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
 
-    BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
     BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
 
     BATTERY_SIZE = "BATTERY_SIZE"
@@ -79,6 +104,7 @@ class Config:
     # LEARNING
     STEPSIZE = "STEPSIZE"
     DISCOUNT_FACTOR = "DISCOUNT_FACTOR"
+    HARMONIC_STEPSIZE = "HARMONIC_STEPSIZE"
 
     # Network
     STEP_SECONDS = "STEP_SECONDS"  # In km/h
@@ -90,13 +116,16 @@ class Config:
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
-
     DEMAND_TOTAL_HOURS = "DEMAND_TOTAL_HOURS"
     DEMAND_EARLIEST_HOUR = "DEMAND_EARLIEST_HOUR"
     DEMAND_RESIZE_FACTOR = "DEMAND_RESIZE_FACTOR"
     DEMAND_MAX_STEPS = "DEMAND_MAX_STEPS"
     EARLIEST_STEP_MIN = "EARLIEST_STEP_MIN"
+    DEMAND_SCENARIO = "DEMAND_SCENARIO"
+    TIME_INCREMENT_TIMEDELTA = "TIME_INCREMENT_TIMEDELTA"
+    DEMAND_EARLIEST_DATETIME = "DEMAND_EARLIEST_DATETIME"
 
+    # NETWORK INFO
     NAME = "NAME"
     REGION = "REGION"
     NODE_COUNT = "NODE_COUNT"
@@ -176,6 +205,14 @@ class Config:
             * self.config["RECHARGE_RATE"]
             * recharging_time_h
         )
+    
+    def get_travel_cost(self, distance):
+        """Return the cost of travelling 'distance' meters"""
+        return self.config["RECHARGE_COST_DISTANCE"] * distance/1000.0
+
+    def calculate_dist_recharge(self, recharging_time_min):
+        recharging_time_h = recharging_time_min / 60.0
+        return self.config["RECHARGE_RATE"] * recharging_time_h
 
     def get_full_recharging_time(self, distance):
         """Get recharge time in relation to recharge distance
@@ -258,6 +295,14 @@ class Config:
         return self.config["TIME_INCREMENT"]
 
     @property
+    def time_increment_timedelta(self):
+        return self.config[Config.TIME_INCREMENT_TIMEDELTA]
+    
+    @property
+    def demand_earliest_datetime(self):
+        return self.config[Config.DEMAND_EARLIEST_DATETIME]
+
+    @property
     def speed(self):
         """Speed in mph"""
         return self.config["SPEED"]
@@ -305,6 +350,12 @@ class Config:
     ####################################################################
     ### Demand #########################################################
     ####################################################################
+
+    @property
+    def demand_scenario(self):
+        """Minimum number of trips (15min) """
+        return self.config[Config.DEMAND_SCENARIO]
+
 
     @property
     def min_trips(self):
@@ -380,7 +431,7 @@ class Config:
             self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
-        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+        self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
             self.config["BATTERY_SIZE_DISTANCE"]
             / self.config["BATTERY_LEVELS"]
         )
@@ -404,6 +455,16 @@ class Config:
         if not os.path.exists(self.folder_mip):
             os.makedirs(self.folder_mip_log)
             os.makedirs(self.folder_mip_lp)
+
+        self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
+            minutes=self.config[Config.TIME_INCREMENT]
+        )
+
+        self.config[Config.DEMAND_EARLIEST_DATETIME] = (
+            datetime.strptime("2011-02-01 00:00", "%Y-%m-%d %H:%M")
+            + timedelta(hours=self.config[Config.DEMAND_EARLIEST_HOUR])
+            - timedelta(minutes=self.config[Config.OFFSET_REPOSIONING])
+        )
 
     @property
     def step_seconds(self):
@@ -430,6 +491,12 @@ class Config:
     @property
     def demand_earliest_step_min(self):
         return self.config[Config.EARLIEST_STEP_MIN]
+
+    def get_time(self, steps, format="%H:%M"):
+        """Return time corresponding to the steps elapsed since the
+        the first time step"""
+        t = self.demand_earliest_datetime + steps*self.time_increment_timedelta
+        return t.strftime(format)
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -464,7 +531,7 @@ class ConfigStandard(Config):
             self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
-        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+        self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
             self.config["BATTERY_SIZE_DISTANCE"]
             / self.config["BATTERY_LEVELS"]
         )
@@ -481,6 +548,13 @@ class ConfigStandard(Config):
 
         # Lenght of time incremnts (min) - default is 15min
         self.config[Config.TIME_INCREMENT] = 15
+        self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
+            minutes=self.config[Config.TIME_INCREMENT]
+        )
+
+        self.config[Config.DEMAND_EARLIEST_DATETIME] = datetime.strptime(
+            "2011-11-02 00:00", "%Y-%m-%d %H:%M"
+        )
 
         # Total horizon (h)
         self.config["TOTAL_TIME"] = 24
@@ -540,7 +614,7 @@ class ConfigStandard(Config):
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
             60
-            * self.config["BATTTERY_SIZE_DISTANCE_LEVEL"]
+            * self.config["BATTERY_SIZE_DISTANCE_LEVEL"]
             / self.config["RECHARGE_RATE"]
         )
 
@@ -560,8 +634,6 @@ class ConfigStandard(Config):
 
         # c^bat(b^size) = $240*(1 + 0.2*(i−1))*(16.67*i).
         self.config[Config.BATTERY_COST] = 240
-
-        self.config[Config.STEPSIZE] = 0.1
 
         ################################################################
         # Demand characteristics #######################################
@@ -595,6 +667,8 @@ class ConfigStandard(Config):
         self.config[Config.EARLIEST_STEP_MIN] = int(
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
+        self.config[Config.DEMAND_SCENARIO] = SCENARIO_UNBALANCED
+
 
     @property
     def label(self):
@@ -635,7 +709,7 @@ class ConfigNetwork(ConfigStandard):
             self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
-        self.config["BATTTERY_SIZE_DISTANCE_LEVEL"] = (
+        self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
             self.config["BATTERY_SIZE_DISTANCE"]
             / self.config["BATTERY_LEVELS"]
         )
@@ -643,16 +717,16 @@ class ConfigNetwork(ConfigStandard):
         # Time #########################################################
 
         self.config[Config.STEP_SECONDS] = 60
-        self.config["N_CLOSEST_NEIGHBORS"] = 4
-        self.config["NEIGHBORHOOD_LEVEL"] = [1]
+        self.config["N_CLOSEST_NEIGHBORS"] = (4,)
+        self.config["NEIGHBORHOOD_LEVEL"] = 1
 
-        self.config[Config.REBALANCE_LEVEL] = [1]
+        self.config[Config.REBALANCE_LEVEL] = (1,)
         self.config[Config.REBALANCE_MULTILEVEL] = False
 
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
             60
-            * self.config["BATTTERY_SIZE_DISTANCE_LEVEL"]
+            * self.config["BATTERY_SIZE_DISTANCE_LEVEL"]
             / self.config["RECHARGE_RATE"]
         )
 
@@ -673,7 +747,10 @@ class ConfigNetwork(ConfigStandard):
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
 
-        self.config[Config.DISCOUNT_FACTOR] = 1
+        # LEARNING ################################################### #
+        self.config[Config.DISCOUNT_FACTOR] = 1 
+        self.config[Config.HARMONIC_STEPSIZE] = 1
+        self.config[Config.STEPSIZE] = 0.1
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -756,6 +833,11 @@ class ConfigNetwork(ConfigStandard):
     def discount_factor(self):
         """Post cost is multiplied by weight in [0,1]"""
         return self.config[Config.DISCOUNT_FACTOR]
+    
+    @property
+    def harmonic_stepsize(self):
+        """Value 'a' from harmonic stepsize = a/(a+n)"""
+        return self.config[Config.HARMONIC_STEPSIZE]
 
     @property
     def label(self, name=""):
@@ -769,6 +851,7 @@ class ConfigNetwork(ConfigStandard):
 
         return (
             f"network_{self.config[Config.NAME]}_"
+            f"{self.config[Config.DEMAND_SCENARIO]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
             f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"{self.config[Config.AGGREGATION_LEVELS]}_"
@@ -780,5 +863,6 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.DEMAND_EARLIEST_HOUR]:02}_"
             f"{self.config[Config.DEMAND_TOTAL_HOURS]:02}_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:02}_"
-            f"{self.config[Config.DISCOUNT_FACTOR]:02}"
+            f"{self.config[Config.DISCOUNT_FACTOR]:2}_"
+            f"{self.config[Config.HARMONIC_STEPSIZE]:02}"
         )

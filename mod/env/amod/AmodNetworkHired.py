@@ -62,6 +62,74 @@ class AmodNetworkHired(AmodNetwork):
             # Rebalance
             return 0
 
+    @functools.lru_cache(maxsize=None)
+    def cost_func2(self, car_type, action, pos, o, d):
+        """Return decision cost.
+
+        Parameters
+        ----------
+        car_type : self owned or third party
+            [description]
+        action : Decision type
+            STAY, TRIP, RECHARGE, REBALANCE
+        pos : int
+            Id car current position
+        o : int
+            Id trip origin
+        d : int
+            Id trip destination
+
+        Returns
+        -------
+        float
+            Decision cost
+        """
+
+        # Platform's profit margin is lower when using hired cars
+        profit_margin = 1
+        if car_type == Car.TYPE_HIRED:
+            profit_margin = self.config.profit_margin
+
+        if action == du.STAY_DECISION:
+            # Stay
+            return 0
+
+        elif action == du.TRIP_DECISION:
+
+            # From car's position to trip's origin
+            distance_pickup = self.get_distance(
+                self.points[pos], self.points[o]
+            )
+
+            # From trip's origin to trip's destination
+            dist_rebalance = self.get_distance(self.points[o], self.points[d])
+
+            # Travel cost
+            cost = self.config.get_travel_cost(
+                distance_pickup + dist_rebalance
+            )
+
+            # Base fare + distance cost
+            revenue = self.config.calculate_fare(dist_rebalance)
+
+            # Profit to service trip
+            return profit_margin * (revenue - cost)
+
+        elif action == du.RECHARGE_DECISION:
+
+            # Recharge
+            cost = self.config.cost_recharge_single_increment
+            return -cost
+
+        elif action == du.REBALANCE_DECISION:
+
+            # From trip's origin to trip's destination
+            dist_rebalance = self.get_distance(self.points[o], self.points[d])
+
+            # Travel cost
+            cost = self.config.get_travel_cost(dist_rebalance)
+            return -cost
+
     def realize_decision(self, t, decisions, a_trips, dict_a_cars):
         total_reward = 0
         serviced = list()

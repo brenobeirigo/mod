@@ -488,13 +488,14 @@ class Amod:
             self.lambda_stepsize[t][g][a_g]
         )
 
-        # Generalized harmonic stepsize
-        # a_stepsize = 100
-        # stepsize = a_stepsize/(a_stepsize + self.count[t][g][a_g] - 1)
-
         # Update the number of times state was accessed
         self.count[t][g][a_g] += count_g
-        self.step_size_func[t][g][a_g] = 1/self.count[t][g][a_g]
+        
+        # Generalized harmonic stepsize
+        # Notice that a_stepsize is 1 when count is zero
+        a_stepsize = self.config.harmonic_stepsize
+        stepsize = a_stepsize/(a_stepsize + self.count[t][g][a_g] - 1)
+        self.step_size_func[t][g][a_g] = stepsize
 
     def update_values_smoothed(self, t, duals):
         
@@ -622,9 +623,9 @@ class Amod:
 
         # Total cost of rechargin
         cost = self.config.calculate_cost_recharge(time_min)
-
+    
         # Update vehicle status to recharging
-        car.update_recharge(time_min, cost)
+        car.update_recharge(time_min, miles, cost)
 
         return cost
 
@@ -633,10 +634,14 @@ class Amod:
         # Total cost of recharging
         cost = self.config.calculate_cost_recharge(time_min)
 
+        # Extra kilometers car can travel after recharging
+        dist = self.config.calculate_dist_recharge(time_min)
+
         # Update vehicle status to recharging
         car.update_recharge(
             time_min,
             cost,
+            dist,
             time_increment=self.config.time_increment
         )
 

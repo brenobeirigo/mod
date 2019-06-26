@@ -1345,21 +1345,24 @@ def adp_network_hired(
     # ##################################################################
     # SORT CARS ########################################################
     # ##################################################################
-
     (
+        # Dictionary of cars per tuple (g, G(position))
         level_id_cars_dict,
+        # Dictionary of target positions for each position
         rebalance_targets_dict,
-        attribute_cars_dict,
-    ) = sortout_fleet2(env, time_step)
+        # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+        type_attribute_cars_dict,
+    ) = sortout_fleets(env)
 
     # ##################################################################
     # SORT TRIPS #######################################################
     # ##################################################################
-
-    #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
     (
+        #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
         attribute_trips_dict,
+        # (level, id_level(origin)) -> trips
         level_id_trips_dict,
+        # Number of trips per class
         class_count_dict,
     ) = sortout_trip_list(trips)
 
@@ -1376,9 +1379,10 @@ def adp_network_hired(
         max_battery_level=env.config.battery_levels,
     )
 
-    # Adding variables
+    # Join decision tuples of both fleets (hired and self owned)
     all_decisions = list(itertools.chain.from_iterable(decision_cars.values()))
 
+    # Create variables
     x_var = m.addVars(
         tuplelist(all_decisions), name="x", vtype=GRB.INTEGER, lb=0
     )
@@ -1403,15 +1407,30 @@ def adp_network_hired(
         )
 
     # Cost of current decision
-    current_costs = quicksum(
-        env.cost_func(d[CAR_TYPE], d[ACTION], d[ORIGIN], d[DESTINATION])
-        * x_var[d]
+    contribution = quicksum(
+        env.cost_func(
+            d[CAR_TYPE],
+            d[ACTION],
+            d[ORIGIN],
+            d[DESTINATION]
+        ) * x_var[d]
         for d in x_var
     )
 
+    # contribution = quicksum(
+    #     env.cost_func(
+    #         d[CAR_TYPE],
+    #         d[ACTION],
+    #         d[POSITION],
+    #         d[ORIGIN],
+    #         d[DESTINATION]
+    #     ) * x_var[d]
+    #     for d in x_var
+    # )
+
+    # Maximize present and future outcome
     m.setObjective(
-        current_costs
-        + env.config.discount_factor*post_decision_costs,
+        contribution + env.config.discount_factor*post_decision_costs,
         GRB.MAXIMIZE
     )
 
@@ -1421,15 +1440,15 @@ def adp_network_hired(
 
     # Join attributes of both fleets
     attribute_cars = dict()
-    for car_type in attribute_cars_dict:
-        attribute_cars.update(attribute_cars_dict[car_type])
+    for car_type in type_attribute_cars_dict:
+        attribute_cars.update(type_attribute_cars_dict[car_type])
 
     # Car flow conservation
     flow_cars = m.addConstrs(
         (
-            x_var.sum("*", point, level, "*", "*", "*")
-            == len(attribute_cars[(point, level)])
-            for point, level in attribute_cars.keys()
+            x_var.sum("*", point, battery, "*", "*", "*")
+            == len(attribute_cars[(point, battery)])
+            for point, battery in attribute_cars.keys()
         ),
         "CAR_FLOW",
     )
@@ -1515,7 +1534,7 @@ def adp_network_hired(
             time_step,
             best_decisions,
             attribute_trips_dict,
-            attribute_cars_dict,
+            type_attribute_cars_dict,
         )
         # print(f"Objective Function - {m.objVal:6.2f} X
         # {reward:6.2f} - Decision reward")
@@ -1552,10 +1571,27 @@ def adp_network_hired(
                 print("%s" % c.constrName)
 
 
-def sortout_fleet2(env, time_step):
+def sortout_fleets(env):
+    """Associate vehicles from both fleets to its region center levels
+    and ids, find the rebalance targets from each position, and list the
+    cars per attribute (point, battery) and car type (hired or fleet).
+    
+    Parameters
+    ----------
+    env : Amod environment
+        Amod 
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
 
-    rebalance_level = env.config.rebalance_level
-    n_neighbors = env.config.n_neighbors
+    # Tuple of region center levels cars can rebalance to
+    rebalance_levels = env.config.rebalance_level
+
+    # Number of targets can reach at each level
+    n_targets_level = env.config.n_neighbors
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -1579,18 +1615,21 @@ def sortout_fleet2(env, time_step):
         # List of cars with the same attribute (pos, battery level)
         type_attribute_cars_dict[car.type][car.attribute].append(car)
 
-        # Each car can rebalance to its immediate neighbors. This
-        # prevents vehicles are busy rebalancing to far away zones.
+        # Cars in the same positions can rebalance to the same places.
+        # Check if rebalance targets were previously determined
         if car.point.id not in attribute_rebalance[car.type]:
 
             rebalance_targets = env.get_zone_neighbors(
                 car.point,
-                level=rebalance_level,
-                n_neighbors=n_neighbors,
+                level=rebalance_levels,
+                n_neighbors=n_targets_level,
             )
 
+            # All points a car can rebalance to from its corrent point
             attribute_rebalance[car.type][car.point.id] = rebalance_targets
 
+        # Associate each car to superior aggregation levels and ids,
+        # up until the largest region centers requests can be matched.
         for level in range(max(class_levels) + 1):
             id_level = car.point.id_level(level)
             dict_level_id[car.type][(level, id_level)].append(car)

@@ -24,7 +24,7 @@ class EpisodeLog:
             amod.load_progress(progress)
 
         except Exception as e:
-            print(f"No previous episodes were saved {e}.")
+            print(f"No previous episodes were saved (Exception: '{e}').")
 
         # ---------------------------------------------------------------- #
         # Trips ########################################################## #
@@ -123,9 +123,13 @@ class EpisodeLog:
 
     def last_episode_stats(self):
         try:
-            return f"({self.reward[-1]:15.2f}, {self.service_rate[-1]:6.2%})"
+            return (
+                f"({self.reward[-1]:15,.2f},"
+                f" {self.service_rate[-1]:6.2%}) "
+                f"Agg. level weights = {self.weights[-1]}"
+            )
         except:
-            return f"(0, 00.00%)"
+            return f"(0.00, 00.00%) Agg. level weights = []"
 
     def compute_learning(self):
 
@@ -163,7 +167,6 @@ class EpisodeLog:
         self.service_rate.append(step_log.service_rate)
 
         if weights is not None:
-            print("Adding ", weights)
             self.weights.append(weights)
 
         # Save intermediate plots
@@ -233,6 +236,7 @@ class EpisodeLog:
                     "reward": self.reward,
                     "service_rate": self.service_rate,
                     "progress": value_count,
+                    "weights": self.weights,
                 },
             )
 
@@ -248,9 +252,18 @@ class EpisodeLog:
 
         progress = np.load(path).item()
 
-        self.n = progress["episodes"]
-        self.reward = progress["reward"]
-        self.service_rate = progress["service_rate"]
+        self.n = progress.get("episodes", list())
+        self.reward = progress.get("reward", list())
+        self.service_rate = progress.get("service_rate", list())
+        self.weights = progress.get("weights", list())
+
+        print(
+            f"\n### Loading {self.n} episodes from '{path}'."
+            f"\n -       Last reward: {self.reward[self.n-1]:15,.2f} "
+            f"(max={max(self.reward):15,.2f})"
+            f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
+            f"(max={max(self.service_rate):15.2%})\n"
+        )
 
         values = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
         counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))

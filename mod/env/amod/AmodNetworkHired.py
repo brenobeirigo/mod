@@ -134,7 +134,8 @@ class AmodNetworkHired(AmodNetwork):
         total_reward = 0
         serviced = list()
 
-        decision_dict = {
+        # Count number of times each decision was taken
+        decision_dict_count = {
             du.STAY_DECISION: 0,
             du.REBALANCE_DECISION: 0,
             du.TRIP_DECISION: 0,
@@ -147,7 +148,7 @@ class AmodNetworkHired(AmodNetwork):
 
             action, point, level, o, d, car_type, times = decision
 
-            decision_dict[action] += times
+            decision_dict_count[action] += times
 
             cars_with_attribute = dict_a_cars[car_type][(point, level)]
 
@@ -243,13 +244,13 @@ class AmodNetworkHired(AmodNetwork):
             # Remove cars already used to fulfill decisions
             # cars_with_attribute = cars_with_attribute[times:]
 
-        self.decision_dict = decision_dict
+        self.decision_dict = decision_dict_count
 
-        return (
-            total_reward,
-            serviced,
-            list(it.chain.from_iterable(a_trips.values())),
-        )
+        # Remaining trips associated with trip attributes correspond to
+        # users who have been denied service
+        denied = list(it.chain.from_iterable(a_trips.values()))
+
+        return (total_reward, serviced, denied)
 
     def update_fleet_status(self, time_step):
 

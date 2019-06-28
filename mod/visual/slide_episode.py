@@ -31,11 +31,14 @@ start_slider = 1
 end_slider = 303
 update_rate = 5 * 1000 * 60  # 5 min
 
+smooth_sigma_demand = 1
+smooth_sigma_fleet = 5
+
 
 doc = curdoc()
 
 # exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-exp_name = "network_manhattan-island-new-york-city-new-york-usa_0400_0020_6_01_0030_02_05_2=8_3=4_4=4_09_01_01_0.1"
+exp_name = "REB_manhattan-island-new-york-city-new-york-usa_NYC_1000_0001_6_01_0030_02_04_1=8_00_12_01_0.1_01"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -262,7 +265,7 @@ def show_fleet_status(episode):
 
     # Check if episode was previously loaded
     if episode not in episode_fleet_dict:
-        load_episode(episode)
+        load_episode(episode, smooth_sigma=smooth_sigma_fleet)
 
     else:
         print(f"Showing episode {episode:04}...")
@@ -285,7 +288,7 @@ def show_demand_status(episode):
 
     # Check if episode was previously loaded
     if episode not in episode_demand_dict:
-        load_episode_demand(episode, smooth_sigma=1)
+        load_episode_demand(episode, smooth_sigma=smooth_sigma_demand)
 
     else:
         print(f"Showing episode {episode:04}...")

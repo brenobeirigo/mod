@@ -14,6 +14,7 @@ import functools
 
 from mod.env.amod.Amod import Amod
 import mod.env.decision_utils as du
+from mod.env.adp.adp import Adp
 
 port = 4999
 url = f"http://localhost:{port}"
@@ -53,8 +54,16 @@ class AmodNetwork(Amod):
         Point.level_count = [level_count[str(d)] for d in Point.levels]
 
         self.init_fleet(self.points, car_positions)
-        self.init_learning()
-        self.init_weighting_settings()
+
+        self.adp = Adp(
+            self.points,
+            self.config.aggregation_levels,
+            self.config.stepsize,
+            self.config.harmonic_stepsize,
+        )
+
+        self.adp.init_learning()
+        self.adp.init_weighting_settings()
 
     @functools.lru_cache(maxsize=None)
     def get_distance(self, o, d):

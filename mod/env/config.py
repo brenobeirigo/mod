@@ -46,7 +46,11 @@ SCENARIO_LAST_MILE = "LAST_MILE"
 SCENARIO_NYC = "NYC"
 
 
+
 class Config:
+
+    # This configuration refers to which test case?
+    TEST_LABEL = "TEST_LABEL"
 
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
@@ -112,6 +116,7 @@ class Config:
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     LEVEL_DIST_LIST = "LEVEL_LIST"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
+    REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
 
     # DEMAND
@@ -694,6 +699,8 @@ class ConfigNetwork(ConfigStandard):
 
         super().__init__(config)
 
+        self.config[Config.TEST_LABEL] = ""
+
         # Speed cars (kmh) - 20KMH
         self.config["SPEED"] = 20
 
@@ -721,6 +728,7 @@ class ConfigNetwork(ConfigStandard):
         self.config["NEIGHBORHOOD_LEVEL"] = 1
 
         self.config[Config.REBALANCE_LEVEL] = (1,)
+        self.config[Config.REBALANCE_REACH] = None
         self.config[Config.REBALANCE_MULTILEVEL] = False
 
         # How much time does it take (min) to recharge one single level?
@@ -818,6 +826,11 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
+    
+    @property
+    def rebalance_reach(self):
+        """Car can reach nodes up to 'rebalance_reach' distance"""
+        return self.config[Config.REBALANCE_REACH]
 
     @property
     def rebalance_multilevel(self):
@@ -850,7 +863,8 @@ class ConfigNetwork(ConfigStandard):
             ))])
 
         return (
-            f"network_{self.config[Config.NAME]}_"
+            f"{self.config[Config.TEST_LABEL]}_"
+            f"{self.config[Config.NAME]}_"
             f"{self.config[Config.DEMAND_SCENARIO]}_"
             f"{self.config[Config.FLEET_SIZE]:04}_"
             f"{self.config[Config.BATTERY_LEVELS]:04}_"

@@ -55,9 +55,10 @@ def get_sim_config():
 
     config.update(
         {
+            ConfigNetwork.TEST_LABEL: "costReb",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1000,
-            ConfigNetwork.BATTERY_LEVELS: 20,
+            ConfigNetwork.FLEET_SIZE: 80,
+            ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
@@ -80,6 +81,7 @@ def get_sim_config():
             # Cars can rebalance to neighbor centers of level:
             # Why not max rebalance level?
             ConfigNetwork.REBALANCE_LEVEL: (1,),
+            # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
@@ -90,9 +92,9 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 1,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 9,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -122,10 +124,9 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 50
+    episodes = 30
     episode_log = EpisodeLog(config=config)
     amod = AmodNetworkHired(config)
-
     plot_track.set_env(amod)
 
     # ---------------------------------------------------------------- #
@@ -143,10 +144,19 @@ def sim(plot_track, config):
 
     print(f"Loading demand scenario '{config.demand_scenario}'...")
 
-    # TODO separate progress loading from get_od_lists
-    origins, destinations = episode_log.get_od_lists(amod)
+    try:
+        # Load last episode
+
+        progress = episode_log.load_progress()
+        amod.adp.load_progress(progress)
+        # amod.adp.read_progress(episode_log.output_path + "/progress.npy")
+
+    except Exception as e:
+        print(f"No previous episodes were saved (Exception: '{e}').")
 
     if config.demand_scenario == SCENARIO_UNBALANCED:
+
+        origins, destinations = episode_log.get_od_lists(amod)
 
         # Get demand pattern from NY city
         step_trip_count = get_trip_count_step(
@@ -165,6 +175,7 @@ def sim(plot_track, config):
             step=config.time_increment,
             earliest_step=config.demand_earliest_step_min,
             max_steps=config.demand_max_steps,
+            resize_factor=config.demand_resize_factor,
         )
 
         step_trip_list = get_trips(
@@ -221,7 +232,7 @@ def sim(plot_track, config):
             plot_track.compute_movements(0)
 
         # Iterate through all steps and match requests to cars
-        for step, trips in enumerate(step_trip_list):
+        for step, trips in enumerate(deepcopy(step_trip_list)):
 
             if enable_plot:
                 # Update optimization time step
@@ -256,7 +267,7 @@ def sim(plot_track, config):
             # print(" - Pre-decision statuses:")
             # amod.print_fleet_stats_summary()
 
-            contract_duration = 4
+            contract_duration = 10
             hired_cars = []
 
             # Hired fleet is appearing in trip origins
@@ -282,7 +293,7 @@ def sim(plot_track, config):
                 trips,
                 step + 1,
                 sq_guarantee=False,
-                charge=True,
+                charge=False,
                 myopic=False,
                 value_function_update=match.WEIGHTED_UPDATE,
                 # agg_level=0,
@@ -312,7 +323,7 @@ def sim(plot_track, config):
 
         episode_log.compute_episode(
             step_log,
-            weights=amod.get_weights(len(step_trip_list)),
+            weights=amod.adp.get_weights(len(step_trip_list)),
             progress=True,
         )
 

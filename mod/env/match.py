@@ -22,6 +22,7 @@ BATTERY = 2
 ORIGIN = 3
 DESTINATION = 4
 CAR_TYPE = 5
+N_DECISIONS = 6
 
 AVERAGED_UPDATE = "averaged_update"
 WEIGHTED_UPDATE = "weighted_update"
@@ -31,7 +32,7 @@ WEIGHTED_UPDATE = "weighted_update"
 # #################################################################### #
 
 
-def extract_duals_relaxed(m, flow_cars):
+def extract_duals_relaxed(m, flow_cars_dict):
 
     duals = dict()
 
@@ -46,18 +47,22 @@ def extract_duals_relaxed(m, flow_cars):
 
         # diff = m.objVal - fixed.objVal
         # a = fixed.getConstrs()
+        
+        for car_type, flow_cars in flow_cars_dict.items():
+            # Shadow associated to all car types
+            duals[car_type] = dict()
 
-        for pos, battery in flow_cars:
+            for pos, battery in flow_cars:
 
-            try:
-                constr = fixed.getConstrByName(f"CAR_FLOW[{pos},{battery}]")
-                # pi = The constraint dual value in the current solution
-                shadow_price = constr.pi
-                # print(f'The dual value of {constr.constrName} : {shadow_price}')
-            except:
-                shadow_price = 0
+                try:
+                    constr = fixed.getConstrByName(f"CAR_FLOW_{car_type}[{pos},{battery}]")
+                    # pi = The constraint dual value in the current solution
+                    shadow_price = constr.pi
+                    # print(f'The dual value of {constr.constrName} : {shadow_price}')
+                except:
+                    shadow_price = 0
 
-            duals[(pos, battery)] = shadow_price
+                duals[car_type][(pos, battery)] = shadow_price
 
     except:
         print("Can't create relaxed model.")
@@ -1276,6 +1281,28 @@ def adp_low_resolution(
             if c.IISConstr:
                 print("%s" % c.constrName)
 
+def get_denied_ids(decisions, attribute_trips_dict):
+    # Start denied trip count with all trips
+    denied = defaultdict(int)
+    denied_count_dict = {
+        trip_a: len(trip_list)
+        for trip_a, trip_list in attribute_trips_dict.items()
+    }
+
+    for d in decisions:
+        if d[ACTION] == du.TRIP_DECISION:
+
+            d_od = (d[ORIGIN], d[DESTINATION])
+
+            # Subtract trips fulfilled
+            denied_count_dict[d_od] -= d[N_DECISIONS]
+
+    for d_od, n_denied in denied_count_dict.items():
+        if n_denied >=0:
+            o, d = d_od
+            denied[o]+=n_denied
+    return denied
+
 
 def adp_network_hired(
     env,
@@ -1408,9 +1435,10 @@ def adp_network_hired(
 
     # Cost of current decision
     contribution = quicksum(
-        env.cost_func(
+        env.cost_func2(
             d[CAR_TYPE],
             d[ACTION],
+            d[POSITION],
             d[ORIGIN],
             d[DESTINATION]
         ) * x_var[d]
@@ -1438,20 +1466,18 @@ def adp_network_hired(
     # CONSTRAINTS ######################################################
     # ---------------------------------------------------------------- #
 
-    # Join attributes of both fleets
-    attribute_cars = dict()
-    for car_type in type_attribute_cars_dict:
-        attribute_cars.update(type_attribute_cars_dict[car_type])
-
     # Car flow conservation
-    flow_cars = m.addConstrs(
-        (
-            x_var.sum("*", point, battery, "*", "*", "*")
-            == len(attribute_cars[(point, battery)])
-            for point, battery in attribute_cars.keys()
-        ),
-        "CAR_FLOW",
-    )
+    flow_cars_dict = dict()
+    for car_type, attribute_cars in type_attribute_cars_dict.items():
+
+        flow_cars_dict[car_type] = m.addConstrs(
+            (
+                x_var.sum("*", point, battery, "*", "*", "*") ==
+                len(attribute_cars[(point, battery)])
+                for point, battery in attribute_cars.keys()
+            ),
+            f"CAR_FLOW_{car_type}",
+        )
 
     # Trip flow conservation
     flow_trips = m.addConstrs(
@@ -1489,16 +1515,17 @@ def adp_network_hired(
 
     # Car is obliged to charged if battery reaches minimum level
     if charge:
-        recharge = m.addConstrs(
-            (
-                x_var[(action, pos, level, o, d, car_type)]
-                == len(attribute_cars[(pos, level)])
-                for action, pos, level, o, d, car_type in x_var
-                if level <= env.config.min_battery_level
-                and action == du.RECHARGE_DECISION
-            ),
-            "RECHARGE",
-        )
+        for car_type, attribute_cars in type_attribute_cars_dict:
+            recharge = m.addConstrs(
+                (
+                    x_var[(action, pos, level, o, d, car_type)]
+                    == len(attribute_cars[(pos, level)])
+                    for action, pos, level, o, d, car_type in x_var
+                    if level <= env.config.min_battery_level
+                    and action == du.RECHARGE_DECISION
+                ),
+                f"RECHARGE_{car_type}",
+            )
 
     # Optimize
     m.optimize()
@@ -1515,20 +1542,24 @@ def adp_network_hired(
         # a = time.time()
         best_decisions = extract_decisions(x_var)
 
+        denied_count_dict = get_denied_ids(
+            best_decisions,
+            attribute_trips_dict
+        )
+
         # Update shadow prices to be used in the next iterations
         if not myopic:
-            duals = extract_duals_relaxed(m, flow_cars)
 
-            # Are there any shadow prices to update?
-            if duals:
-                if value_function_update == AVERAGED_UPDATE:
-                    env.averaged_update(time_step, duals)
+            duals_dict = extract_duals_relaxed(m, flow_cars_dict)
 
-                else:
-                    env.update_values_smoothed(time_step, duals)
-        
-            # pprint(best_decisions)
-            # pprint(duals)
+            for car_type, duals in duals_dict.items():
+
+                # Are there any shadow prices to update?
+                if duals:
+                    if value_function_update == AVERAGED_UPDATE:
+                        env.adp.averaged_update(time_step, duals)
+                    else:
+                        env.adp.update_values_smoothed(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,
@@ -1571,6 +1602,300 @@ def adp_network_hired(
                 print("%s" % c.constrName)
 
 
+# def adp_network_hired(
+#     env,
+#     trips,
+#     time_step,
+#     sq_guarantee=True,
+#     charge=True,
+#     agg_level=None,
+#     myopic=False,
+#     log_path=None,
+#     value_function_update=AVERAGED_UPDATE,
+#     episode=None,
+# ):
+
+#     """Assign trips to available vehicles optimally at the current
+#         time step.
+
+#     Parameters
+#     ----------
+#     env : Environment
+#         AMoD environment
+#     trips : list
+#         List of trips
+#     time_step : int
+#         Time step after receiving trips
+#     charge : bool, optional
+#         Apply the charging constraint, by default True
+#     agg_level : [type], optional
+#         Attributes are queried according to an aggregation level, 
+#         by default None
+#     myopic : bool, optional
+#         If True, does not learn between iterations, by default False
+#     neighborhood_level : int, optional
+#         How large are region centers (
+#             e.g., 1 = reachable in 1min,
+#                   2 = reachable in 2min
+#             ), by default 1
+#     n_neighbors : int, optional
+#         Max. neighbors of region centers, by default 4
+
+#     Returns
+#     -------
+#     float, list, list
+#         total contribution, serviced trips, rejected trips
+#     """
+
+#     # Starting assignment model
+#     m = Model("assignment")
+
+#     # Log steps of current episode
+#     if log_path:
+#         m.setParam("LogToConsole", 0)
+#         folder_epi_log = f"{env.config.folder_mip_log}episode_{episode:04}/"
+#         folder_epi_lp = f"{env.config.folder_mip_lp}episode_{episode:04}/"
+
+#         if not os.path.exists(folder_epi_log):
+#             os.makedirs(folder_epi_log)
+#             os.makedirs(folder_epi_lp)
+
+#         m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}.log"
+#         m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}.lp"
+
+#     else:
+#         # Disables all logging (file and console)
+#         m.setParam("OutputFlag", 0)
+
+#     # ##################################################################
+#     # SORT CARS ########################################################
+#     # ##################################################################
+#     (
+#         # Dictionary of cars per tuple (g, G(position))
+#         level_id_cars_dict,
+#         # Dictionary of target positions for each position
+#         rebalance_targets_dict,
+#         # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+#         type_attribute_cars_dict,
+#     ) = sortout_fleets(env)
+
+#     # ##################################################################
+#     # SORT TRIPS #######################################################
+#     # ##################################################################
+#     (
+#         #  Dictionary of #trips per trip attribute,i.e., (o.id, d.id)
+#         attribute_trips_dict,
+#         # (level, id_level(origin)) -> trips
+#         level_id_trips_dict,
+#         # Number of trips per class
+#         class_count_dict,
+#     ) = sortout_trip_list(trips)
+
+#     # ##################################################################
+#     # VARIABLES ########################################################
+#     # ##################################################################
+
+#     decision_cars, decision_class = du.get_decision_set_classed(
+#         env.available,
+#         env.available_hired,
+#         level_id_cars_dict,
+#         level_id_trips_dict,
+#         rebalance_targets_dict,
+#         max_battery_level=env.config.battery_levels,
+#     )
+
+#     # Join decision tuples of both fleets (hired and self owned)
+#     all_decisions = list(itertools.chain.from_iterable(decision_cars.values()))
+
+#     # Create variables
+#     x_var = m.addVars(
+#         tuplelist(all_decisions), name="x", vtype=GRB.INTEGER, lb=0
+#     )
+
+#     # ##################################################################
+#     # MODEL ############################################################
+#     # ##################################################################
+
+#     # ---------------------------------------------------------------- #
+#     # COST FUNCTION ####################################################
+#     # ---------------------------------------------------------------- #
+
+#     if myopic:
+#         post_decision_costs = 0
+
+#     # Model has learned shadow costs from previous iterations and can
+#     # use them to determine post decision costs.
+#     else:
+#         post_decision_costs = quicksum(
+#             (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+#             for d in x_var
+#         )
+
+#     # Cost of current decision
+#     contribution = quicksum(
+#         env.cost_func(
+#             d[CAR_TYPE],
+#             d[ACTION],
+#             d[ORIGIN],
+#             d[DESTINATION]
+#         ) * x_var[d]
+#         for d in x_var
+#     )
+
+#     # contribution = quicksum(
+#     #     env.cost_func(
+#     #         d[CAR_TYPE],
+#     #         d[ACTION],
+#     #         d[POSITION],
+#     #         d[ORIGIN],
+#     #         d[DESTINATION]
+#     #     ) * x_var[d]
+#     #     for d in x_var
+#     # )
+
+#     # Maximize present and future outcome
+#     m.setObjective(
+#         contribution + env.config.discount_factor*post_decision_costs,
+#         GRB.MAXIMIZE
+#     )
+
+#     # ---------------------------------------------------------------- #
+#     # CONSTRAINTS ######################################################
+#     # ---------------------------------------------------------------- #
+
+#     # Join attributes of both fleets
+#     attribute_cars = dict()
+#     for car_type in type_attribute_cars_dict:
+#         attribute_cars.update(type_attribute_cars_dict[car_type])
+
+#     # Car flow conservation
+#     flow_cars = m.addConstrs(
+#         (
+#             x_var.sum("*", point, battery, "*", "*", "*")
+#             == len(attribute_cars[(point, battery)])
+#             for point, battery in attribute_cars.keys()
+#         ),
+#         "CAR_FLOW",
+#     )
+
+#     # Trip flow conservation
+#     flow_trips = m.addConstrs(
+#         (
+#             x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*")
+#             <= len(attribute_trips_dict[(o, d)])
+#             for o, d in attribute_trips_dict
+#         ),
+#         "TRIP_FLOW",
+#     )
+
+#     # ################################################################ #
+#     # SERVICE QUALITY CONSTRAINTS #################################### #
+#     # ################################################################ #
+
+#     if sq_guarantee:
+
+#         # Minimum service rate for users of each class
+#         for sq_class, s_rate in ClassedTrip.sq_classes.items():
+
+#             # List of decisions associated to a user class
+#             var_list_class = []
+
+#             # Adding decisions to user class list
+#             for single_decision in set(decision_class[sq_class]):
+#                 var_list_class.append(x_var[single_decision])
+
+#             # Add constraints
+#             if len(var_list_class) > 0:
+#                 m.addConstr(
+#                     quicksum(var_list_class)
+#                     >= np.ceil(s_rate * class_count_dict[sq_class]),
+#                     f"TRIP_FLOW_CLASS_{sq_class}",
+#                 )
+
+#     # Car is obliged to charged if battery reaches minimum level
+#     if charge:
+#         recharge = m.addConstrs(
+#             (
+#                 x_var[(action, pos, level, o, d, car_type)]
+#                 == len(attribute_cars[(pos, level)])
+#                 for action, pos, level, o, d, car_type in x_var
+#                 if level <= env.config.min_battery_level
+#                 and action == du.RECHARGE_DECISION
+#             ),
+#             "RECHARGE",
+#         )
+
+#     # Optimize
+#     m.optimize()
+#     # m.write(f"adp{time_step:04}.lp")
+
+#     if m.status == GRB.Status.UNBOUNDED:
+#         print("The model cannot be solved because it is unbounded")
+
+#     if m.status == GRB.Status.OPTIMAL:
+
+#         # c = time.time()
+#         # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+#         # decisions = extract_decisions(x_var)
+#         # a = time.time()
+#         best_decisions = extract_decisions(x_var)
+
+#         # Update shadow prices to be used in the next iterations
+#         if not myopic:
+#             duals = extract_duals_relaxed(m, flow_cars)
+
+#             # Are there any shadow prices to update?
+#             if duals:
+#                 if value_function_update == AVERAGED_UPDATE:
+#                     env.averaged_update(time_step, duals)
+
+#                 else:
+#                     env.adp.update_values_smoothed(time_step, duals)
+
+#             # pprint(best_decisions)
+#             # pprint(duals)
+
+#         reward, serviced, denied = env.realize_decision(
+#             time_step,
+#             best_decisions,
+#             attribute_trips_dict,
+#             type_attribute_cars_dict,
+#         )
+#         # print(f"Objective Function - {m.objVal:6.2f} X
+#         # {reward:6.2f} - Decision reward")
+
+#         rejected = []
+
+#         # Update list of rejected orders
+#         rejected.extend(denied)
+
+#         return reward, serviced, rejected
+
+#     if (
+#         m.status != GRB.Status.INF_OR_UNBD
+#         and m.status != GRB.Status.INFEASIBLE
+#     ):
+#         print("Optimization was stopped with status %d" % m.status)
+
+#     if m.status == GRB.Status.INFEASIBLE:
+#         # do IIS
+#         print("The model is infeasible; computing IIS")
+
+#         # Save model
+#         m.write("myopic.lp")
+
+#         m.computeIIS()
+
+#         if m.IISMinimal:
+#             print("IIS is minimal\n")
+#         else:
+#             print("IIS is not minimal\n")
+#             print("\nThe following constraint(s) cannot be satisfied:")
+#         for c in m.getConstrs():
+#             if c.IISConstr:
+#                 print("%s" % c.constrName)
+
+
 def sortout_fleets(env):
     """Associate vehicles from both fleets to its region center levels
     and ids, find the rebalance targets from each position, and list the
@@ -1592,6 +1917,9 @@ def sortout_fleets(env):
 
     # Number of targets can reach at each level
     n_targets_level = env.config.n_neighbors
+
+    # If not None, access immediate neighbors (intersections)
+    rebalance_reach = env.config.rebalance_reach
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -1619,11 +1947,19 @@ def sortout_fleets(env):
         # Check if rebalance targets were previously determined
         if car.point.id not in attribute_rebalance[car.type]:
 
-            rebalance_targets = env.get_zone_neighbors(
-                car.point,
-                level=rebalance_levels,
-                n_neighbors=n_targets_level,
-            )
+            # Get immediate neighbors (intersections) at reach degrees
+            if rebalance_reach:
+                rebalance_targets = env.get_neighbors(
+                    car.point,
+                    reach=rebalance_reach
+                )
+            # Get region center neighbors
+            else:
+                rebalance_targets = env.get_zone_neighbors(
+                    car.point,
+                    level=rebalance_levels,
+                    n_neighbors=n_targets_level,
+                )
 
             # All points a car can rebalance to from its corrent point
             attribute_rebalance[car.type][car.point.id] = rebalance_targets

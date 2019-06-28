@@ -18,13 +18,6 @@ sns.set_context("paper")
 class EpisodeLog:
 
     def get_od_lists(self, amod):
-        try:
-            # Load last episode
-            progress = self.load_progress()
-            amod.load_progress(progress)
-
-        except Exception as e:
-            print(f"No previous episodes were saved (Exception: '{e}').")
 
         # ---------------------------------------------------------------- #
         # Trips ########################################################## #
@@ -215,18 +208,18 @@ class EpisodeLog:
                     g: {
                         a: (
                             value,
-                            step_log.env.count[t][g][a],
-                            step_log.env.transient_bias[t][g][a],
-                            step_log.env.variance_g[t][g][a],
-                            step_log.env.step_size_func[t][g][a],
-                            step_log.env.lambda_stepsize[t][g][a],
-                            step_log.env.aggregation_bias[t][g][a],
+                            step_log.env.adp.count[t][g][a],
+                            step_log.env.adp.transient_bias[t][g][a],
+                            step_log.env.adp.variance_g[t][g][a],
+                            step_log.env.adp.step_size_func[t][g][a],
+                            step_log.env.adp.lambda_stepsize[t][g][a],
+                            step_log.env.adp.aggregation_bias[t][g][a],
                         )
                         for a, value in a_value.items()
                     }
                     for g, a_value in g_a.items()
                 }
-                for t, g_a in step_log.env.values.items()
+                for t, g_a in step_log.env.adp.values.items()
             }
 
             np.save(
@@ -315,9 +308,12 @@ class EpisodeLog:
     ):
         print("# Weights")
         pprint(self.weights)
-        series = tuple(list(a) for a in zip(*self.weights))
-        pprint(series)
-        plt.plot(np.arange(self.n), *series)
+        series_list = [list(a) for a in zip(*self.weights)]
+        pprint(series_list)
+
+        for series in series_list:
+            plt.plot(np.arange(self.n), series)
+
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Weights")

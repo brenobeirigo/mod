@@ -207,7 +207,7 @@ def get_decision_set_classed(
     level_id_cars_dict,
     level_id_trips_dict,
     rebalance_targets_dict,
-    max_battery_level=20,
+    max_battery_level=None,
 ):
 
     decisions = defaultdict(set)
@@ -217,13 +217,13 @@ def get_decision_set_classed(
         # Stay ####################################################### #
         decisions[car.type].add(stay_decision(car))
 
-        # Recharge ################################################### #
-        if car.battery_level < max_battery_level:
-            decisions[car.type].add(recharge_decision(car))
-
         # Rebalancing ################################################ #
         rebalance_targets = rebalance_targets_dict[car.type][car.point.id]
         decisions[car.type].update(rebalance_decisions(car, rebalance_targets))
+
+        # Recharge ################################################### #
+        if max_battery_level and car.battery_level < max_battery_level:
+            decisions[car.type].add(recharge_decision(car))
 
     for car in hired_cars:
 
@@ -237,7 +237,7 @@ def get_decision_set_classed(
         decisions[car.type].add(stay_decision(car))
 
         # Recharge ############################################### #
-        if car.battery_level < max_battery_level:
+        if max_battery_level and car.battery_level < max_battery_level:
             decisions[car.type].add(recharge_decision(car))
 
         # else:

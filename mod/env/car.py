@@ -14,6 +14,9 @@ class Car:
     TYPE_FLEET = "AV"
     TYPE_HIRED = "FV"
 
+    # List of car types (each type is associated to different estimates)
+    car_types = [TYPE_FLEET, TYPE_HIRED]
+
     status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
 
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):

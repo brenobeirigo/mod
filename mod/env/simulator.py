@@ -22,7 +22,7 @@ import os
 class PlotTrack:
 
     # Plot steps
-    ENABLE_PLOT = False
+    ENABLE_PLOT = True
     # Delay after each assignment (in seconds)
 
     STEP_DELAY = 0
@@ -208,7 +208,7 @@ class PlotTrack:
         self.slide_time_ahead.on_change("value", self.update_time_ahead)
 
         self.slide_battery_level = Slider(
-            title="Battery level", start=0, end=20, value=20, step=1, width=150
+            title="Battery level", start=0, end=1, value=0, step=1, width=150
         )
         self.slide_battery_level.on_change("value", self.update_time_ahead)
 
@@ -226,6 +226,7 @@ class PlotTrack:
         self.env = env
         self.slide_agg_level.end = env.config.aggregation_levels
         self.slide_time_ahead.end = env.config.time_steps
+        self.slide_battery_level.end = env.config.battery_levels
 
     @gen.coroutine
     @without_document_lock

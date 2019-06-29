@@ -22,7 +22,7 @@ import os
 class PlotTrack:
 
     # Plot steps
-    ENABLE_PLOT = True
+    ENABLE_PLOT = False
     # Delay after each assignment (in seconds)
 
     STEP_DELAY = 0

@@ -57,12 +57,12 @@ def get_sim_config():
         {
             ConfigNetwork.TEST_LABEL: "costReb",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 80,
+            ConfigNetwork.FLEET_SIZE: 1000,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.OFFSET_TERMINATION: 15,
+            ConfigNetwork.OFFSET_TERMINATION: 30,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -92,8 +92,8 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 1,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 9,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 0,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 24,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
@@ -124,9 +124,9 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 30
-    episode_log = EpisodeLog(config=config)
+    episodes = 31
     amod = AmodNetworkHired(config)
+    episode_log = EpisodeLog(config=config, adp=amod.adp)
     plot_track.set_env(amod)
 
     # ---------------------------------------------------------------- #
@@ -146,10 +146,7 @@ def sim(plot_track, config):
 
     try:
         # Load last episode
-
-        progress = episode_log.load_progress()
-        amod.adp.load_progress(progress)
-        # amod.adp.read_progress(episode_log.output_path + "/progress.npy")
+        episode_log.load_progress()
 
     except Exception as e:
         print(f"No previous episodes were saved (Exception: '{e}').")
@@ -322,9 +319,7 @@ def sim(plot_track, config):
                 time.sleep(step_delay)
 
         episode_log.compute_episode(
-            step_log,
-            weights=amod.adp.get_weights(len(step_trip_list)),
-            progress=True,
+            step_log, weights=amod.adp.get_weights(len(step_trip_list))
         )
 
         # -------------------------------------------------------------#

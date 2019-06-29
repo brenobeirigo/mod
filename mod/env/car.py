@@ -403,3 +403,9 @@ class HiredCar(Car):
         # Next arrival
         duration_min = get_travel_time(total_dist)
 
+    def __repr__(self):
+        return (
+            f"HiredCar{{id={self.id:02}, "
+            f"(point, battery)=({self.point},{self.battery_level})}}"
+        )
+

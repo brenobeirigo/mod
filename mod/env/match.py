@@ -4,7 +4,7 @@ from gurobipy import tuplelist, GRB, Model, quicksum
 from pprint import pprint
 from mod.env.amod.Amod import Amod
 from mod.env.trip import ClassedTrip
-from mod.env.car import Car
+from mod.env.car import Car, HiredCar
 import time
 import numpy as np
 import itertools
@@ -1303,6 +1303,86 @@ def get_denied_ids(decisions, attribute_trips_dict):
             denied[o]+=n_denied
     return denied
 
+def enforce(env, m, x_var, charge, time_step, decision_class, class_count_dict, sq_guarantee=True):
+# hired_cars = []
+
+    # Hired fleet is appearing in trip origins
+    hired_cars = [
+        HiredCar(
+            env.points[env.points[pos].id_level(3)],
+            env.battery_levels,
+            20,
+            current_step=time_step,
+            current_arrival=time_step * env.config.time_increment,
+            battery_level_miles_max=env.battery_size_distances,
+        )
+        for pos, count in denied_count_dict.items()
+    ]
+
+    # Add hired fleet to model
+    env.hired_cars.extend(hired_cars)
+    env.available_hired.extend(hired_cars)
+
+    (
+        # Dictionary of cars per tuple (g, G(position))
+        level_id_cars_dict,
+        # Dictionary of target positions for each position
+        rebalance_targets_dict,
+        # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+        type_attribute_cars_dict,
+    ) = sortout_fleets(env)
+
+    # Add constraints
+    for car_type, attribute_cars in type_attribute_cars_dict.items():
+        flow_cars_dict[car_type] = m.addConstrs(
+            (
+                x_var.sum("*", point, battery, "*", "*", "*") ==
+                len(attribute_cars[(point, battery)])
+                for point, battery in attribute_cars.keys()
+            ),
+            f"CAR_FLOW_{car_type}",
+        )
+
+    # ################################################################ #
+    # SERVICE QUALITY CONSTRAINTS #################################### #
+    # ################################################################ #
+
+    if sq_guarantee:
+
+        # Minimum service rate for users of each class
+        for sq_class, s_rate in ClassedTrip.sq_classes.items():
+
+            # List of decisions associated to a user class
+            var_list_class = []
+
+            # Adding decisions to user class list
+            for single_decision in set(decision_class[sq_class]):
+                var_list_class.append(x_var[single_decision])
+
+            # Add constraints
+            if len(var_list_class) > 0:
+                m.addConstr(
+                    quicksum(var_list_class)
+                    >= np.ceil(s_rate * class_count_dict[sq_class]),
+                    f"TRIP_FLOW_CLASS_{sq_class}",
+                )
+
+
+def recharge_constraints(m, car_type, attribute_cars, battery_levels):
+    x_var = m.getVars()
+    
+    recharge = m.addConstrs(
+        (
+            x_var[(action, pos, level, o, d, car_type)]
+            == len(attribute_cars[(pos, level)])
+            for action, pos, level, o, d, car_type in x_var
+            if level <= battery_levels
+            and action == du.RECHARGE_DECISION
+        ),
+        f"RECHARGE_{car_type}",
+    )
+    return recharge
+
 
 def adp_network_hired(
     env,
@@ -1482,49 +1562,21 @@ def adp_network_hired(
     # Trip flow conservation
     flow_trips = m.addConstrs(
         (
-            x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*")
-            <= len(attribute_trips_dict[(o, d)])
+            x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*") <=
+            len(attribute_trips_dict[(o, d)])
             for o, d in attribute_trips_dict
         ),
         "TRIP_FLOW",
     )
 
-    # ################################################################ #
-    # SERVICE QUALITY CONSTRAINTS #################################### #
-    # ################################################################ #
-
-    if sq_guarantee:
-
-        # Minimum service rate for users of each class
-        for sq_class, s_rate in ClassedTrip.sq_classes.items():
-
-            # List of decisions associated to a user class
-            var_list_class = []
-
-            # Adding decisions to user class list
-            for single_decision in set(decision_class[sq_class]):
-                var_list_class.append(x_var[single_decision])
-
-            # Add constraints
-            if len(var_list_class) > 0:
-                m.addConstr(
-                    quicksum(var_list_class)
-                    >= np.ceil(s_rate * class_count_dict[sq_class]),
-                    f"TRIP_FLOW_CLASS_{sq_class}",
-                )
-
     # Car is obliged to charged if battery reaches minimum level
     if charge:
-        for car_type, attribute_cars in type_attribute_cars_dict:
-            recharge = m.addConstrs(
-                (
-                    x_var[(action, pos, level, o, d, car_type)]
-                    == len(attribute_cars[(pos, level)])
-                    for action, pos, level, o, d, car_type in x_var
-                    if level <= env.config.min_battery_level
-                    and action == du.RECHARGE_DECISION
-                ),
-                f"RECHARGE_{car_type}",
+        for car_type, attribute_cars in type_attribute_cars_dict.items():
+            recharge = recharge_constraints(
+                m,
+                car_type,
+                attribute_cars,
+                env.config.battery_levels
             )
 
     # Optimize
@@ -1546,6 +1598,83 @@ def adp_network_hired(
             best_decisions,
             attribute_trips_dict
         )
+
+        # # hired_cars = []
+
+        # # Hired fleet is appearing in trip origins
+        # hired_cars = [
+        #     HiredCar(
+        #         env.points[env.points[pos].id_level(3)],
+        #         env.battery_levels,
+        #         20,
+        #         current_step=time_step,
+        #         current_arrival=time_step * env.config.time_increment,
+        #         battery_level_miles_max=env.battery_size_distances,
+        #     )
+        #     for pos, count in denied_count_dict.items()
+        # ]
+
+        # # Add hired fleet to model
+        # env.hired_cars.extend(hired_cars)
+        # env.available_hired.extend(hired_cars)
+
+        # (
+        #     # Dictionary of cars per tuple (g, G(position))
+        #     level_id_cars_dict,
+        #     # Dictionary of target positions for each position
+        #     rebalance_targets_dict,
+        #     # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+        #     type_attribute_cars_dict,
+        # ) = sortout_fleets(env)
+
+        # # Add constraints
+        # for car_type, attribute_cars in type_attribute_cars_dict.items():
+        #     flow_cars_dict[car_type] = m.addConstrs(
+        #         (
+        #             x_var.sum("*", point, battery, "*", "*", "*") ==
+        #             len(attribute_cars[(point, battery)])
+        #             for point, battery in attribute_cars.keys()
+        #         ),
+        #         f"CAR_FLOW_{car_type}",
+        #     )
+
+        # # ################################################################ #
+        # # SERVICE QUALITY CONSTRAINTS #################################### #
+        # # ################################################################ #
+
+        # if sq_guarantee:
+
+        #     # Minimum service rate for users of each class
+        #     for sq_class, s_rate in ClassedTrip.sq_classes.items():
+
+        #         # List of decisions associated to a user class
+        #         var_list_class = []
+
+        #         # Adding decisions to user class list
+        #         for single_decision in set(decision_class[sq_class]):
+        #             var_list_class.append(x_var[single_decision])
+
+        #         # Add constraints
+        #         if len(var_list_class) > 0:
+        #             m.addConstr(
+        #                 quicksum(var_list_class)
+        #                 >= np.ceil(s_rate * class_count_dict[sq_class]),
+        #                 f"TRIP_FLOW_CLASS_{sq_class}",
+        #             )
+
+        # # Car is obliged to charged if battery reaches minimum level
+        # if charge:
+        #     for car_type, attribute_cars in type_attribute_cars_dict:
+        #         recharge = m.addConstrs(
+        #             (
+        #                 x_var[(action, pos, level, o, d, car_type)]
+        #                 == len(attribute_cars[(pos, level)])
+        #                 for action, pos, level, o, d, car_type in x_var
+        #                 if level <= env.config.min_battery_level
+        #                 and action == du.RECHARGE_DECISION
+        #             ),
+        #             f"RECHARGE_{car_type}",
+        #         )
 
         # Update shadow prices to be used in the next iterations
         if not myopic:
@@ -1578,8 +1707,8 @@ def adp_network_hired(
         return reward, serviced, rejected
 
     if (
-        m.status != GRB.Status.INF_OR_UNBD
-        and m.status != GRB.Status.INFEASIBLE
+        m.status != GRB.Status.INF_OR_UNBD and
+        m.status != GRB.Status.INFEASIBLE
     ):
         print("Optimization was stopped with status %d" % m.status)
 

@@ -59,15 +59,10 @@ class EpisodeLog:
             )
         return origins, destinations
 
-    def __init__(self, config=None):
-        self.n = 0
-        self.reward = list()
-        self.service_rate = list()
-        self.weights = list()
-
+    def create_folders(self):
         # If config is not None, then the experiments should be saved
-        if config:
-            self.output_path = FOLDER_OUTPUT + config.label
+        if self.config:
+            self.output_path = FOLDER_OUTPUT + self.config.label
             self.output_folder_fleet = self.output_path + "/fleet/"
             self.output_folder_service = self.output_path + "/service/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
@@ -89,6 +84,28 @@ class EpisodeLog:
                     f"\n - {self.output_folder_fleet}"
                     f"\n - {self.output_folder_service}"
                 )
+
+
+    def __init__(self, config=None, n=0, reward=list(), service_rate=list(), weights=list(), adp=None):
+        self.config = config
+        self.adp = adp
+        self.create_folders()
+
+    @property
+    def n(self):
+        return self.adp.n
+
+    @property
+    def reward(self):
+        return self.adp.reward
+
+    @property
+    def service_rate(self):
+        return self.adp.service_rate
+
+    @property
+    def weights(self):
+        return self.adp.weights
 
     def save_ods(self, origin_ids, destination_ids):
         """Save trip ods in .npy file. When method is restarted, same
@@ -117,9 +134,9 @@ class EpisodeLog:
     def last_episode_stats(self):
         try:
             return (
-                f"({self.reward[-1]:15,.2f},"
-                f" {self.service_rate[-1]:6.2%}) "
-                f"Agg. level weights = {self.weights[-1]}"
+                f"({self.adp.reward[-1]:15,.2f},"
+                f" {self.adp.service_rate[-1]:6.2%}) "
+                f"Agg. level weights = {self.adp.weights[-1]}"
             )
         except:
             return f"(0.00, 00.00%) Agg. level weights = []"
@@ -128,7 +145,7 @@ class EpisodeLog:
 
         # Reward over the course of the whole experiment
         self.plot_reward(
-            file_path=self.output_path + f"/reward_{self.n:04}_episodes",
+            file_path=self.output_path + f"/reward_{self.adp.n:04}_episodes",
             file_format="png",
             dpi=150,
             scale="linear",
@@ -136,64 +153,64 @@ class EpisodeLog:
 
         # Service rate over the course of the whole experiment
         self.plot_service_rate(
-            file_path=self.output_path + f"/service_rate_{self.n:04}_episodes",
+            file_path=self.output_path + f"/service_rate_{self.adp.n:04}_episodes",
             file_format="png",
             dpi=150,
         )
 
         # Service rate over the course of the whole experiment
         self.plot_weights(
-            file_path=self.output_path + f"/weights_{self.n:04}_episodes",
+            file_path=self.output_path + f"/weights_{self.adp.n:04}_episodes",
             file_format="png",
             dpi=150,
         )
 
     def compute_episode(
-        self, step_log, weights=None, plots=True, progress=False, save_df=True
+        self, step_log, weights=None, plots=True, save_df=True
     ):
 
         # Increment number of episodes
-        self.n += 1
+        self.adp.n += 1
 
         # Update reward and service rate tracks
-        self.reward.append(step_log.total_reward)
-        self.service_rate.append(step_log.service_rate)
+        self.adp.reward.append(step_log.total_reward)
+        self.adp.service_rate.append(step_log.service_rate)
 
         if weights is not None:
-            self.weights.append(weights)
+            self.adp.weights.append(weights)
 
         # Save intermediate plots
         if plots:
 
             # Fleet status (idle, recharging, rebalancing, servicing)
             step_log.plot_fleet_status(
-                file_path=self.output_folder_fleet + f"{self.n:04}",
+                file_path=self.output_folder_fleet + f"{self.adp.n:04}",
                 file_format="png",
                 dpi=150,
             )
 
             # Service status (battery level, demand, serviced demand)
             step_log.plot_service_status(
-                file_path=self.output_folder_service + f"{self.n:04}",
+                file_path=self.output_folder_service + f"{self.adp.n:04}",
                 file_format="png",
                 dpi=150,
             )
         
         if save_df:
-            df1 = step_log.get_step_status_count()
-            df1.to_csv(
+            df_fleet = step_log.get_step_status_count()
+            df_fleet.to_csv(
                 self.folder_fleet_status_data
-                + f"e_fleet_status_{self.n:04}.csv"
+                + f"e_fleet_status_{self.adp.n:04}.csv"
             )
 
-            df2 = step_log.get_step_demand_status()
-            df2.to_csv(
+            df_demand = step_log.get_step_demand_status()
+            df_demand.to_csv(
                 self.folder_demand_status_data
-                + f"e_demand_status_{self.n:04}.csv"
+                + f"e_demand_status_{self.adp.n:04}.csv"
             )
 
         # Save what was learned so far
-        if progress:
+        if self.adp:
 
             path = self.output_path + "/progress.npy"
 
@@ -203,33 +220,14 @@ class EpisodeLog:
             #  -Attribute a
             #  Save (value, count) tuple
 
-            value_count = {
-                t: {
-                    g: {
-                        a: (
-                            value,
-                            step_log.env.adp.count[t][g][a],
-                            step_log.env.adp.transient_bias[t][g][a],
-                            step_log.env.adp.variance_g[t][g][a],
-                            step_log.env.adp.step_size_func[t][g][a],
-                            step_log.env.adp.lambda_stepsize[t][g][a],
-                            step_log.env.adp.aggregation_bias[t][g][a],
-                        )
-                        for a, value in a_value.items()
-                    }
-                    for g, a_value in g_a.items()
-                }
-                for t, g_a in step_log.env.adp.values.items()
-            }
-
             np.save(
                 path,
                 {
-                    "episodes": self.n,
-                    "reward": self.reward,
-                    "service_rate": self.service_rate,
-                    "progress": value_count,
-                    "weights": self.weights,
+                    "episodes": self.adp.n,
+                    "reward": self.adp.reward,
+                    "service_rate": self.adp.service_rate,
+                    "progress": self.adp.current_data,
+                    "weights": self.adp.weights,
                 },
             )
 
@@ -245,74 +243,18 @@ class EpisodeLog:
 
         progress = np.load(path).item()
 
-        self.n = progress.get("episodes", list())
-        self.reward = progress.get("reward", list())
-        self.service_rate = progress.get("service_rate", list())
-        self.weights = progress.get("weights", list())
-
-        print(
-            f"\n### Loading {self.n} episodes from '{path}'."
-            f"\n -       Last reward: {self.reward[self.n-1]:15,.2f} "
-            f"(max={max(self.reward):15,.2f})"
-            f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
-            f"(max={max(self.service_rate):15.2%})\n"
-        )
-
-        values = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
-        counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-        transient_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-        variance_g = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-        step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: 1))
-        )
-        lambda_stepsize = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: 1))
-        )
-        aggregation_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
-
-        for t, g_a in progress["progress"].items():
-            for g, a_saved in g_a.items():
-                for a, saved in a_saved.items():
-                    v, c, t_bias, variance, step, lam, agg_bias = saved
-                    # print(
-                    # f't={t:>04} a=[{a}] - g={g} - '
-                    # 'value={v:>3.2f}({c:>3})'
-                    # )
-                    values[t][g][a] = v
-                    counts[t][g][a] = c
-                    transient_bias[t][g][a] = t_bias
-                    variance_g[t][g][a] = variance
-                    step_size_func[t][g][a] = step
-                    lambda_stepsize[t][g][a] = lam
-                    aggregation_bias[t][g][a] = agg_bias
-
-        saved_values = dict()
-        saved_values["values"] = values
-        saved_values["counts"] = counts
-        saved_values["transient_bias"] = transient_bias
-        saved_values["variance_g"] = variance_g
-        saved_values["stepsize"] = step_size_func
-        saved_values["lambda_stepsize"] = lambda_stepsize
-        saved_values["aggregation_bias"] = aggregation_bias
-
-        return saved_values
+        self.adp.n, self.adp.reward, self.adp.service_rate, self.adp.weights = self.adp.read_progress(path)
 
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
         print("# Weights")
-        pprint(self.weights)
-        series_list = [list(a) for a in zip(*self.weights)]
+        pprint(self.adp.weights)
+        series_list = [list(a) for a in zip(*self.adp.weights)]
         pprint(series_list)
 
         for series in series_list:
-            plt.plot(np.arange(self.n), series)
+            plt.plot(np.arange(self.adp.n), series)
 
         plt.xlabel("Episodes")
         plt.xscale(scale)
@@ -321,7 +263,7 @@ class EpisodeLog:
 
         # Ticks
         plt.yticks(np.arange(1, step=0.05))
-        plt.xticks(np.arange(self.n))
+        plt.xticks(np.arange(self.adp.n))
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
@@ -334,7 +276,7 @@ class EpisodeLog:
         self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
 
-        plt.plot(np.arange(self.n), self.reward, color="r")
+        plt.plot(np.arange(self.adp.n), self.adp.reward, color="r")
         plt.xlabel("Episodes")
         plt.xscale(scale)
         plt.ylabel("Reward")
@@ -348,7 +290,7 @@ class EpisodeLog:
 
     def plot_service_rate(self, file_path=None, file_format="png", dpi=150):
 
-        plt.plot(np.arange(self.n), self.service_rate, color="b")
+        plt.plot(np.arange(self.adp.n), self.adp.service_rate, color="b")
         plt.xlabel("Episodes")
         plt.ylabel("Service rate (%)")
 

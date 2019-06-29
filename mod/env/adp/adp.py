@@ -488,6 +488,8 @@ class Adp:
                     self.lambda_stepsize[t][g][a] = lam
                     self.aggregation_bias[t][g][a] = agg_bias
 
+        return self.n, self.reward, self.service_rate, self.weights
+
     @property
     def current_data(self):
 

@@ -250,9 +250,12 @@ def query_point_list(
     if max_levels or level_dist_list:
         # Dictionary of levels(distances from region centers) and
         # corresponding node ids (in referrence to region centers)
-        point_level_ids, distance_levels, level_count = query_aggregated_centers(
+        level_point_ids_list, distance_levels, level_count = query_aggregated_centers(
             step=step, n_levels=max_levels, dist_list=level_dist_list
         )
+
+        # For each level, the set of point ids
+        level_point_ids_set = [set(ids) for ids in level_point_ids_list]
 
         # Sort distances such that they correspond to levels
         # distance_levels = sorted(map(int, distance_levels))
@@ -260,7 +263,7 @@ def query_point_list(
         # Tuples with node ids for each level
         # e.g., [[0,1,2,3], [10,11,12,13], [20,21,22,23]]
         # [(0,10,20), (1,11,21), (2,12,22), (3,13,23)]
-        p = list(zip(*point_level_ids))
+        p = list(zip(*level_point_ids_list))
         r = requests.get(url=f"{url}/nodes/{projection}")
         nodes = {e["id"]: e for e in r.json()["nodes"]}
 
@@ -287,7 +290,7 @@ def query_point_list(
     # pprint.pprint(point_list)
 
     # pprint.pprint([p.level_ids_dic for p in point_list])
-    return point_list, distance_levels, level_count
+    return point_list, distance_levels, level_count, level_point_ids_set
 
 
 @functools.lru_cache(maxsize=None)

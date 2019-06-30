@@ -44,7 +44,7 @@ class ClassedTrip(Trip):
     SQ_CLASS_2 = "B"
 
     sq_classes = dict(A=0.8, B=0.6)
-    sq_level_class = dict(A=[3, 4], B=[3, 4])
+    sq_level_class = dict(A=[2, 3], B=[3, 4])
 
     @classmethod
     def get_levels(cls):
@@ -56,9 +56,17 @@ class ClassedTrip(Trip):
     def __init__(self, o, d, time, sq_class):
         super().__init__(o, d, time)
         self.sq_class = sq_class
+
+        # Level demanded in best case scenario
         self.sq1_level = ClassedTrip.sq_level_class[sq_class][0]
+
+        # Level demanded in worst case scenario
         self.sq2_level = ClassedTrip.sq_level_class[sq_class][1]
+
+        # Region center id of best case pickup scenario
         self.id_sq1_level = self.o.id_level(self.sq1_level)
+
+        # Region center id of worst case pickup scenario
         self.id_sq2_level = self.o.id_level(self.sq2_level)
 
     def attribute(self, level):

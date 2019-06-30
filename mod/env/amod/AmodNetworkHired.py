@@ -33,6 +33,8 @@ class AmodNetworkHired(AmodNetwork):
         # Third-party fleet can be hired to assist main fleet
         self.hired_cars = []
         self.available_hired = []
+        self.available_hired_ids = np.zeros(len(self.points_level[0]))
+        self.expired_contract_cars = []
 
     @functools.lru_cache(maxsize=None)
     def cost_func(self, car_type, action, o, d):
@@ -146,11 +148,15 @@ class AmodNetworkHired(AmodNetwork):
 
         for decision in decisions:
 
-            action, point, level, o, d, car_type, times = decision
+            action, point, level, o, d, car_type, contract_duration, times = (
+                decision
+            )
 
             decision_dict_count[action] += times
 
-            cars_with_attribute = dict_a_cars[car_type][(point, level)]
+            cars_with_attribute = dict_a_cars[car_type][
+                (point, level, contract_duration)
+            ]
 
             n = 0
 
@@ -254,6 +260,7 @@ class AmodNetworkHired(AmodNetwork):
 
     def update_fleet_status(self, time_step):
 
+        # Idle company-owned cars
         available = []
 
         for car in self.cars:
@@ -268,7 +275,12 @@ class AmodNetworkHired(AmodNetwork):
             if not car.busy:
                 available.append(car)
 
+        # Idle hired cars
         available_hired = []
+
+        # List of cars whose contracts have expired
+        expired_contract = []
+
         for car in self.hired_cars:
             # Check if vehicles finished their tasks
             # Where are the cars?
@@ -277,15 +289,30 @@ class AmodNetworkHired(AmodNetwork):
             # --trips----trips------trips-----trips------trips-----
             car.update(time_step, time_increment=self.config.time_increment)
 
-            # Discard busy vehicles
-            if car.started_contract and not car.busy:
-                available_hired.append(car)
+            # Car has started the contract
+            if car.started_contract:
+
+                # Contract duration has expired
+                if car.contract_duration == 0:
+                    expired_contract.append(car)
+                    self.available_hired_ids[car.point.id] += 1
+
+                # Discard busy vehicles
+                elif not car.busy:
+                    available_hired.append(car)
 
         self.available = available
         self.available_hired = available_hired
 
+        # Remove expired contract cars
+        for car in expired_contract:
+            self.hired_cars.remove(car)
+
+            # Save expired contract cars
+            self.expired_contract_cars.extend(expired_contract)
+
     def preview_decision(self, time_step, decision):
-        """Apply decision to attribute
+        """Apply decision to attributes
 
         Arguments:
             time_step {int} -- [description]
@@ -301,13 +328,17 @@ class AmodNetworkHired(AmodNetwork):
             tuple -- time_step, point, battery
         """
 
-        action, point, battery, o, d, type_car = decision
+        action, point, battery, o, d, type_car, contract_duration = decision
         battery_post = battery
         if action == du.RECHARGE_DECISION:
 
             # Recharging ###############################################
             battery_post = min(self.battery_levels, battery + 1)
             time_step += self.config.recharge_time_single_level
+            contract_duration -= int(
+                self.config.recharge_time_single_level
+                / self.config.contract_duration_level
+            )
 
         elif action == du.REBALANCE_DECISION:
             # Rebalancing ##############################################
@@ -316,10 +347,17 @@ class AmodNetworkHired(AmodNetwork):
             time_step += max(1, duration)
             battery_post = max(0, battery - battery_drop)
             point = d
+            contract_duration -= int(
+                duration / self.config.contract_duration_level
+            )
 
         elif action == du.STAY_DECISION:
             # Staying ##################################################
             time_step += 1
+            contract_duration -= int(
+                self.config.time_increment
+                / self.config.contract_duration_level
+            )
 
         elif action == du.TRIP_DECISION:
             # Servicing ################################################
@@ -327,8 +365,11 @@ class AmodNetworkHired(AmodNetwork):
             time_step += max(1, duration)
             battery_post = max(0, battery - battery_drop)
             point = d
+            contract_duration -= int(
+                duration / self.config.contract_duration_level
+            )
 
-        return time_step, point, battery_post
+        return time_step, point, battery_post, contract_duration
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -376,3 +417,31 @@ class AmodNetworkHired(AmodNetwork):
         stats["Available"] = {"Hired": len(self.hired_cars)}
 
         return stats
+
+    def post_cost(self, t, decision, level=None):
+
+        # Target attribute if decision was taken
+        (
+            post_t,
+            post_pos,
+            post_battery,
+            post_contract_duration,
+        ) = self.preview_decision(t, decision)
+
+        # Get the value estimation considering a single level
+        if level:
+            estimate = self.adp.get_value(
+                post_t, post_pos, post_battery, level=level
+            )
+
+        else:
+            # Get the post decision state estimate value based on
+            # hierarchical aggregation
+            estimate = self.adp.get_weighted_value(
+                post_t,
+                post_pos,
+                post_battery,
+                contract_duration=post_contract_duration,
+            )
+
+        return estimate

@@ -46,7 +46,6 @@ SCENARIO_LAST_MILE = "LAST_MILE"
 SCENARIO_NYC = "NYC"
 
 
-
 class Config:
 
     # This configuration refers to which test case?
@@ -139,6 +138,7 @@ class Config:
 
     # HIRING
     PROFIT_MARGIN = "PROFIT_MARGIN"
+    CONTRACT_DURATION_LEVEL = "CONTRACT_DURATION_LEVEL"
 
     def __init__(self, config):
 
@@ -210,10 +210,10 @@ class Config:
             * self.config["RECHARGE_RATE"]
             * recharging_time_h
         )
-    
+
     def get_travel_cost(self, distance):
         """Return the cost of travelling 'distance' meters"""
-        return self.config["RECHARGE_COST_DISTANCE"] * distance/1000.0
+        return self.config["RECHARGE_COST_DISTANCE"] * distance / 1000.0
 
     def calculate_dist_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0
@@ -302,7 +302,7 @@ class Config:
     @property
     def time_increment_timedelta(self):
         return self.config[Config.TIME_INCREMENT_TIMEDELTA]
-    
+
     @property
     def demand_earliest_datetime(self):
         return self.config[Config.DEMAND_EARLIEST_DATETIME]
@@ -360,7 +360,6 @@ class Config:
     def demand_scenario(self):
         """Minimum number of trips (15min) """
         return self.config[Config.DEMAND_SCENARIO]
-
 
     @property
     def min_trips(self):
@@ -420,10 +419,12 @@ class Config:
         #     + self.config["OFFSET_TERMINATION"]
         # )
 
-#       Total number of time periods
+        #       Total number of time periods
         self.config["TIME_PERIODS"] = int(
             self.config["OFFSET_REPOSIONING"]
-            + self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.config["TIME_INCREMENT"]
+            + self.config[Config.DEMAND_TOTAL_HOURS]
+            * 60
+            / self.config["TIME_INCREMENT"]
             + self.config["OFFSET_TERMINATION"]
         )
 
@@ -500,8 +501,12 @@ class Config:
     def get_time(self, steps, format="%H:%M"):
         """Return time corresponding to the steps elapsed since the
         the first time step"""
-        t = self.demand_earliest_datetime + steps*self.time_increment_timedelta
+        t = (
+            self.demand_earliest_datetime
+            + steps * self.time_increment_timedelta
+        )
         return t.strftime(format)
+
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -674,7 +679,6 @@ class ConfigStandard(Config):
         )
         self.config[Config.DEMAND_SCENARIO] = SCENARIO_UNBALANCED
 
-
     @property
     def label(self):
 
@@ -754,11 +758,13 @@ class ConfigNetwork(ConfigStandard):
 
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
+        self.config[Config.CONTRACT_DURATION_LEVEL] = 15  # Min.
 
         # LEARNING ################################################### #
-        self.config[Config.DISCOUNT_FACTOR] = 1 
+        self.config[Config.DISCOUNT_FACTOR] = 1
         self.config[Config.HARMONIC_STEPSIZE] = 1
         self.config[Config.STEPSIZE] = 0.1
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -826,7 +832,7 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
-    
+
     @property
     def rebalance_reach(self):
         """Car can reach nodes up to 'rebalance_reach' distance"""
@@ -839,14 +845,19 @@ class ConfigNetwork(ConfigStandard):
 
     @property
     def profit_margin(self):
-        """Level of centers cars rebalance to"""
+        """Profit margin of hired cars"""
         return self.config[Config.PROFIT_MARGIN]
+
+    @property
+    def contract_duration_level(self):
+        """Contract duration is sliced in levels of X minutes"""
+        return self.config[Config.CONTRACT_DURATION_LEVEL]
 
     @property
     def discount_factor(self):
         """Post cost is multiplied by weight in [0,1]"""
         return self.config[Config.DISCOUNT_FACTOR]
-    
+
     @property
     def harmonic_stepsize(self):
         """Value 'a' from harmonic stepsize = a/(a+n)"""
@@ -855,12 +866,17 @@ class ConfigNetwork(ConfigStandard):
     @property
     def label(self, name=""):
 
-        reb_neigh = "_".join([
-            f'{level}={n_neighbors}'
-            for level, n_neighbors in list(zip(
-                self.config[Config.REBALANCE_LEVEL],
-                self.config[Config.N_CLOSEST_NEIGHBORS]
-            ))])
+        reb_neigh = "_".join(
+            [
+                f"{level}={n_neighbors}"
+                for level, n_neighbors in list(
+                    zip(
+                        self.config[Config.REBALANCE_LEVEL],
+                        self.config[Config.N_CLOSEST_NEIGHBORS],
+                    )
+                )
+            ]
+        )
 
         return (
             f"{self.config[Config.TEST_LABEL]}_"

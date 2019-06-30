@@ -38,7 +38,7 @@ smooth_sigma_fleet = 5
 doc = curdoc()
 
 # exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-exp_name = "REB_manhattan-island-new-york-city-new-york-usa_NYC_1000_0001_6_01_0030_02_04_1=8_00_12_01_0.1_01"
+exp_name = "day_manhattan-island-new-york-city-new-york-usa_NYC_0001_0001_5_01_0030_02_04_1=8_05_05_01_0.1_01"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 

@@ -14,7 +14,7 @@ import functools
 
 from mod.env.amod.Amod import Amod
 import mod.env.decision_utils as du
-from mod.env.adp.adp import Adp
+from mod.env.adp.AdpHired import AdpHired
 
 port = 4999
 url = f"http://localhost:{port}"
@@ -39,12 +39,15 @@ class AmodNetwork(Amod):
         self.decision_dict = None
 
         # Defining map points with aggregation_levels
-        self.points, distance_levels, level_count = nw.query_point_list(
+        self.points, distance_levels, level_count, points_level = nw.query_point_list(
             step=self.config.step_seconds,
             max_levels=self.config.aggregation_levels,
             projection=self.config.projection,
             level_dist_list=self.config.level_dist_list,
         )
+
+        # Set of points per level
+        self.points_level = points_level
 
         # Levels correspond to distances queried in the server.
         # E.g., [0, 30, 60, 120, 300]
@@ -55,7 +58,7 @@ class AmodNetwork(Amod):
 
         self.init_fleet(self.points, car_positions)
 
-        self.adp = Adp(
+        self.adp = AdpHired(
             self.points,
             self.config.aggregation_levels,
             self.config.stepsize,

@@ -278,8 +278,7 @@ class PlotTrack:
 
                 # Updating title
                 current_time = self.config.get_time(
-                    self.plot_step,
-                    format='%I:%M %p'
+                    self.plot_step, format="%I:%M %p"
                 )
                 self.p.title.text = (
                     f"Episode: {self.plot_episode:>5} - "

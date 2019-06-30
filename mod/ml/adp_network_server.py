@@ -5,6 +5,7 @@ from pprint import pprint
 from threading import Thread
 from copy import deepcopy
 import time
+from random import random
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -21,7 +22,7 @@ from mod.env.config import (
     SCENARIO_UNBALANCED,
     SCENARIO_NYC,
 )
-from mod.env.match import adp_network, adp_network_hired
+from mod.env.match import adp_network, adp_network_hired2
 from mod.env.car import Car, HiredCar
 from mod.env.trip import (
     get_trip_count_step,
@@ -55,9 +56,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "costReb",
+            ConfigNetwork.TEST_LABEL: "day",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1000,
+            ConfigNetwork.FLEET_SIZE: 1,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -84,17 +85,17 @@ def get_sim_config():
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300],
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled
-            ConfigNetwork.AGGREGATION_LEVELS: 6,
+            ConfigNetwork.AGGREGATION_LEVELS: 5,
             ConfigNetwork.SPEED: 30,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 0,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 24,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -102,12 +103,16 @@ def get_sim_config():
             # OD level extension
             ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
             # Demand scenario
-            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
+            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_UNBALANCED,
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
             ConfigNetwork.DISCOUNT_FACTOR: 0.1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
+            # -------------------------------------------------------- #
+            # HIRING ################################################# #
+            # -------------------------------------------------------- #
+            ConfigNetwork.CONTRACT_DURATION_LEVEL: 15,
         }
     )
     return config
@@ -124,7 +129,7 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 31
+    episodes = 300
     amod = AmodNetworkHired(config)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
     plot_track.set_env(amod)
@@ -242,7 +247,7 @@ def sim(plot_track, config):
             # the list of available vehicles.
 
             # Show time step statistics
-            step_log.show_info()
+            # step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
             # Compute fleet status
@@ -263,29 +268,34 @@ def sim(plot_track, config):
             # Stats summary
             # print(" - Pre-decision statuses:")
             # amod.print_fleet_stats_summary()
-
-            contract_duration = 10
+            contract_duration_h = 1
             hired_cars = []
 
             # Hired fleet is appearing in trip origins
-            # hired_cars = [
-            #     HiredCar(
-            #         amod.points[t.id_sq1_level],
-            #         amod.battery_levels,
-            #         20,
-            #         current_step=step,
-            #         current_arrival=step * config.time_increment,
-            #         battery_level_miles_max=amod.battery_size_distances,
-            #     )
-            #     for t in trips
-            # ]
+
+            hired_cars = [
+                HiredCar(
+                    amod.points[i],
+                    amod.battery_levels,
+                    contract_duration_h,
+                    current_step=step,
+                    current_arrival=step * config.time_increment,
+                    battery_level_miles_max=amod.battery_size_distances,
+                    duration_level=config.contract_duration_level,
+                )
+                for i in amod.points_level[2]
+                if random() < 0.1
+            ]
 
             # Add hired fleet to model
             amod.hired_cars.extend(hired_cars)
             amod.available_hired.extend(hired_cars)
 
+            # Adding hired caras
+            # print(f"Hiring {len(hired_cars)} cars.")
+
             # Optimize
-            revenue, serviced, rejected = adp_network_hired(
+            revenue, serviced, rejected = adp_network_hired2(
                 amod,
                 trips,
                 step + 1,
@@ -293,8 +303,8 @@ def sim(plot_track, config):
                 charge=False,
                 myopic=False,
                 value_function_update=match.WEIGHTED_UPDATE,
-                # agg_level=0,
                 episode=n,
+                # agg_level=0,
                 # log_path=config.folder_mip,
                 # sq_guarantee=False,
             )

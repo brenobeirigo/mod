@@ -49,9 +49,15 @@ class Car:
         self.status = Car.IDLE
         self.current_trip = None
 
+        self.contract_duration = 32
+
     @property
     def attribute(self, level=0):
-        return (self.point.id_level(level), self.battery_level)
+        return (
+            self.point.id_level(level),
+            self.battery_level,
+            self.contract_duration,
+        )
 
     @property
     def attribute2(self, level=0):
@@ -370,19 +376,30 @@ class HiredCar(Car):
         self,
         o,
         battery_level_max,
-        contract_duration,
+        contract_duration_h,
         current_step=0,
         current_arrival=0,
         battery_level_miles_max=200,
+        duration_level=15,
     ):
         super().__init__(o, battery_level_max, battery_level_miles_max)
-        self.contract_duration = contract_duration
+        self.contract_duration = contract_duration_h * (60 // duration_level)
         self.start_end_point = o
         self.type = Car.TYPE_HIRED
         self.started_contract = False
         self.step = current_step
         self.arrival_time = current_arrival
         self.previous_arrival = current_arrival
+
+        # Contract
+        self.total_time = contract_duration_h * 60
+        self.duration_level = duration_level
+
+    def update(self, step, time_increment=1):
+        super().update(step, time_increment=time_increment)
+
+        self.total_time = max(0, self.total_time - time_increment)
+        self.contract_duration = int(self.total_time / self.duration_level)
 
     @property
     def attribute2(self, level=0):
@@ -408,4 +425,7 @@ class HiredCar(Car):
             f"HiredCar{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
+
+    def __str__(self):
+        return f"V{self.id}[{self.contract_duration}] - {self.point}"
 

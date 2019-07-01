@@ -34,6 +34,7 @@ def stay_decision(car):
         + (car.point.id,)
         + (car.type,)
         + (car.contract_duration,)
+        + ("_",)
     )
 
 
@@ -45,6 +46,7 @@ def end_contract_decision(car):
         + (car.start_end_point.id,)
         + (car.type,)
         + (car.contract_duration,)
+        + ("_",)
     )
 
 
@@ -56,6 +58,7 @@ def recharge_decision(car):
         + (car.point.id,)
         + (car.type,)
         + (car.contract_duration,)
+        + ("_",)
     )
 
 
@@ -67,6 +70,7 @@ def rebalance_decision(car, neighbor, hire=False):
         + (neighbor,)
         + (car.type,)
         + (car.contract_duration,)
+        + ("_",)
     )
 
 
@@ -77,13 +81,6 @@ def rebalance_decisions(car, targets, hire=False):
     return rebalance_decisions
 
 
-def hire_decisions(car, targets, hire=False):
-    hire_decisions = set()
-    for t in targets:
-        hire_decisions.add(rebalance_decision(car, t, hire=hire))
-    return hire_decisions
-
-
 def trip_decision(car, trip, hire=True):
     return (
         (TRIP_DECISION,)
@@ -92,6 +89,7 @@ def trip_decision(car, trip, hire=True):
         + (trip.d.id,)
         + (car.type,)
         + (car.contract_duration,)
+        + (trip.sq_class,)
     )
 
 

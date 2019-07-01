@@ -13,7 +13,7 @@ import pandas as pd
 import itertools as it
 sns.set(style="ticks")
 sns.set_context("paper")
-
+np.set_printoptions(precision=3)
 
 class EpisodeLog:
 
@@ -133,10 +133,13 @@ class EpisodeLog:
 
     def last_episode_stats(self):
         try:
+            a = dict()
+            for k, v in self.adp.weights.items():
+                a[k] = v[-1]
             return (
                 f"({self.adp.reward[-1]:15,.2f},"
                 f" {self.adp.service_rate[-1]:6.2%}) "
-                f"Agg. level weights = {self.adp.weights[-1]}"
+                f"Agg. level weights = {a}"
             )
         except:
             return f"(0.00, 00.00%) Agg. level weights = []"
@@ -177,7 +180,8 @@ class EpisodeLog:
         self.adp.service_rate.append(step_log.service_rate)
 
         if weights is not None:
-            self.adp.weights.append(weights)
+            for car_type in Car.car_types:
+                self.adp.weights[car_type].append(weights[car_type])
 
         # Save intermediate plots
         if plots:
@@ -248,27 +252,31 @@ class EpisodeLog:
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
+        def plot_series(weights, car_type="AV"):
+            series_list = [list(a) for a in zip(*weights)]
+
+            for series in series_list:
+                plt.plot(np.arange(self.adp.n), series)
+
+            plt.xlabel("Episodes")
+            plt.xscale(scale)
+            plt.ylabel("Weights")
+            plt.legend([f"Level {g}" for g in range(len(series_list))])
+
+            # Ticks
+            plt.yticks(np.arange(1, step=0.05))
+            plt.xticks(np.arange(self.adp.n))
+
+            if file_path:
+                plt.savefig(f"{file_path}_{car_type}.{file_format}", dpi=dpi)
+            else:
+                plt.show()
+
         print("# Weights")
         pprint(self.adp.weights)
-        series_list = [list(a) for a in zip(*self.adp.weights)]
-        pprint(series_list)
 
-        for series in series_list:
-            plt.plot(np.arange(self.adp.n), series)
-
-        plt.xlabel("Episodes")
-        plt.xscale(scale)
-        plt.ylabel("Weights")
-        plt.legend([f"Level {g}" for g in range(len(series) + 1)])
-
-        # Ticks
-        plt.yticks(np.arange(1, step=0.05))
-        plt.xticks(np.arange(self.adp.n))
-
-        if file_path:
-            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
-        else:
-            plt.show()
+        for car_type, weights in self.adp.weights.items():
+            plot_series(weights, car_type=car_type)
 
         plt.close()
 
@@ -365,8 +373,8 @@ class StepLog:
         print(
             f"### Time step: {self.n:>3}"
             f" ### Profit: {self.total_reward:>10.2f}"
-            f" ### Service level: {sr:>6.2%}"
-            f" ### Trips: {total:>3}"
+            f" ### Service level: {sr:>7.2%}"
+            f" ### Trips: {total:>4}"
             f" ### Status: {dict(status)}"
         )
 

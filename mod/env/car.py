@@ -19,6 +19,8 @@ class Car:
 
     status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
 
+    INFINITE_CONTRACT_DURATION = "Inf"
+
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):
         self.id = Car.count
         self.point = o
@@ -49,7 +51,12 @@ class Car:
         self.status = Car.IDLE
         self.current_trip = None
 
-        self.contract_duration = 32
+        # Regular cars are always available
+        self.contract_duration = Car.INFINITE_CONTRACT_DURATION
+
+    @property
+    def label(self):
+        return f"C{self.id:04}"
 
     @property
     def attribute(self, level=0):
@@ -59,21 +66,8 @@ class Car:
             self.contract_duration,
         )
 
-    @property
-    def attribute2(self, level=0):
-        return (
-            Car.COMPANY_OWNED_ORIGIN,
-            self.point.id_level(level),
-            self.battery_level,
-            Car.COMPANY_OWNED_CONTRACT_DURATION,
-        )
-
     def attribute_level(self, level):
         return (self.point.id_level(level), self.battery_level)
-
-    @property
-    def attribute_point(self):
-        return (self.point, self.battery_level)
 
     @property
     def busy(self):
@@ -84,30 +78,31 @@ class Car:
 
     def status_log(self):
 
-        trip = (
-            (
-                f" - Trip: [{self.trip.o.id},{self.trip.d.id}] "
-                f"(dropoff={self.trip.dropoff_time:04})"
+        if self.trip:
+            trip = (
+                (
+                    f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
+                    f"(dropoff={self.trip.dropoff_time:04})"
+                )
+                if self.trip is not None
+                else ""
             )
-            if self.trip is not None
-            else ""
-        )
 
         status = (
-            f"C{self.id:04}[{self.status:>15}]"
+            f"{self.label}[{self.status:>15}]"
             f" - Previous arrival: {self.previous_arrival:>5}"
             f" - Arrival: {self.arrival_time:>5}"
             f"(step={self.step:>5})"
             f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
             # f"[{self.battery_level_miles:>6.2f}/"
             # f"{self.battery_level_miles_max}]"
-            # f" - Traveled: {self.distance_traveled:>6.2f}"
+            f" - Traveled: {self.distance_traveled:>6.2f}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
             # f" - #Previous: {self.previous.id:>4}"
             # f" - #Waypoint: {self.waypoint.id:>4}"
             # f" - Attribute: ({self.point},{self.battery_level})"
-            # f"{trip}"
+            f"{trip}"
         )
 
         return status
@@ -401,15 +396,6 @@ class HiredCar(Car):
         self.total_time = max(0, self.total_time - time_increment)
         self.contract_duration = int(self.total_time / self.duration_level)
 
-    @property
-    def attribute2(self, level=0):
-        return (
-            self.start_end_point.id_level(level),
-            self.point.id_level(level),
-            self.battery_level,
-            self.contract_duration,
-        )
-
     def can_service(self, trip, time_step, get_distance, get_travel_time):
         dist_to_origin = get_distance(self.point, self.trip.o)
         dist_od = get_distance(self.point.o, self.trip.d)
@@ -425,6 +411,10 @@ class HiredCar(Car):
             f"HiredCar{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
+
+    @property
+    def label(self):
+        return f"H{self.id:04}"
 
     def __str__(self):
         return f"V{self.id}[{self.contract_duration}] - {self.point}"

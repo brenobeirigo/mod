@@ -5,7 +5,7 @@ from pprint import pprint
 from threading import Thread
 from copy import deepcopy
 import time
-from random import random
+from random import random, choice
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -21,6 +21,7 @@ from mod.env.config import (
     NY_TRIPS_EXCERPT_DAY,
     SCENARIO_UNBALANCED,
     SCENARIO_NYC,
+    TRIP_FILES,
 )
 from mod.env.match import adp_network, adp_network_hired2
 from mod.env.car import Car, HiredCar
@@ -56,9 +57,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "day",
+            ConfigNetwork.TEST_LABEL: "weight_0_up_infinite",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1,
+            ConfigNetwork.FLEET_SIZE: 10,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -93,9 +94,9 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 1,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.01,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -103,7 +104,11 @@ def get_sim_config():
             # OD level extension
             ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
             # Demand scenario
-            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_UNBALANCED,
+            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
+            ConfigNetwork.TRIP_BASE_FARE: {
+                tp.ClassedTrip.SQ_CLASS_1: 4.8,
+                tp.ClassedTrip.SQ_CLASS_2: 2.4,
+            },
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
@@ -120,6 +125,41 @@ def get_sim_config():
 
 run_plot = PlotTrack(get_sim_config())
 
+trip_demand_dict = dict()
+
+
+def get_ny_demand(amod, tripdata_path):
+
+    if tripdata_path in trip_demand_dict:
+        return trip_demand_dict[tripdata_path]
+
+    print("Creating trip tuple list per step...")
+    # Create list of trips with real world data
+    step_trip_od_list = get_step_trip_list(
+        tripdata_path,
+        step=amod.config.time_increment,
+        earliest_step=amod.config.demand_earliest_step_min,
+        max_steps=amod.config.demand_max_steps,
+        # resize_factor=amod.config.demand_resize_factor,
+    )
+
+    print("Creating trip list per step...")
+    step_trip_list = get_trips(
+        amod.points,
+        step_trip_od_list,
+        offset_start=amod.config.offset_repositioning,
+        offset_end=amod.config.offset_termination,
+        classed=True,
+        resize_factor=amod.config.demand_resize_factor,
+    )
+
+    # Count number of trips per step
+    step_trip_count = [len(trips) for trips in step_trip_od_list]
+
+    trip_demand_dict[tripdata_path] = (step_trip_list, step_trip_count)
+
+    return trip_demand_dict[tripdata_path]
+
 
 def sim(plot_track, config):
 
@@ -129,7 +169,7 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 300
+    episodes = 10000
     amod = AmodNetworkHired(config)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
     plot_track.set_env(amod)
@@ -156,6 +196,10 @@ def sim(plot_track, config):
     except Exception as e:
         print(f"No previous episodes were saved (Exception: '{e}').")
 
+    # ---------------------------------------------------------------- #
+    # Process demand ################################################# #
+    # ---------------------------------------------------------------- #
+
     if config.demand_scenario == SCENARIO_UNBALANCED:
 
         origins, destinations = episode_log.get_od_lists(amod)
@@ -168,34 +212,6 @@ def sim(plot_track, config):
             earliest_step=config.demand_earliest_step_min,
             max_steps=config.demand_max_steps,
         )
-
-    elif config.demand_scenario == SCENARIO_NYC:
-
-        # Create list of trips with real world data
-        step_trip_od_list = get_step_trip_list(
-            NY_TRIPS_EXCERPT_DAY,
-            step=config.time_increment,
-            earliest_step=config.demand_earliest_step_min,
-            max_steps=config.demand_max_steps,
-            resize_factor=config.demand_resize_factor,
-        )
-
-        step_trip_list = get_trips(
-            amod.points,
-            step_trip_od_list,
-            offset_start=amod.config.offset_repositioning,
-            offset_end=amod.config.offset_termination,
-            classed=True,
-        )
-
-        # Count number of trips per step
-        step_trip_count = [len(trips) for trips in step_trip_od_list]
-
-    print(
-        f"### DEMAND ###"
-        f" - min: {min(step_trip_count)}"
-        f" - max: {max(step_trip_count)}"
-    )
 
     # ---------------------------------------------------------------- #
     # Experiment ##################################################### #
@@ -215,6 +231,22 @@ def sim(plot_track, config):
                 origins=origins,
                 destinations=destinations,
                 classed=True,
+            )
+
+        elif config.demand_scenario == SCENARIO_NYC:
+
+            trips_file_path = choice(TRIP_FILES)
+
+            print(f"Processing demand file '{trips_file_path}'...")
+
+            step_trip_list, step_trip_count = get_ny_demand(
+                amod, trips_file_path
+            )
+
+            print(
+                f"### DEMAND ###"
+                f" - min: {min(step_trip_count)}"
+                f" - max: {max(step_trip_count)}"
             )
 
         plot_track.opt_episode = n
@@ -247,7 +279,8 @@ def sim(plot_track, config):
             # the list of available vehicles.
 
             # Show time step statistics
-            # step_log.show_info()
+            if step % 100 == 0:
+                step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
             # Compute fleet status
@@ -255,7 +288,7 @@ def sim(plot_track, config):
 
             # What each vehicle is doing?
             # if len(trips) == 0:
-            # amod.print_fleet_stats(filter_status=[Car.ASSIGN])
+            #     amod.print_fleet_stats(filter_status=[Car.ASSIGN])
             # amod.print_fleet_stats(filter_status=[])
 
             # ######################################################## #
@@ -273,19 +306,19 @@ def sim(plot_track, config):
 
             # Hired fleet is appearing in trip origins
 
-            hired_cars = [
-                HiredCar(
-                    amod.points[i],
-                    amod.battery_levels,
-                    contract_duration_h,
-                    current_step=step,
-                    current_arrival=step * config.time_increment,
-                    battery_level_miles_max=amod.battery_size_distances,
-                    duration_level=config.contract_duration_level,
-                )
-                for i in amod.points_level[2]
-                if random() < 0.1
-            ]
+            # hired_cars = [
+            #     HiredCar(
+            #         amod.points[i],
+            #         amod.battery_levels,
+            #         contract_duration_h,
+            #         current_step=step,
+            #         current_arrival=step * config.time_increment,
+            #         battery_level_miles_max=amod.battery_size_distances,
+            #         duration_level=config.contract_duration_level,
+            #     )
+            #     for i in amod.points_level[2]
+            #     if random() < 0.01
+            # ]
 
             # Add hired fleet to model
             amod.hired_cars.extend(hired_cars)
@@ -328,9 +361,7 @@ def sim(plot_track, config):
 
                 time.sleep(step_delay)
 
-        episode_log.compute_episode(
-            step_log, weights=amod.adp.get_weights(len(step_trip_list))
-        )
+        episode_log.compute_episode(step_log, weights=amod.adp.get_weights())
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################

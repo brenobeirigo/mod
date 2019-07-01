@@ -281,7 +281,9 @@ class Amod:
         total_distance = distance_pickup + distance_trip
 
         # Reward
-        reward = self.config.calculate_fare(distance_trip)
+        reward = self.config.calculate_fare(
+            distance_trip, sq_class=trip.sq_class
+        )
 
         # Next arrival
         duration_min = int(round(self.get_travel_time(total_distance)))

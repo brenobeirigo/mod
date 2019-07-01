@@ -7,9 +7,20 @@ root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
 # Trip data to group in steps
-TRIPS_FILE_ALL = "231896_trips_NYC_2011-02-01.csv"
+TRIPS_FILE_ALL = "trips_2011-02-01.csv"
 TRIPS_FILE_4 = "32874_samples_01_feb_2011_NY.csv"
-NY_TRIPS_EXCERPT_DAY = root + f"/data/input/{TRIPS_FILE_ALL}"
+NY_TRIPS_EXCERPT_DAY = root + f"/data/input/nyc/{TRIPS_FILE_ALL}"
+
+FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
+TRIP_FILES = [
+    f'{FOLDER_NYC_TRIPS}{t}'
+    for t in [
+        "trips_2011-02-01.csv",
+        "trips_2011-02-08.csv",
+        "trips_2011-02-15.csv",
+        "trips_2011-02-22.csv",
+    ]
+]
 
 # Output folder
 FOLDER_OUTPUT = root + "/data/output/"
@@ -395,10 +406,11 @@ class Config:
     def __str__(self):
         return self.config.__str__()
 
-    def calculate_fare(self, distance_trip):
+    def calculate_fare(self, distance_trip, sq_class=None):
+
         return (
-            self.config["TRIP_BASE_FARE"]
-            + self.config["TRIP_COST_DISTANCE"] * distance_trip
+            self.config[Config.TRIP_BASE_FARE][sq_class]
+            + self.config[Config.TRIP_COST_DISTANCE] * distance_trip
         )
 
     def update(self, dict_update):

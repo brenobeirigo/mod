@@ -13,7 +13,7 @@ class Adp:
         self.n = 0
         self.reward = list()
         self.service_rate = list()
-        self.weights = list()
+        self.weights = defaultdict(list)
 
         # ML parameters
         self.init_learning()

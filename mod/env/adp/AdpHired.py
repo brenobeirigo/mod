@@ -88,60 +88,50 @@ class AdpHired(Adp):
 
         return weight_vector, value_estimation
 
-    def get_weighted_value(self, t, pos, battery, contract_duration=32):
-
-        # Post decision attribute at time post_t
-        a = (pos, battery, contract_duration)
+    def get_weighted_value(self, t, pos, battery, contract_duration):
 
         # Get point object associated to position
         point = self.points[pos]
 
         value_estimation = 0
-        # Check if value function for disaggregate level exists
-        if t in self.values and 0 in self.values[t] and a in self.values[t][0]:
-            # Return previosly defined disaggregated value function
-            return self.values[t][0][a]
 
         # Calculate value estimation based on hierarchical aggregation
-        else:
+        weight_vector = np.zeros(self.aggregation_levels)
+        value_vector = np.zeros(self.aggregation_levels)
 
-            # Get va
-            weight_vector = np.zeros(self.aggregation_levels - 1)
-            value_vector = np.zeros(self.aggregation_levels - 1)
+        for g in range(0, self.aggregation_levels):
 
-            for g in range(1, self.aggregation_levels):
+            pos_g = point.id_level(g)
+            # Find attribute at level g
+            a_g = (pos_g, battery, contract_duration)
 
-                pos_g = point.id_level(g)
-                # Find attribute at level g
-                a_g = (pos_g, battery, contract_duration)
+            # Current value function of attribute at level g
+            value_vector[g] = (
+                self.values[t][g][a_g]
+                if t in self.values
+                and 0 in self.values[t]
+                and a_g in self.values[t][g]
+                else 0
+            )
 
-                # Current value function of attribute at level g
-                value_vector[g - 1] = (
-                    self.values[t][g][a_g]
-                    if t in self.values
-                    and 0 in self.values[t]
-                    and a_g in self.values[t][g]
-                    else 0
-                )
+            weight_vector[g] = self.get_weight(t, g, a_g)
 
-                weight_vector[g - 1] = self.get_weight(t, g, a_g)
+        # Normalize (weights have to sum up to one)
+        weight_sum = sum(weight_vector)
 
-            # Normalize (weights have to sum up to one)
-            weight_sum = sum(weight_vector)
+        if weight_sum > 0:
 
-            if weight_sum > 0:
+            weight_vector = weight_vector / weight_sum
 
-                weight_vector = weight_vector / weight_sum
+            # Get weighted value function
+            value_estimation = sum(
+                np.prod([weight_vector, value_vector], axis=0)
+            )
 
-                # Get weighted value function
-                value_estimation = sum(
-                    np.prod([weight_vector, value_vector], axis=0)
-                )
-
-                # Update weight vector
-                self.agg_weight_vectors[
-                    (t, pos, battery, contract_duration)
-                ] = weight_vector
+            # Update weight vector
+            self.agg_weight_vectors[
+                (t, pos, battery, contract_duration)
+            ] = weight_vector
 
         return value_estimation
 
@@ -156,19 +146,11 @@ class AdpHired(Adp):
 
             pos, battery, contract_duration = a
 
-            # Updating value function at disaggregate level
-            self.values[t][0][a] = (
-                1 - self.step_size_func[t][0][a]
-            ) * v_ta + self.step_size_func[t][0][a] * v_ta
-
-            # Update the number of times disaggregate state was accessed
-            self.count[t][0][a] += 1
-
             # Get point object associated to position
             point = self.points[pos]
 
             # Append duals to all superior hierachical states
-            for g in range(1, self.aggregation_levels):
+            for g in range(0, self.aggregation_levels):
 
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery, contract_duration)
@@ -248,3 +230,31 @@ class AdpHired(Adp):
         # Update weights using new value function estimate
         # self.update_weights(t, g, a_g, new_vf_0, 1)
 
+    # ################################################################ #
+    # Tracking ####################################################### #
+    # ################################################################ #
+
+    def get_weights(self):
+
+        fleet_weights_dict = defaultdict(list)
+        fleet_weights_avg_dict = dict()
+        fleet_weights_avg_dict["AV"] = np.zeros(self.aggregation_levels)
+        fleet_weights_avg_dict["FV"] = np.zeros(self.aggregation_levels)
+
+        try:
+            for attribute, weight_vectors in self.agg_weight_vectors.items():
+                _, _, _, contract_duration = attribute
+                if contract_duration == "Inf":
+                    fleet_weights_dict["AV"].append(weight_vectors)
+                else:
+                    fleet_weights_dict["FV"].append(weight_vectors)
+
+            for fleet_type, weight_vectors_list in fleet_weights_dict.items():
+                fleet_weights_avg_dict[fleet_type] = sum(
+                    weight_vectors_list
+                ) / len(weight_vectors_list)
+
+        except:
+            pass
+
+        return fleet_weights_avg_dict

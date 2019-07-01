@@ -22,8 +22,10 @@ BATTERY = 2
 ORIGIN = 3
 DESTINATION = 4
 CAR_TYPE = 5
-N_DECISIONS = 6
-CONTRACT_DURATION = 7
+CONTRACT_DURATION = 6
+SQ_CLASS = 7
+N_DECISIONS = 8
+
 
 AVERAGED_UPDATE = "averaged_update"
 WEIGHTED_UPDATE = "weighted_update"
@@ -741,25 +743,31 @@ def adp_grid(
 
 
 def get_denied_ids(decisions, attribute_trips_dict):
+    
     # Start denied trip count with all trips
     denied = defaultdict(int)
+
+    # Denied trip count per attribute (start with all trips)
     denied_count_dict = {
         trip_a: len(trip_list)
         for trip_a, trip_list in attribute_trips_dict.items()
     }
 
+    # Loop decisions and discount fulfilled trips
     for d in decisions:
+
         if d[ACTION] == du.TRIP_DECISION:
 
-            d_od = (d[ORIGIN], d[DESTINATION])
+            trip_a = (d[ORIGIN], d[DESTINATION])
 
             # Subtract trips fulfilled
-            denied_count_dict[d_od] -= d[N_DECISIONS]
+            denied_count_dict[trip_a] -= d[N_DECISIONS]
 
-    for d_od, n_denied in denied_count_dict.items():
-        if n_denied >=0:
-            o, d = d_od
-            denied[o]+=n_denied
+    # Count the 
+    for trip_a, n_denied in denied_count_dict.items():
+        if n_denied >= 0:
+            o, d = trip_a
+            denied[o] += n_denied
     return denied
 
 
@@ -894,7 +902,7 @@ def adp_network_hired(
 
     # Cost of current decision
     present_contribution = quicksum(
-        env.cost_func2(
+        env.cost_func(
             d[CAR_TYPE],
             d[ACTION],
             d[POSITION],
@@ -1172,12 +1180,13 @@ def adp_network_hired2(
 
     # Cost of current decision
     present_contribution = quicksum(
-        env.cost_func2(
+        env.cost_func(
             d[CAR_TYPE],
             d[ACTION],
             d[POSITION],
             d[ORIGIN],
             d[DESTINATION],
+            d[SQ_CLASS]
         ) * x_var[d]
         for d in x_var
     )
@@ -1318,6 +1327,7 @@ def adp_network_hired2(
 # Sortout resources and trips ######################################## #
 # #################################################################### #
 
+
 def sortout_fleets(env):
     """Associate vehicles from both fleets to its region center levels
     and ids, find the rebalance targets from each position, and list the
@@ -1405,13 +1415,12 @@ def sortout_trip_list(trips):
     G(origin id) is g_id at level g;
     2 - Count the number of trips per service quality class;
     3 - Associate trips to od tuples (trip attributes).
-    
-    
+
     Parameters
     ----------
     trips : list
         List of trips to sort.
-    
+
     Returns
     -------
     dict(dict(list)) and dict()

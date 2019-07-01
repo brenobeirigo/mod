@@ -37,35 +37,7 @@ class AmodNetworkHired(AmodNetwork):
         self.expired_contract_cars = []
 
     @functools.lru_cache(maxsize=None)
-    def cost_func(self, car_type, action, o, d):
-
-        profit_margin = 1
-        if car_type == Car.TYPE_HIRED:
-            profit_margin = self.config.profit_margin
-
-        if action == du.STAY_DECISION:
-            # Stay
-            return 0
-
-        elif action == du.TRIP_DECISION:
-            # Pick up
-            distance_trip = self.get_distance(self.points[o], self.points[d])
-
-            reward = self.config.calculate_fare(distance_trip)
-
-            return profit_margin * reward
-
-        elif action == du.RECHARGE_DECISION:
-            # Recharge
-            cost = self.config.cost_recharge_single_increment
-            return -cost
-
-        else:
-            # Rebalance
-            return 0
-
-    @functools.lru_cache(maxsize=None)
-    def cost_func2(self, car_type, action, pos, o, d):
+    def cost_func(self, car_type, action, pos, o, d, sq_class):
         """Return decision cost.
 
         Parameters
@@ -88,9 +60,15 @@ class AmodNetworkHired(AmodNetwork):
         """
 
         # Platform's profit margin is lower when using hired cars
-        profit_margin = 1
+        PROFIT_MARGIN = 1
+
+        # When moving a hired car, the platform is charged 2X more
+        # since this car must return to its origin point
+        RETURN_FACTOR = 1
+
         if car_type == Car.TYPE_HIRED:
-            profit_margin = self.config.profit_margin
+            PROFIT_MARGIN = self.config.profit_margin
+            RETURN_FACTOR = 2
 
         if action == du.STAY_DECISION:
             # Stay
@@ -104,18 +82,18 @@ class AmodNetworkHired(AmodNetwork):
             )
 
             # From trip's origin to trip's destination
-            dist_rebalance = self.get_distance(self.points[o], self.points[d])
+            dist_trip = self.get_distance(self.points[o], self.points[d])
 
             # Travel cost
             cost = self.config.get_travel_cost(
-                distance_pickup + dist_rebalance
+                distance_pickup + RETURN_FACTOR * dist_trip
             )
 
             # Base fare + distance cost
-            revenue = self.config.calculate_fare(dist_rebalance)
+            revenue = self.config.calculate_fare(dist_trip, sq_class=sq_class)
 
             # Profit to service trip
-            return profit_margin * (revenue - cost)
+            return PROFIT_MARGIN * (revenue - cost)
 
         elif action == du.RECHARGE_DECISION:
 
@@ -126,11 +104,11 @@ class AmodNetworkHired(AmodNetwork):
         elif action == du.REBALANCE_DECISION:
 
             # From trip's origin to trip's destination
-            dist_rebalance = self.get_distance(self.points[o], self.points[d])
+            dist_trip = self.get_distance(self.points[o], self.points[d])
 
             # Travel cost
-            cost = self.config.get_travel_cost(dist_rebalance)
-            return -cost
+            cost = self.config.get_travel_cost(dist_trip)
+            return -RETURN_FACTOR * cost
 
     def realize_decision(self, t, decisions, a_trips, dict_a_cars):
         total_reward = 0
@@ -148,10 +126,11 @@ class AmodNetworkHired(AmodNetwork):
 
         for decision in decisions:
 
-            action, point, level, o, d, car_type, contract_duration, times = (
+            action, point, level, o, d, car_type, contract_duration, sq_class, times = (
                 decision
             )
 
+            # Track how many times a decision was taken
             decision_dict_count[action] += times
 
             cars_with_attribute = dict_a_cars[car_type][
@@ -328,17 +307,14 @@ class AmodNetworkHired(AmodNetwork):
             tuple -- time_step, point, battery
         """
 
-        action, point, battery, o, d, type_car, contract_duration = decision
+        action, point, battery, o, d, type_car, contract_duration, _ = decision
         battery_post = battery
         if action == du.RECHARGE_DECISION:
 
             # Recharging ###############################################
             battery_post = min(self.battery_levels, battery + 1)
             time_step += self.config.recharge_time_single_level
-            contract_duration -= int(
-                self.config.recharge_time_single_level
-                / self.config.contract_duration_level
-            )
+            duration = self.config.recharge_time_single_level
 
         elif action == du.REBALANCE_DECISION:
             # Rebalancing ##############################################
@@ -347,17 +323,11 @@ class AmodNetworkHired(AmodNetwork):
             time_step += max(1, duration)
             battery_post = max(0, battery - battery_drop)
             point = d
-            contract_duration -= int(
-                duration / self.config.contract_duration_level
-            )
 
         elif action == du.STAY_DECISION:
             # Staying ##################################################
             time_step += 1
-            contract_duration -= int(
-                self.config.time_increment
-                / self.config.contract_duration_level
-            )
+            duration = self.config.time_increment
 
         elif action == du.TRIP_DECISION:
             # Servicing ################################################
@@ -365,6 +335,9 @@ class AmodNetworkHired(AmodNetwork):
             time_step += max(1, duration)
             battery_post = max(0, battery - battery_drop)
             point = d
+
+        # Contract duration is altered only for hired cars
+        if type_car == Car.TYPE_HIRED:
             contract_duration -= int(
                 duration / self.config.contract_duration_level
             )
@@ -445,3 +418,18 @@ class AmodNetworkHired(AmodNetwork):
             )
 
         return estimate
+
+    def print_fleet_stats(self, filter_status=[]):
+        count_status = dict()
+
+        # Start all car statuses with 0
+        for s in Car.status_list:
+            count_status[s] = 0
+
+        # Count how many car per status
+        for c in self.cars + self.hired_cars:
+            if filter_status and c.status not in filter_status:
+                continue
+
+            print(c.status_log())
+            count_status[c.status] += 1

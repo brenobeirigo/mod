@@ -69,7 +69,8 @@ class ClassedTrip(Trip):
         # Region center id of worst case pickup scenario
         self.id_sq2_level = self.o.id_level(self.sq2_level)
 
-    def attribute(self, level):
+    @property
+    def attribute(self, level=0):
         return (self.o.id_level(level), self.d.id_level(level), self.sq_class)
 
     def __str__(self):
@@ -186,8 +187,9 @@ def get_step_trip_list(
         from_datetime = to_datetime
 
         # Sample trips in step
-        sample_size = math.ceil(resize_factor * len(trip_list))
-        trip_list = random.sample(trip_list, k=sample_size)
+        if resize_factor < 1:
+            sample_size = math.ceil(resize_factor * len(trip_list))
+            trip_list = random.sample(trip_list, k=sample_size)
 
         step_trip_list.append(trip_list)
 
@@ -309,7 +311,14 @@ def get_trips_random_ods(
     return step_trip_list
 
 
-def get_trips(points, step_trips, offset_start=0, offset_end=0, classed=False):
+def get_trips(
+    points,
+    step_trips,
+    offset_start=0,
+    offset_end=0,
+    classed=False,
+    resize_factor=1,
+):
 
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
@@ -328,6 +337,7 @@ def get_trips(points, step_trips, offset_start=0, offset_end=0, classed=False):
                     ),
                 )
                 for time, count, o, d in trips
+                if random.random() < resize_factor
             ]
         )
 

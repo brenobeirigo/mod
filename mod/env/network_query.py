@@ -3,15 +3,6 @@ from random import choices
 import functools
 import pprint
 
-import sys
-
-import sys
-
-tenv_mod = "C:\\Users\\LocalAdmin\\OneDrive\\leap_forward\\street_network_server\\tenv"
-sys.path.insert(0, tenv_mod)
-
-import tenv.util as tenv
-
 
 class Point:
 
@@ -273,8 +264,8 @@ def query_point_list(
         # e.g., [[0,1,2,3], [10,11,12,13], [20,21,22,23]]
         # [(0,10,20), (1,11,21), (2,12,22), (3,13,23)]
         p = list(zip(*level_point_ids_list))
-        r = tenv.nodes(projection)
-        nodes = {e["id"]: e for e in r["nodes"]}
+        r = requests.get(url=f"{url}/nodes/{projection}")
+        nodes = {e["id"]: e for e in r.json()["nodes"]}
 
         # Level zero correspond to node id
         point_list = [
@@ -321,9 +312,10 @@ def query_neighbor_zones(center, distance, n_neighbors=4):
         List of center neighbors
     """
 
-    neighbors = np.array(
-        tenv.get_center_neighbors(distance, center, n_neighbors)
-    )
+    url_neighbors = f"{url}/center_neighbors/{distance}/{center}/{n_neighbors}"
+
+    r = requests.get(url=url_neighbors)
+    neighbors = np.array(list(map(int, r.text.split(";"))))
 
     return neighbors
 
@@ -347,7 +339,10 @@ def query_neighbors(node, reach=1):
         List of center neighbors
     """
 
-    neighbors = np.array(tenv.neighbors(node, reach, "forward"))
+    url_neighbors = f"{url}/neighbors/{node}/{reach}/forward"
+
+    r = requests.get(url=url_neighbors)
+    neighbors = np.array(list(map(int, r.text.split(";"))))
 
     return neighbors
 
@@ -368,8 +363,10 @@ def query_level_neighbors(center, distance):
     list
         All nodes in region center
     """
+    url_level_neighbors = f"{url}/center_elements/" f"{distance}/" f"{center}"
 
-    neighbors = np.array(tenv.get_center_elements(distance, center))
+    r = requests.get(url=url_level_neighbors)
+    neighbors = np.array(list(map(int, r.text.split(";"))))
 
     return neighbors
 
@@ -391,10 +388,9 @@ def get_distance(o, d):
         Distance in kilometers
     """
 
-    return tenv.get_distance(o, d) / 1000.0
-    # url_distance = f"{url}/distance_meters/{o}/{d}"
-    # r = requests.get(url=url_distance)
-    # return float(r.text) / 1000.0
+    url_distance = f"{url}/distance_meters/{o}/{d}"
+    r = requests.get(url=url_distance)
+    return float(r.text) / 1000.0
 
 
 def query_aggregated_centers(n_levels=None, dist_list=None, step=60):
@@ -425,7 +421,9 @@ def query_aggregated_centers(n_levels=None, dist_list=None, step=60):
     """
 
     # Get all ids for each level
-    node_region_ids = tenv.get_node_region_ids_step(step)
+    query = f"{url}/node_region_ids/{step}"
+    r = requests.get(url=query)
+    node_region_ids = r.json()
 
     if n_levels and n_levels <= 0:
         raise (Exception("Aggregation levels have to be higher than 0."))
@@ -488,8 +486,9 @@ def query_centers(points, n_centers, level):
 
 
 def query_info():
+    query = f"{url}/info"
 
-    info = tenv.get_info()
+    info = requests.get(url=query).json()
 
     center_count = info["centers"]
     edge_count = info["edge_count"]

@@ -57,9 +57,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "hiring_discard",
+            ConfigNetwork.TEST_LABEL: "hiring_discard_2",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 500,
+            ConfigNetwork.FLEET_SIZE: 800,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,

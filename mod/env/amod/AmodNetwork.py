@@ -54,7 +54,7 @@ class AmodNetwork(Amod):
         Point.levels = sorted(distance_levels)
 
         # Unique ids per distance
-        Point.level_count = [level_count[str(d)] for d in Point.levels]
+        Point.level_count = [level_count[d] for d in Point.levels]
 
         self.init_fleet(self.points, car_positions)
 

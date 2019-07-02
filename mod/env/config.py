@@ -18,7 +18,7 @@ TRIP_FILES = [
         "trips_2011-02-01.csv",
         "trips_2011-02-08.csv",
         "trips_2011-02-15.csv",
-        "trips_2011-02-22.csv",
+        # "trips_2011-02-22.csv",
     ]
 ]
 

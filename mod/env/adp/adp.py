@@ -73,6 +73,22 @@ class Adp:
         )
 
         self.agg_weight_vectors = dict()
+         # Estimate of the variance of observations made of state
+        # s, using data from aggregation level g, after n
+        # observations.
+        self.variance_error = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # Variance of our estimate of the mean v[-,s,g,n]
+        self.variance = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
+
+        # Total variation (variance plus the square of the bias)
+        self.total_variation = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(float))
+        )
 
     ####################################################################
     # Smoothed #########################################################
@@ -336,6 +352,26 @@ class Adp:
         a_stepsize = self.harmonic_stepsize
         stepsize = a_stepsize / (a_stepsize + self.count[t][g][a_g] - 1)
         self.step_size_func[t][g][a_g] = stepsize
+
+
+        # Estimate of the variance of observations made of state
+        # s, using data from aggregation level g, after n
+        # observations.
+        self.variance_error[t][g][a_g] = self.get_total_variance(
+            self.variance_g[t][g][a_g],
+            self.transient_bias[t][g][a_g],
+            self.lambda_stepsize[t][g][a_g]
+        )
+
+        # Variance of our estimate of the mean v[-,s,g,n]
+        self.variance[t][g][a_g] =  (
+            self.lambda_stepsize[t][g][a_g] * self.variance_error[t][g][a_g]
+        )
+
+        # Total variation (variance plus the square of the bias)
+        self.total_variation[t][g][a_g] = (
+            self.variance[t][g][a_g] + (self.aggregation_bias[t][g][a_g] ** 2)
+        )
 
     def update_values_smoothed(self, t, duals):
 

@@ -222,9 +222,9 @@ class Config:
             * recharging_time_h
         )
 
-    def get_travel_cost(self, distance):
+    def get_travel_cost(self, distance_km):
         """Return the cost of travelling 'distance' meters"""
-        return self.config["RECHARGE_COST_DISTANCE"] * distance / 1000.0
+        return self.config["RECHARGE_COST_DISTANCE"] * distance_km
 
     def calculate_dist_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0

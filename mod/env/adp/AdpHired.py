@@ -88,7 +88,7 @@ class AdpHired(Adp):
 
         return weight_vector, value_estimation
 
-    def get_weighted_value(self, t, pos, battery, contract_duration):
+    def get_weighted_value(self, t, pos, battery, contract_duration, car_type):
 
         # Get point object associated to position
         point = self.points[pos]
@@ -103,7 +103,7 @@ class AdpHired(Adp):
 
             pos_g = point.id_level(g)
             # Find attribute at level g
-            a_g = (pos_g, battery, contract_duration)
+            a_g = (pos_g, battery, contract_duration, car_type)
 
             # Current value function of attribute at level g
             value_vector[g] = (
@@ -130,7 +130,7 @@ class AdpHired(Adp):
 
             # Update weight vector
             self.agg_weight_vectors[
-                (t, pos, battery, contract_duration)
+                (t, pos, battery, contract_duration, car_type)
             ] = weight_vector
 
         return value_estimation
@@ -144,7 +144,7 @@ class AdpHired(Adp):
 
         for a, v_ta in duals.items():
 
-            pos, battery, contract_duration = a
+            pos, battery, contract_duration, car_type = a
 
             # Get point object associated to position
             point = self.points[pos]
@@ -153,7 +153,7 @@ class AdpHired(Adp):
             for g in range(0, self.aggregation_levels):
 
                 # Find attribute at level g
-                a_g = (point.id_level(g), battery, contract_duration)
+                a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Value is later used to update a_g
                 level_update_list[(g, a_g)].append(v_ta)
@@ -167,6 +167,7 @@ class AdpHired(Adp):
 
             # Average value function considering all elements sharing
             # the same state at level g
+            # TODO Test if looping to all values and updating makes more sense (instead of average)
             v_ta_g = sum(value_list_g) / count_ta_g
 
             self.update_weights(t, g, a_g, v_ta_g, count_ta_g)
@@ -237,17 +238,12 @@ class AdpHired(Adp):
     def get_weights(self):
 
         fleet_weights_dict = defaultdict(list)
-        fleet_weights_avg_dict = dict()
-        fleet_weights_avg_dict["AV"] = np.zeros(self.aggregation_levels)
-        fleet_weights_avg_dict["FV"] = np.zeros(self.aggregation_levels)
+        fleet_weights_avg_dict = defaultdict(lambda:np.zeros(self.aggregation_levels))
 
         try:
             for attribute, weight_vectors in self.agg_weight_vectors.items():
-                _, _, _, contract_duration = attribute
-                if contract_duration == "Inf":
-                    fleet_weights_dict["AV"].append(weight_vectors)
-                else:
-                    fleet_weights_dict["FV"].append(weight_vectors)
+                _, _, _, _, car_type = attribute
+                fleet_weights_dict[car_type].append(weight_vectors)
 
             for fleet_type, weight_vectors_list in fleet_weights_dict.items():
                 fleet_weights_avg_dict[fleet_type] = sum(

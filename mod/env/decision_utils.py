@@ -2,6 +2,8 @@ from pprint import pprint
 from gurobipy import tuplelist
 from collections import defaultdict
 
+from mod.env.car import HiredCar
+
 # Decision codes
 
 # In a zoned environment with (z1, z2) cells signals:
@@ -18,6 +20,8 @@ RECHARGE_DECISION = "CHAR"
 
 REBALANCE_DECISION = "REBA"
 
+HIRE_DECISION = "HIRE"
+
 decision_list = [
     TRIP_DECISION,
     RECHARGE_DECISION,
@@ -32,18 +36,6 @@ def stay_decision(car):
         + (car.point.id, car.battery_level)
         + (car.point.id,)
         + (car.point.id,)
-        + (car.type,)
-        + (car.contract_duration,)
-        + ("_",)
-    )
-
-
-def end_contract_decision(car):
-    return (
-        (END_CONTRACT_DECISION,)
-        + (car.point.id, car.battery_level)
-        + (car.point.id,)
-        + (car.start_end_point.id,)
         + (car.type,)
         + (car.contract_duration,)
         + ("_",)
@@ -232,14 +224,14 @@ def get_decision_set_classed(
 
         # if car.started_contract:
 
-        # Rebalancing ############################################ #
+        # Rebalancing ################################################ #
         rebalance_targets = rebalance_targets_dict[car.type][car.point.id]
         decisions[car.type].update(rebalance_decisions(car, rebalance_targets))
 
-        # Stay ################################################### #
+        # Stay ####################################################### #
         decisions[car.type].add(stay_decision(car))
 
-        # Recharge ############################################### #
+        # Recharge ################################################### #
         if max_battery_level and car.battery_level < max_battery_level:
             decisions[car.type].add(recharge_decision(car))
 

@@ -66,9 +66,14 @@ class AmodNetworkHired(AmodNetwork):
         # since this car must return to its origin point
         RETURN_FACTOR = 1
 
-        if car_type == Car.TYPE_HIRED:
+        CONGESTION_COST = 0
+
+        if car_type == Car.TYPE_HIRED or car_type == Car.TYPE_TO_HIRE:
             PROFIT_MARGIN = self.config.profit_margin
             RETURN_FACTOR = 2
+
+        if car_type == Car.TYPE_TO_HIRE:
+            CONGESTION_COST = 10
 
         if action == du.STAY_DECISION:
             # Stay
@@ -93,7 +98,7 @@ class AmodNetworkHired(AmodNetwork):
             revenue = self.config.calculate_fare(dist_trip, sq_class=sq_class)
 
             # Profit to service trip
-            return PROFIT_MARGIN * (revenue - cost)
+            return PROFIT_MARGIN * (revenue - cost) - CONGESTION_COST
 
         elif action == du.RECHARGE_DECISION:
 
@@ -103,12 +108,15 @@ class AmodNetworkHired(AmodNetwork):
 
         elif action == du.REBALANCE_DECISION:
 
-            # From trip's origin to trip's destination
+            # From trip's origin to trip'scar_type
             dist_trip = self.get_distance(self.points[o], self.points[d])
 
             # Travel cost
             cost = self.config.get_travel_cost(dist_trip)
-            return -RETURN_FACTOR * cost
+
+            reb_cost = -RETURN_FACTOR * cost - CONGESTION_COST
+            # print(action, pos, o, d, car_type, sq_class, reb_cost)
+            return reb_cost
 
     def realize_decision(self, t, decisions, a_trips, dict_a_cars):
         total_reward = 0
@@ -134,7 +142,7 @@ class AmodNetworkHired(AmodNetwork):
             decision_dict_count[action] += times
 
             cars_with_attribute = dict_a_cars[car_type][
-                (point, level, contract_duration)
+                (point, level, contract_duration, car_type)
             ]
 
             n = 0
@@ -155,29 +163,27 @@ class AmodNetworkHired(AmodNetwork):
                     # Some decision was already applied to this car
                     continue
 
-                # If car belongs to main fleet, profit margin is 100%
-                profit_margin = 1
+                contribution_car = self.cost_func(
+                    car_type, action, point, o, d, sq_class
+                )
+
+                # print(decision, contribution_car)
 
                 # Start contract, if not started
-                if car_type == Car.TYPE_HIRED:
+                if car_type == Car.TYPE_TO_HIRE:
 
-                    profit_margin = self.config.profit_margin
-
-                    # First time hired vehicle service user
-                    if not car.started_contract:
-                        # print(f"*** HIRING {action}!")
+                    # Hired car will be used by the system
+                    if action != du.STAY_DECISION:
                         car.started_contract = True
-                    # else:
-                    #     print(f"*** ALREADY HIRED & {action}!")
+                        car.type = Car.TYPE_HIRED
+                    else:
+                        contribution_car = 0
 
                 if action == du.RECHARGE_DECISION:
                     # Recharging ##################################### #
                     cost_recharging = self.recharge(
                         car, self.config.recharge_time_single_level
                     )
-
-                    # Subtract cost of recharging
-                    total_reward -= cost_recharging
 
                 elif action == du.REBALANCE_DECISION:
                     # Rebalancing #################################### #
@@ -188,7 +194,7 @@ class AmodNetworkHired(AmodNetwork):
                     car.move(
                         duration,
                         distance,
-                        reward,
+                        contribution_car,
                         self.points[d],
                         time_increment=self.config.time_increment,
                     )
@@ -218,13 +224,15 @@ class AmodNetworkHired(AmodNetwork):
                     car.update_trip(
                         duration,
                         distance,
-                        reward,
+                        contribution_car,
                         trip,
                         time_increment=self.config.time_increment,
                     )
 
                     serviced.append(trip)
-                    total_reward += profit_margin * reward
+
+                # Subtract cost of recharging
+                total_reward += contribution_car
 
             # Remove cars already used to fulfill decisions
             # cars_with_attribute = cars_with_attribute[times:]
@@ -261,6 +269,7 @@ class AmodNetworkHired(AmodNetwork):
         expired_contract = []
 
         for car in self.hired_cars:
+
             # Check if vehicles finished their tasks
             # Where are the cars?
             # What are they doing at the current step?
@@ -290,6 +299,21 @@ class AmodNetworkHired(AmodNetwork):
             # Save expired contract cars
             self.expired_contract_cars.extend(expired_contract)
 
+    def discard_excess_hired(self):
+        # Car was not used in last iteration
+        active_fleet = []
+        discard = 0
+        for car in self.hired_cars:
+            if car.started_contract:
+                active_fleet.append(car)
+            else:
+                discard += 1
+
+        self.hired_cars = active_fleet
+        self.available = []
+
+        return discard
+
     def preview_decision(self, time_step, decision):
         """Apply decision to attributes
 
@@ -308,7 +332,10 @@ class AmodNetworkHired(AmodNetwork):
         """
 
         action, point, battery, o, d, type_car, contract_duration, _ = decision
+
         battery_post = battery
+        type_post = type_car
+
         if action == du.RECHARGE_DECISION:
 
             # Recharging ###############################################
@@ -324,6 +351,10 @@ class AmodNetworkHired(AmodNetwork):
             battery_post = max(0, battery - battery_drop)
             point = d
 
+            # Hiring is performed when car rebalance
+            if type_car == Car.TYPE_TO_HIRE:
+                type_post = Car.TYPE_HIRED
+
         elif action == du.STAY_DECISION:
             # Staying ##################################################
             time_step += 1
@@ -336,13 +367,17 @@ class AmodNetworkHired(AmodNetwork):
             battery_post = max(0, battery - battery_drop)
             point = d
 
+            # Hiring is performed when car service user
+            if type_car == Car.TYPE_TO_HIRE:
+                type_post = Car.TYPE_HIRED
+
         # Contract duration is altered only for hired cars
-        if type_car == Car.TYPE_HIRED:
+        if type_car == Car.TYPE_HIRED or type_car == Car.TYPE_TO_HIRE:
             contract_duration -= int(
                 duration / self.config.contract_duration_level
             )
 
-        return time_step, point, battery_post, contract_duration
+        return time_step, point, battery_post, contract_duration, type_post
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -360,9 +395,10 @@ class AmodNetworkHired(AmodNetwork):
             total_battery_level += c.battery_level_miles
             status_count[c.status] += 1
 
-        for c in [c for c in self.hired_cars if c.started_contract]:
-            total_battery_level += c.battery_level_miles
-            status_count[c.status] += 1
+        for c in self.hired_cars:
+            if c.started_contract:
+                total_battery_level += c.battery_level_miles
+                status_count[c.status] += 1
 
         return status_count, total_battery_level
 
@@ -399,6 +435,7 @@ class AmodNetworkHired(AmodNetwork):
             post_pos,
             post_battery,
             post_contract_duration,
+            post_type_car,
         ) = self.preview_decision(t, decision)
 
         # Get the value estimation considering a single level
@@ -414,7 +451,8 @@ class AmodNetworkHired(AmodNetwork):
                 post_t,
                 post_pos,
                 post_battery,
-                contract_duration=post_contract_duration,
+                post_contract_duration,
+                post_type_car,
             )
 
         return estimate

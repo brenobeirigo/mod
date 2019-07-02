@@ -13,6 +13,7 @@ class Car:
 
     TYPE_FLEET = "AV"
     TYPE_HIRED = "FV"
+    TYPE_TO_HIRE = "HIRE"
 
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
@@ -64,6 +65,7 @@ class Car:
             self.point.id_level(level),
             self.battery_level,
             self.contract_duration,
+            self.type,
         )
 
     def attribute_level(self, level):
@@ -380,7 +382,7 @@ class HiredCar(Car):
         super().__init__(o, battery_level_max, battery_level_miles_max)
         self.contract_duration = contract_duration_h * (60 // duration_level)
         self.start_end_point = o
-        self.type = Car.TYPE_HIRED
+        self.type = Car.TYPE_TO_HIRE
         self.started_contract = False
         self.step = current_step
         self.arrival_time = current_arrival

@@ -71,7 +71,7 @@ class AmodNetwork(Amod):
     @functools.lru_cache(maxsize=None)
     def get_distance(self, o, d):
         """Receives two points referring to network ids and return the
-        the distance of the shortest path between them (meters).
+        the distance of the shortest path between them (km).
 
         Parameters
         ----------

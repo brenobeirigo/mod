@@ -68,11 +68,11 @@ def extract_duals_relaxed(m, flow_cars_dict):
             # Shadow associated to all car types
             duals[car_type] = dict()
 
-            for pos, battery, contract_duration in flow_cars:
+            for pos, battery, contract_duration, car_type in flow_cars:
 
                 try:
                     constr = fixed.getConstrByName(
-                        f"CAR_FLOW_{car_type}[{pos},{battery},{contract_duration}]"
+                        f"CAR_FLOW_{car_type}[{pos},{battery},{contract_duration},{car_type}]"
                     )
 
                     # pi = The constraint dual value in the current solution
@@ -82,7 +82,7 @@ def extract_duals_relaxed(m, flow_cars_dict):
                 except:
                     shadow_price = 0
 
-                duals[car_type][(pos, battery, contract_duration)] = shadow_price
+                duals[car_type][(pos, battery, contract_duration, car_type)] = shadow_price
 
     except:
         print("Can't create relaxed model.")
@@ -1289,8 +1289,7 @@ def adp_network_hired2(
             attribute_trips_dict,
             type_attribute_cars_dict,
         )
-        # print(f"Objective Function - {m.objVal:6.2f} X
-        # {reward:6.2f} - Decision reward")
+        # print(f"Objective Function - {m.objVal:6.2f} X {reward:6.2f} - Decision reward")
 
         rejected = []
 
@@ -1471,9 +1470,9 @@ def car_flow_constrs(m, x_var, type_attribute_cars_dict):
     for car_type, attribute_cars in type_attribute_cars_dict.items():
         flow_cars_dict[car_type] = m.addConstrs(
             (
-                x_var.sum("*", point, battery, "*", "*", car_type, contract_duration) ==
-                len(attribute_cars[(point, battery, contract_duration)])
-                for point, battery, contract_duration in attribute_cars.keys()
+                x_var.sum("*", point, battery, "*", "*", car_type, contract_duration, '*') ==
+                len(attribute_cars[(point, battery, contract_duration, car_type)])
+                for point, battery, contract_duration, car_type in attribute_cars.keys()
             ),
             f"CAR_FLOW_{car_type}",
         )
@@ -1485,7 +1484,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict):
 
     flow_trips = m.addConstrs(
         (
-            x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*") <=
+            x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*", "*", "*") <=
             len(attribute_trips_dict[(o, d)])
             for o, d in attribute_trips_dict
         ),

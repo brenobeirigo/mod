@@ -57,9 +57,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "weight_0_up_infinite",
+            ConfigNetwork.TEST_LABEL: "hiring_discard",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 10,
+            ConfigNetwork.FLEET_SIZE: 500,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -94,9 +94,9 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.01,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -126,6 +126,45 @@ def get_sim_config():
 run_plot = PlotTrack(get_sim_config())
 
 trip_demand_dict = dict()
+
+
+def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
+    # Hired fleet is appearing in trip origins
+
+    hired_cars = [
+        HiredCar(
+            amod.points[t.id_sq1_level],
+            amod.battery_levels,
+            contract_duration_h,
+            current_step=step,
+            current_arrival=step * amod.config.time_increment,
+            battery_level_miles_max=amod.battery_size_distances,
+            duration_level=amod.config.contract_duration_level,
+        )
+        for t in trips
+    ]
+
+    return hired_cars
+
+
+def hire_cars_centers(amod, contract_duration_h, step):
+    # Hired fleet is appearing in trip origins
+
+    hired_cars = [
+        HiredCar(
+            amod.points[c],
+            amod.battery_levels,
+            contract_duration_h,
+            current_step=step,
+            current_arrival=step * amod.config.time_increment,
+            battery_level_miles_max=amod.battery_size_distances,
+            duration_level=amod.config.contract_duration_level,
+        )
+        for c in amod.points_level[2]
+        if random() < 1
+    ]
+
+    return hired_cars
 
 
 def get_ny_demand(amod, tripdata_path):
@@ -165,6 +204,8 @@ def sim(plot_track, config):
 
     step_delay = PlotTrack.STEP_DELAY
     enable_plot = PlotTrack.ENABLE_PLOT
+    SKIP_STEPS = 120
+    ENABLE_HIRING = False
 
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -279,7 +320,7 @@ def sim(plot_track, config):
             # the list of available vehicles.
 
             # Show time step statistics
-            if step % 100 == 0:
+            if step % SKIP_STEPS == 0:
                 step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
@@ -301,28 +342,30 @@ def sim(plot_track, config):
             # Stats summary
             # print(" - Pre-decision statuses:")
             # amod.print_fleet_stats_summary()
-            contract_duration_h = 1
-            hired_cars = []
+            if ENABLE_HIRING:
+                contract_duration_h = 1
+                hired_cars = []
 
-            # Hired fleet is appearing in trip origins
+                # Hired fleet is appearing in trip origins
 
-            # hired_cars = [
-            #     HiredCar(
-            #         amod.points[i],
-            #         amod.battery_levels,
-            #         contract_duration_h,
-            #         current_step=step,
-            #         current_arrival=step * config.time_increment,
-            #         battery_level_miles_max=amod.battery_size_distances,
-            #         duration_level=config.contract_duration_level,
-            #     )
-            #     for i in amod.points_level[2]
-            #     if random() < 0.01
-            # ]
+                # hired_cars = [
+                #     HiredCar(
+                #         amod.points[i],
+                #         amod.battery_levels,
+                #         contract_duration_h,
+                #         current_step=step,
+                #         current_arrival=step * config.time_increment,
+                #         battery_level_miles_max=amod.battery_size_distances,
+                #         duration_level=config.contract_duration_level,
+                #     )
+                #     for i in amod.points_level[2]
+                #     if random() < 0.01
+                # ]
 
-            # Add hired fleet to model
-            amod.hired_cars.extend(hired_cars)
-            amod.available_hired.extend(hired_cars)
+                # hired_cars = hire_cars_centers(amod, contract_duration_h, step)
+                # Add hired fleet to model
+                amod.hired_cars.extend(hired_cars)
+                amod.available_hired.extend(hired_cars)
 
             # Adding hired caras
             # print(f"Hiring {len(hired_cars)} cars.")
@@ -342,6 +385,10 @@ def sim(plot_track, config):
                 # sq_guarantee=False,
             )
 
+            # Virtual hired cars are discarded
+            if ENABLE_HIRING:
+                discarded = amod.discard_excess_hired()
+                print(f"{discarded} cars discarded.")
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #

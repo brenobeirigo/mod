@@ -1053,13 +1053,14 @@ def adp_network_hired2(
     env,
     trips,
     time_step,
-    sq_guarantee=True,
+    sq_guarantee=False,
     charge=True,
     agg_level=None,
     myopic=False,
     log_path=None,
     value_function_update=AVERAGED_UPDATE,
     episode=None,
+    universal_service=False
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -1146,8 +1147,7 @@ def adp_network_hired2(
     # quality class. If max. battery level is defined, also includes
     # recharge decisions.
     decision_cars, decision_class = du.get_decision_set_classed(
-        env.available,
-        env.available_hired,
+        env,
         level_id_cars_dict,
         level_id_trips_dict,
         rebalance_targets_dict,
@@ -1209,7 +1209,9 @@ def adp_network_hired2(
     flow_cars_dict = car_flow_constrs(m, x_var, type_attribute_cars_dict)
 
     # Trip flow conservation
-    flow_trips = trip_flow_constrs(m, x_var, attribute_trips_dict)
+    flow_trips = trip_flow_constrs(
+        m, x_var, attribute_trips_dict, universal_service=universal_service
+    )
 
     # Service quality constraints
     if sq_guarantee:
@@ -1483,9 +1485,20 @@ def car_flow_constrs(m, x_var, type_attribute_cars_dict):
     return flow_cars_dict
 
 
-def trip_flow_constrs(m, x_var, attribute_trips_dict):
+def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
 
-    flow_trips = m.addConstrs(
+    if universal_service:
+        flow_trips = m.addConstrs(
+            (
+                x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*", "*", "*") ==
+                len(attribute_trips_dict[(o, d)])
+                for o, d in attribute_trips_dict
+            ),
+            "TRIP_FLOW",
+        )
+
+    else:
+        flow_trips = m.addConstrs(
         (
             x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*", "*", "*") <=
             len(attribute_trips_dict[(o, d)])
@@ -1493,6 +1506,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict):
         ),
         "TRIP_FLOW",
     )
+
     return flow_trips
 
 

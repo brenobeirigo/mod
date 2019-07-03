@@ -1,7 +1,6 @@
 from pprint import pprint
 from gurobipy import tuplelist
 from collections import defaultdict
-
 from mod.env.car import HiredCar
 
 # Decision codes
@@ -54,9 +53,9 @@ def recharge_decision(car):
     )
 
 
-def rebalance_decision(car, neighbor, hire=False):
+def rebalance_decision(car, neighbor):
     return (
-        ((HIRE_DECISION if hire else REBALANCE_DECISION),)
+        (REBALANCE_DECISION,)
         + (car.point.id, car.battery_level)
         + (car.point.id,)
         + (neighbor,)
@@ -66,14 +65,21 @@ def rebalance_decision(car, neighbor, hire=False):
     )
 
 
-def rebalance_decisions(car, targets, hire=False):
+def rebalance_decisions(car, targets, env):
     rebalance_decisions = set()
     for t in targets:
-        rebalance_decisions.add(rebalance_decision(car, t, hire=hire))
+        # Car cannot service trip because it cannot go back
+        # to origin in time
+        if isinstance(car, HiredCar) and not env.can_move(
+            car.point.id, car.point.id, t, car.depot.id, car.contract_duration
+        ):
+            continue
+
+        rebalance_decisions.add(rebalance_decision(car, t))
     return rebalance_decisions
 
 
-def trip_decision(car, trip, hire=True):
+def trip_decision(car, trip):
     return (
         (TRIP_DECISION,)
         + (car.point.id, car.battery_level)
@@ -197,8 +203,7 @@ def get_decision_set(
 
 
 def get_decision_set_classed(
-    cars,
-    hired_cars,
+    env,
     level_id_cars_dict,
     level_id_trips_dict,
     rebalance_targets_dict,
@@ -231,25 +236,29 @@ def get_decision_set_classed(
     decisions = defaultdict(set)
     decision_class = defaultdict(list)
 
-    for car in cars:
+    for car in env.available:
         # Stay ####################################################### #
         decisions[car.type].add(stay_decision(car))
 
         # Rebalancing ################################################ #
         rebalance_targets = rebalance_targets_dict[car.type][car.point.id]
-        decisions[car.type].update(rebalance_decisions(car, rebalance_targets))
+        decisions[car.type].update(
+            rebalance_decisions(car, rebalance_targets, env)
+        )
 
         # Recharge ################################################### #
         if max_battery_level and car.battery_level < max_battery_level:
             decisions[car.type].add(recharge_decision(car))
 
-    for car in hired_cars:
+    for car in env.available_hired:
 
         # if car.started_contract:
 
         # Rebalancing ################################################ #
         rebalance_targets = rebalance_targets_dict[car.type][car.point.id]
-        decisions[car.type].update(rebalance_decisions(car, rebalance_targets))
+        decisions[car.type].update(
+            rebalance_decisions(car, rebalance_targets, env)
+        )
 
         # Stay ####################################################### #
         decisions[car.type].add(stay_decision(car))
@@ -257,16 +266,6 @@ def get_decision_set_classed(
         # Recharge ################################################### #
         if max_battery_level and car.battery_level < max_battery_level:
             decisions[car.type].add(recharge_decision(car))
-
-        # else:
-
-        #     # Hire new vehicles
-        #     decisions[car.type].update(
-        #         hire_decisions(car, rebalance_targets, hire=True)
-        #     )
-
-        #     # End contract
-        #     decisions[car.type].add(end_contract_decision(car))
 
     # ################################################################ #
     # TRIP X CARS #################################################### #
@@ -292,6 +291,16 @@ def get_decision_set_classed(
                     car_list = level_id_cars_dict[car_type][(level, level_id)]
 
                     for car in car_list:
+                        # Car cannot service trip because it cannot go back
+                        # to origin in time
+                        if isinstance(car, HiredCar) and not env.can_move(
+                            car.point.id,
+                            trip.o.id,
+                            trip.d.id,
+                            car.depot.id,
+                            car.contract_duration,
+                        ):
+                            continue
 
                         # If car not previosly matched (other levels)
                         if car not in set_matched:

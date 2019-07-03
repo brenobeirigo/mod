@@ -66,14 +66,14 @@ class AmodNetworkHired(AmodNetwork):
         # since this car must return to its origin point
         RETURN_FACTOR = 1
 
-        CONGESTION_COST = 0
+        CONGESTION_PRICE = 0
 
         if car_type == Car.TYPE_HIRED or car_type == Car.TYPE_TO_HIRE:
             PROFIT_MARGIN = self.config.profit_margin
             RETURN_FACTOR = 2
 
         if car_type == Car.TYPE_TO_HIRE:
-            CONGESTION_COST = 10
+            CONGESTION_PRICE = self.config.congestion_price
 
         if action == du.STAY_DECISION:
             # Stay
@@ -98,7 +98,7 @@ class AmodNetworkHired(AmodNetwork):
             revenue = self.config.calculate_fare(dist_trip, sq_class=sq_class)
 
             # Profit to service trip
-            return PROFIT_MARGIN * (revenue - cost) - CONGESTION_COST
+            return PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
 
         elif action == du.RECHARGE_DECISION:
 
@@ -114,9 +114,31 @@ class AmodNetworkHired(AmodNetwork):
             # Travel cost
             cost = self.config.get_travel_cost(dist_trip)
 
-            reb_cost = -RETURN_FACTOR * cost - CONGESTION_COST
+            reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
             # print(action, pos, o, d, car_type, sq_class, reb_cost)
             return reb_cost
+
+    def can_move(self, pos, waypoint, target, start, remaining_hiring_slots):
+        pos, waypoint, target, start = (
+            Point.point_dict[pos],
+            Point.point_dict[waypoint],
+            Point.point_dict[target],
+            Point.point_dict[start]
+        )
+        dist_to_origin = self.get_distance(pos, waypoint)
+        dist_od = self.get_distance(waypoint, target)
+        dist_d_start = self.get_distance(target, start)
+
+        total_dist = dist_to_origin + dist_od + dist_d_start
+
+        # Next arrival
+        duration_movement = self.get_travel_time(total_dist)
+
+        remaining_hiring_time = (
+            remaining_hiring_slots * self.config.contract_duration_level
+        )
+
+        return remaining_hiring_time > duration_movement
 
     def realize_decision(self, t, decisions, a_trips, dict_a_cars):
         total_reward = 0

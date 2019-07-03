@@ -429,6 +429,7 @@ class Amod:
     @functools.lru_cache(maxsize=None)
     def preview_move(self, car_pos, o, d):
 
+        # Distance in km
         distance = self.get_distance(self.points[o], self.points[d])
 
         # Car is not in the same zone, of pickup point. Therefore, it

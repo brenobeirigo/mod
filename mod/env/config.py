@@ -150,6 +150,7 @@ class Config:
     # HIRING
     PROFIT_MARGIN = "PROFIT_MARGIN"
     CONTRACT_DURATION_LEVEL = "CONTRACT_DURATION_LEVEL"
+    CONGESTION_PRICE = "CONGESTION_PRICE"
 
     def __init__(self, config):
 
@@ -771,6 +772,7 @@ class ConfigNetwork(ConfigStandard):
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
         self.config[Config.CONTRACT_DURATION_LEVEL] = 15  # Min.
+        self.config[Config.CONGESTION_PRICE] = 10
 
         # LEARNING ################################################### #
         self.config[Config.DISCOUNT_FACTOR] = 1
@@ -859,6 +861,11 @@ class ConfigNetwork(ConfigStandard):
     def profit_margin(self):
         """Profit margin of hired cars"""
         return self.config[Config.PROFIT_MARGIN]
+
+    @property
+    def congestion_price(self):
+        """How much cars pay to circulate in downtown"""
+        return self.config[Config.CONGESTION_PRICE]
 
     @property
     def contract_duration_level(self):

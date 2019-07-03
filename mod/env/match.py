@@ -1142,13 +1142,16 @@ def adp_network_hired2(
     # VARIABLES ########################################################
     # ##################################################################
 
+    # Get all decision tuples, and trip decision tuples per service 
+    # quality class. If max. battery level is defined, also includes
+    # recharge decisions.
     decision_cars, decision_class = du.get_decision_set_classed(
         env.available,
         env.available_hired,
         level_id_cars_dict,
         level_id_trips_dict,
         rebalance_targets_dict,
-        max_battery_level=env.config.battery_levels,
+        # max_battery_level=env.config.battery_levels,
     )
 
     # Join decision tuples of both fleets (hired and self owned)

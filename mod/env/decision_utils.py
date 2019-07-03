@@ -204,6 +204,29 @@ def get_decision_set_classed(
     rebalance_targets_dict,
     max_battery_level=None,
 ):
+    """Get list of decision tuples.
+    
+    Parameters
+    ----------
+    cars : list
+        Owned fleet
+    hired_cars : list
+        Third-party fleet
+    level_id_cars_dict : dict
+        For each tuple (level, id), list of cars
+    level_id_trips_dict : dict
+        For each tuple (level, id), list of trips
+    rebalance_targets_dict : dict()
+        List of reachable points from each id
+    max_battery_level : int, optional
+        If declared, add recharge decisions, by default None
+    
+    Returns
+    -------
+    list, list
+        List of all decision tuples and list of trip decisions for each
+        related to each class.
+    """
 
     decisions = defaultdict(set)
     decision_class = defaultdict(list)

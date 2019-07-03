@@ -463,19 +463,6 @@ class StepLog:
 
     def plot_service_status(self, file_path=None, file_format="png", dpi=150):
 
-        max_battery_level = len(self.env.cars) * (
-            self.env.cars[0].battery_level_miles_max
-            * self.env.config.battery_size_kwh_distance
-        )
-
-        # Closest power of 10
-        max_battery_level_10 = 10 ** round(np.math.log10(max_battery_level))
-
-        list_battery_level_kwh = (
-            np.array(self.total_battery)
-            * self.env.config.battery_size_kwh_distance
-        )
-
         steps = np.arange(self.n)
 
         fig, ax1 = plt.subplots()
@@ -484,11 +471,44 @@ class StepLog:
         ax1.plot(steps, self.total_list, label="Total demand", color="b")
         ax1.plot(steps, self.serviced_list, label="Met demand", color="g")
         ax1.legend()
-        ax2 = ax1.twinx()
-        ax2.plot(
-            steps, list_battery_level_kwh, label="Battery Level", color="r"
-        )
-        ax2.set_ylabel("Total Battery Level (KWh)")
+
+        try:
+            max_battery_level = len(self.env.cars) * (
+                self.env.cars[0].battery_level_miles_max
+                * self.env.config.battery_size_kwh_distance
+            )
+
+            # Closest power of 10
+            max_battery_level_10 = 10 ** round(np.math.log10(max_battery_level))
+
+            list_battery_level_kwh = (
+                np.array(self.total_battery)
+                * self.env.config.battery_size_kwh_distance
+            )
+
+            ax2 = ax1.twinx()
+            ax2.plot(
+                steps, list_battery_level_kwh, label="Battery Level", color="r"
+            )
+            ax2.set_ylabel("Total Battery Level (KWh)")
+
+            # Configure ticks y axis (battery level)
+            y_ticks = 5  # apart from 0
+            y_stride = max_battery_level_10 / y_ticks
+            yticks = np.arange(0, max_battery_level_10 + y_stride, y_stride)
+            plt.yticks(yticks)
+
+            plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
+
+            # Put a legend below current axis
+            ax2.legend(
+                loc="upper center",
+                frameon=False,
+                bbox_to_anchor=(0.8, -0.15),
+                ncol=1,
+            )
+        except:
+            pass
 
         # Configure ticks x axis
         x_ticks = 6
@@ -496,14 +516,7 @@ class StepLog:
         max_x = np.math.ceil(self.n / x_stride) * x_stride
         xticks = np.arange(0, max_x + x_stride, x_stride)
         plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
-        
-        # Configure ticks y axis (battery level)
-        y_ticks = 5  # apart from 0
-        y_stride = max_battery_level_10 / y_ticks
-        yticks = np.arange(0, max_battery_level_10 + y_stride, y_stride)
-        plt.yticks(yticks)
 
-        plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
 
         # Shrink current axis's height by 10% on the bottom
         box = ax1.get_position()
@@ -517,14 +530,6 @@ class StepLog:
             frameon=False,
             bbox_to_anchor=(0.3, -0.15),
             ncol=2,
-        )
-
-        # Put a legend below current axis
-        ax2.legend(
-            loc="upper center",
-            frameon=False,
-            bbox_to_anchor=(0.8, -0.15),
-            ncol=1,
         )
 
         if file_path:

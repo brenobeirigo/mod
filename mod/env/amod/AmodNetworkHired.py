@@ -392,12 +392,12 @@ class AmodNetworkHired(AmodNetwork):
 
         total_battery_level = 0
         for c in self.cars:
-            total_battery_level += c.battery_level_miles
+            # total_battery_level += c.battery_level_miles
             status_count[c.status] += 1
 
         for c in self.hired_cars:
             if c.started_contract:
-                total_battery_level += c.battery_level_miles
+                # total_battery_level += c.battery_level_miles
                 status_count[c.status] += 1
 
         return status_count, total_battery_level

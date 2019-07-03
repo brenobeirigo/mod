@@ -51,8 +51,8 @@ class Amod:
             self.cars = [
                 Car(
                     point,
-                    self.battery_levels,
-                    battery_level_miles_max=self.battery_size_distances,
+                    # self.battery_levels,
+                    # battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in self.car_origin_points
             ]
@@ -62,8 +62,8 @@ class Amod:
             self.cars = [
                 Car(
                     point,
-                    self.battery_levels,
-                    battery_level_miles_max=self.battery_size_distances,
+                    # self.battery_levels,
+                    # battery_level_miles_max=self.battery_size_distances,
                 )
                 for point in car_positions
             ]
@@ -524,8 +524,8 @@ class Amod:
         self.cars = [
             Car(
                 point,
-                self.config.battery_levels,
-                battery_level_miles_max=self.config.battery_size_distances,
+                # self.config.battery_levels,
+                # battery_level_miles_max=self.config.battery_size_distances,
             )
             for point in [point for point in new_origins]
         ]

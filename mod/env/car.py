@@ -22,7 +22,7 @@ class Car:
 
     INFINITE_CONTRACT_DURATION = "Inf"
 
-    def __init__(self, o, battery_level_max, battery_level_miles_max=200):
+    def __init__(self, o):
         self.id = Car.count
         self.point = o
         self.waypoint = None
@@ -30,10 +30,9 @@ class Car:
         self.origin = o
         self.type = Car.TYPE_FLEET
 
-        # Needs to reset
-        self.battery_level_miles = battery_level_miles_max
-        self.battery_level_max = battery_level_max
-        self.battery_level_miles_max = battery_level_miles_max
+        # TODO fix battery level
+        self.battery_level = 1
+
         self.trip = None
         self.point_list = [self.point]
 
@@ -43,10 +42,7 @@ class Car:
         self.step = 0
         self.revenue = 0
         self.n_trips = 0
-        self.recharging_cost = 0
         self.distance_traveled = 0
-        self.battery_level = battery_level_max
-        self.recharge_count = 0
 
         # Vehicle starts free to operate
         self.status = Car.IDLE
@@ -63,13 +59,13 @@ class Car:
     def attribute(self, level=0):
         return (
             self.point.id_level(level),
-            self.battery_level,
+            1,
             self.contract_duration,
             self.type,
         )
 
     def attribute_level(self, level):
-        return (self.point.id_level(level), self.battery_level)
+        return (self.point.id_level(level),)
 
     @property
     def busy(self):
@@ -95,25 +91,15 @@ class Car:
             f" - Previous arrival: {self.previous_arrival:>5}"
             f" - Arrival: {self.arrival_time:>5}"
             f"(step={self.step:>5})"
-            f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
-            # f"[{self.battery_level_miles:>6.2f}/"
-            # f"{self.battery_level_miles_max}]"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
             # f" - #Previous: {self.previous.id:>4}"
             # f" - #Waypoint: {self.waypoint.id:>4}"
-            # f" - Attribute: ({self.point},{self.battery_level})"
             f"{trip}"
         )
 
         return status
-
-    def need_recharge(self, threshold):
-        battery_ratio = self.battery_level_miles / self.battery_level_miles_max
-        if battery_ratio < threshold:
-            return True
-        return False
 
     def update(self, step, time_increment=15):
         """Run every time_step to free vehicles that
@@ -147,25 +133,12 @@ class Car:
             if self.point != self.point_list[-1]:
                 self.point_list.append(self.point)
 
-            self.previous_battery_level = self.battery_level
-
             # Car is free to service users
             self.arrival_time = step * time_increment
             self.step = step
 
         if not self.busy:
             self.arrival_time = step * time_increment
-
-    def has_power(self, distance):
-        """Check if car has power to travel distane
-        
-        Arguments:
-            distance {float} -- Distance in miles
-        
-        Returns:
-            boolean -- True, if vehicle can travel distance
-        """
-        return self.battery_level_miles - distance > 0
 
     def same_region_point(self, pos, level=0):
         return self.point.id_level(level) == self.point.id_level(level)
@@ -190,11 +163,7 @@ class Car:
 
         self.previous = self.point
 
-        self.previous_battery_level = self.battery_level
-
         self.point = destination
-
-        self.battery_level_miles -= distance_traveled
 
         self.distance_traveled += distance_traveled
 
@@ -206,15 +175,6 @@ class Car:
 
         self.step += max(int(duration_service / time_increment), 1)
 
-        self.battery_level = int(
-            round(
-                self.battery_level_miles
-                / self.battery_level_miles_max
-                * self.battery_level_max
-            )
-        )
-
-        self.previous_battery_level = self.battery_level
         # Cars that are busy fulfilling trips or recharging
         # are not considered to be reassigned for a decision
 
@@ -249,14 +209,11 @@ class Car:
 
         self.previous_arrival = self.arrival_time
 
-        self.previous_battery_level = self.battery_level
-
         self.point = trip.d
 
         self.waypoint = trip.o
 
-        self.battery_level_miles -= distance_traveled
-
+        
         self.distance_traveled += distance_traveled
 
         self.revenue += revenue
@@ -270,15 +227,6 @@ class Car:
         # to be free in the next time step
         self.step += max(int(duration_service / time_increment), 1)
 
-        self.battery_level = int(
-            round(
-                self.battery_level_miles
-                / self.battery_level_miles_max
-                * self.battery_level_max
-            )
-        )
-
-        self.previous_battery_level = self.battery_level
         # Cars that are busy fulfilling trips or recharging
         # are not considered to be reassigned for a decision
         self.status = Car.ASSIGN
@@ -287,6 +235,102 @@ class Car:
 
         self.trip = trip
 
+
+    def reset(self):
+        self.point = self.origin
+        self.waypoint = None
+        self.point_list = [self.point]
+        self.arrival_time = 0
+        self.previous_arrival = 0
+        self.revenue = 0
+        self.distance_traveled = 0
+        self.trip = None
+        self.current_trip = None
+        self.n_trips = 0
+        self.count = 0
+        self.previous = self.point
+        self.revenue = 0
+
+    def __str__(self):
+        return f"V{self.id} - {self.point}"
+
+    def __repr__(self):
+        return (
+            f"Car{{id={self.id:02}, "
+            f"point={self.point}}}"
+        )
+
+
+class ElectricCar(Car):
+
+    def __init__(self, o, battery_level_max, battery_level_miles_max=200):
+
+        super().__init__(o)
+
+        # Needs to reset
+        self.battery_level_miles = battery_level_miles_max
+        self.battery_level_max = battery_level_max
+        self.battery_level_miles_max = battery_level_miles_max
+        self.recharging_cost = 0
+        self.battery_level = battery_level_max
+        self.recharge_count = 0
+
+    def attribute_level(self, level):
+        return (self.point.id_level(level), self.battery_level)
+
+    def update_trip(
+        self,
+        duration_service,
+        distance_traveled,
+        revenue,
+        trip,
+        time_increment=15,
+    ):
+        """Update car settings after being matched with a passenger.
+
+        Arguments:
+            duration_service {int} -- How long to pick up and deliver
+            distance_traveled {float} -- Total distance to pickup and deliver
+            revenue {float} -- Revenue accrued by doing task
+            trip {Trip} -- Trip car is servicing
+        """
+
+        super().update_trip(
+            duration_service,
+            distance_traveled,
+            revenue,
+            trip,
+            time_increment=time_increment,
+        )
+
+        self.battery_level_miles -= distance_traveled
+
+        self.battery_level = int(
+            round(
+                self.battery_level_miles
+                / self.battery_level_miles_max
+                * self.battery_level_max
+            )
+        )
+
+    def reset(self, battery_level):
+        super().reset()
+        self.battery_level = battery_level
+        self.recharge_count = 0
+        self.recharging_cost = 0
+
+    def has_power(self, distance):
+        """Check if car has power to travel distane
+
+        Arguments:
+            distance {float} -- Distance in miles
+
+        Returns:
+            boolean -- True, if vehicle can travel distance
+        """
+        return self.battery_level_miles - distance > 0
+
+
     def get_full_recharging_miles(self):
 
         # Amount to recharge (miles)
@@ -294,6 +338,53 @@ class Car:
 
         return recharge_need
 
+    def move(
+        self,
+        duration_service,
+        distance_traveled,
+        revenue,
+        destination,
+        trip=None,
+        time_increment=15,
+    ):
+        """Update car settings after being matched with a passenger.
+
+        Arguments:
+            duration_service {int} -- How long to pick up and deliver
+            distance_traveled {float} -- Total distance to pickup and deliver
+            revenue {float} -- Revenue accrued by doing task
+            trip {Trip} -- Trip car is servicing
+        """
+
+        self.battery_level_miles -= distance_traveled
+
+        self.battery_level = int(
+            round(
+                self.battery_level_miles
+                / self.battery_level_miles_max
+                * self.battery_level_max
+            )
+        )
+
+        super().move(
+            duration_service,
+            distance_traveled,
+            revenue,
+            destination,
+            trip=trip,
+            time_increment=time_increment,
+        )
+
+    @property
+    def attribute(self, level=0):
+        return (
+            self.point.id_level(level),
+            self.battery_level,
+            self.contract_duration,
+            self.type,
+        )
+    
+    
     def update_recharge(self, duration, cost, extra_dist, time_increment=15):
         """Recharge car.
 
@@ -310,7 +401,6 @@ class Car:
         """
 
         # Store previous car info
-        self.previous_battery_level = self.battery_level
         self.previous_arrival = self.arrival_time
 
         # Sum increment to battery level (max = battery size)
@@ -340,24 +430,6 @@ class Car:
         # How many times has the car recharged?
         self.recharge_count += 1
 
-    def reset(self, battery_level):
-        self.point = self.origin
-        self.waypoint = None
-        self.point_list = [self.point]
-        self.arrival_time = 0
-        self.previous_arrival = 0
-        self.revenue = 0
-        self.distance_traveled = 0
-        self.battery_level = battery_level
-        self.trip = None
-        self.current_trip = None
-        self.n_trips = 0
-        self.count = 0
-        self.previous = self.point
-        self.recharge_count = 0
-        self.recharging_cost = 0
-        self.revenue = 0
-
     def __str__(self):
         return f"V{self.id}[{self.battery_level}] - {self.point}"
 
@@ -366,7 +438,43 @@ class Car:
             f"Car{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
+    
+    def need_recharge(self, threshold):
+        battery_ratio = self.battery_level_miles / self.battery_level_miles_max
+        if battery_ratio < threshold:
+            return True
+        return False
 
+    def status_log(self):
+
+        if self.trip:
+            trip = (
+                (
+                    f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
+                    f"(dropoff={self.trip.dropoff_time:04})"
+                )
+                if self.trip is not None
+                else ""
+            )
+
+        status = (
+            f"{self.label}[{self.status:>15}]"
+            f" - Previous arrival: {self.previous_arrival:>5}"
+            f" - Arrival: {self.arrival_time:>5}"
+            f"(step={self.step:>5})"
+            f" - Traveled: {self.distance_traveled:>6.2f}"
+            f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
+            # f" - Revenue: {self.revenue:>6.2f}"
+            # f" - #Trips: {self.n_trips:>3}"
+            # f" - #Previous: {self.previous.id:>4}"
+            # f" - #Waypoint: {self.waypoint.id:>4}"
+            # f" - Attribute: ({self.point},{self.battery_level})"
+            # f"[{self.battery_level_miles:>6.2f}/"
+            # f"{self.battery_level_miles_max}]"
+            f"{trip}"
+        )
+
+        return status
 
 class HiredCar(Car):
     def __init__(

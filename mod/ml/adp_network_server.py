@@ -57,9 +57,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "hiring_discard_2",
+            ConfigNetwork.TEST_LABEL: "CLUSTER_CLUSTER_2000_F1",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 800,
+            ConfigNetwork.FLEET_SIZE: 2000,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -104,7 +104,7 @@ def get_sim_config():
             # OD level extension
             ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
             # Demand scenario
-            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
+            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_UNBALANCED,
             ConfigNetwork.TRIP_BASE_FARE: {
                 tp.ClassedTrip.SQ_CLASS_1: 4.8,
                 tp.ClassedTrip.SQ_CLASS_2: 2.4,
@@ -112,7 +112,7 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.1,
+            ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             # -------------------------------------------------------- #
             # HIRING ################################################# #
@@ -247,7 +247,7 @@ def sim(plot_track, config):
 
         # Get demand pattern from NY city
         step_trip_count = get_trip_count_step(
-            NY_TRIPS_EXCERPT_DAY,
+            TRIP_FILES[0],
             step=config.time_increment,
             multiply_for=config.demand_resize_factor,
             earliest_step=config.demand_earliest_step_min,
@@ -284,11 +284,11 @@ def sim(plot_track, config):
                 amod, trips_file_path
             )
 
-            print(
-                f"### DEMAND ###"
-                f" - min: {min(step_trip_count)}"
-                f" - max: {max(step_trip_count)}"
-            )
+        print(
+            f"### DEMAND ###"
+            f" - min: {min(step_trip_count)}"
+            f" - max: {max(step_trip_count)}"
+        )
 
         plot_track.opt_episode = n
 

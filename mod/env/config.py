@@ -913,5 +913,6 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.DEMAND_TOTAL_HOURS]:02}_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:02}_"
             f"{self.config[Config.DISCOUNT_FACTOR]:2}_"
-            f"{self.config[Config.HARMONIC_STEPSIZE]:02}"
+            f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
+            f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

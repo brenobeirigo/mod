@@ -332,7 +332,6 @@ class AmodNetworkHired(AmodNetwork):
                 discard += 1
 
         self.hired_cars = active_fleet
-        self.available = []
 
         return discard
 

@@ -383,8 +383,8 @@ class ElectricCar(Car):
             self.contract_duration,
             self.type,
         )
-    
-    
+
+
     def update_recharge(self, duration, cost, extra_dist, time_increment=15):
         """Recharge car.
 
@@ -438,7 +438,7 @@ class ElectricCar(Car):
             f"Car{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
-    
+
     def need_recharge(self, threshold):
         battery_ratio = self.battery_level_miles / self.battery_level_miles_max
         if battery_ratio < threshold:
@@ -476,7 +476,51 @@ class ElectricCar(Car):
 
         return status
 
+
 class HiredCar(Car):
+    def __init__(
+        self,
+        o,
+        contract_duration_h,
+        current_step=0,
+        current_arrival=0,
+        duration_level=15,
+    ):
+        super().__init__(o)
+
+        self.depot = o
+        self.type = Car.TYPE_TO_HIRE
+        self.started_contract = False
+        self.step = current_step
+        self.arrival_time = current_arrival
+        self.previous_arrival = current_arrival
+
+        # Contract
+        self.total_time = contract_duration_h * 60
+        self.contract_duration = self.total_time // duration_level
+        self.duration_level = duration_level
+
+    def update(self, step, time_increment=1):
+        super().update(step, time_increment=time_increment)
+
+        self.total_time = max(0, self.total_time - time_increment)
+        self.contract_duration = int(self.total_time / self.duration_level)
+
+    def __repr__(self):
+        return (
+            f"HiredCar{{id={self.id:02}, "
+            f"point={self.point}}}"
+        )
+
+    @property
+    def label(self):
+        return f"H{self.id:04}"
+
+    def __str__(self):
+        return f"H{self.id}[{self.contract_duration}] - {self.point}"
+
+
+class HiredElectricCar(ElectricCar):
     def __init__(
         self,
         o,
@@ -489,7 +533,7 @@ class HiredCar(Car):
     ):
         super().__init__(o, battery_level_max, battery_level_miles_max)
         self.contract_duration = contract_duration_h * (60 // duration_level)
-        self.start_end_point = o
+        self.depot = o
         self.type = Car.TYPE_TO_HIRE
         self.started_contract = False
         self.step = current_step
@@ -506,26 +550,15 @@ class HiredCar(Car):
         self.total_time = max(0, self.total_time - time_increment)
         self.contract_duration = int(self.total_time / self.duration_level)
 
-    def can_service(self, trip, time_step, get_distance, get_travel_time):
-        dist_to_origin = get_distance(self.point, self.trip.o)
-        dist_od = get_distance(self.point.o, self.trip.d)
-        dist_d_start = get_distance(self.trip.d, self.start_end_point)
-
-        total_dist = dist_to_origin + dist_od + dist_d_start
-
-        # Next arrival
-        duration_min = get_travel_time(total_dist)
-
     def __repr__(self):
         return (
-            f"HiredCar{{id={self.id:02}, "
+            f"HiredElectricCar{{id={self.id:02}, "
             f"(point, battery)=({self.point},{self.battery_level})}}"
         )
 
     @property
     def label(self):
-        return f"H{self.id:04}"
+        return f"EH{self.id:04}"
 
     def __str__(self):
-        return f"V{self.id}[{self.contract_duration}] - {self.point}"
-
+        return f"EH{self.id}[{self.contract_duration}] - {self.point}"

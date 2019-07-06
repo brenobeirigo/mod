@@ -41,7 +41,6 @@ class AmodNetwork(Amod):
         # Defining map points with aggregation_levels
         self.points, distance_levels, level_count, points_level = nw.query_point_list(
             step=self.config.step_seconds,
-            max_levels=self.config.aggregation_levels,
             projection=self.config.projection,
             level_dist_list=self.config.level_dist_list,
         )

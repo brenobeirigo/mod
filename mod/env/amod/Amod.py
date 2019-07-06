@@ -191,7 +191,7 @@ class Amod:
         post_t, post_pos, post_battery = self.preview_decision(t, decision)
 
         # Get the value estimation considering a single level
-        if level:
+        if level is not None:
             estimate = self.adp.get_value(
                 post_t, post_pos, post_battery, level=level
             )

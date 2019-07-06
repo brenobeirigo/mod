@@ -50,6 +50,8 @@ def extract_duals_relaxed(m, flow_cars):
     dict(dict())
         Dual value for each car type and attribute (point, battery)
     """
+
+    # Shadow prices associated to car attributes
     duals = dict()
 
     try:
@@ -63,9 +65,6 @@ def extract_duals_relaxed(m, flow_cars):
 
         # diff = m.objVal - fixed.objVal
         # a = fixed.getConstrs()
-
-            # Shadow associated to all car types
-            duals[car_type] = dict()
 
         for pos, battery, contract_duration, car_type in flow_cars:
 
@@ -1171,7 +1170,7 @@ def adp_network_hired2(
     # use them to determine post decision costs.
     else:
         post_decision_costs = quicksum(
-            (env.post_cost(time_step, d, level=agg_level-1) * x_var[d])
+            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
             for d in x_var
         )
 

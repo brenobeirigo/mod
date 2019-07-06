@@ -43,8 +43,8 @@ class ClassedTrip(Trip):
     SQ_CLASS_1 = "A"
     SQ_CLASS_2 = "B"
 
-    sq_classes = dict(A=0.8, B=0.6)
-    sq_level_class = dict(A=[2, 3], B=[3, 4])
+    sq_classes = dict(A=1.0, B=0.9)
+    sq_level_class = dict(A=[3, 3], B=[3, 4])
 
     @classmethod
     def get_levels(cls):

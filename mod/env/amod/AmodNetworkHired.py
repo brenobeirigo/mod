@@ -467,7 +467,7 @@ class AmodNetworkHired(AmodNetwork):
                 post_battery,
                 post_contract_duration,
                 post_type_car,
-                level=level,
+                level=level - 1,
             )
 
         else:

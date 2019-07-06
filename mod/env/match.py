@@ -122,9 +122,6 @@ def extract_decisions(var_list):
     # list of decision tuples (action, point, level, o, d)
     decisions = list()
 
-    # Dual values for car attributes (point, level)
-    duals = dict()
-
     # Loop (decision tuple, var) pairs
     for decision, var in var_list.items():
 

@@ -123,7 +123,7 @@ class AmodNetworkHired(AmodNetwork):
             Point.point_dict[pos],
             Point.point_dict[waypoint],
             Point.point_dict[target],
-            Point.point_dict[start]
+            Point.point_dict[start],
         )
         dist_to_origin = self.get_distance(pos, waypoint)
         dist_od = self.get_distance(waypoint, target)
@@ -140,7 +140,7 @@ class AmodNetworkHired(AmodNetwork):
 
         return remaining_hiring_time > duration_movement
 
-    def realize_decision(self, t, decisions, a_trips, dict_a_cars):
+    def realize_decision(self, t, decisions, a_trips_dict, a_cars_dict):
         total_reward = 0
         serviced = list()
 
@@ -156,15 +156,15 @@ class AmodNetworkHired(AmodNetwork):
 
         for decision in decisions:
 
-            action, point, level, o, d, car_type, contract_duration, sq_class, times = (
+            action, point, battery, contract_duration, car_type, o, d, sq_class, times = (
                 decision
             )
 
             # Track how many times a decision was taken
             decision_dict_count[action] += times
 
-            cars_with_attribute = dict_a_cars[car_type][
-                (point, level, contract_duration, car_type)
+            cars_with_attribute = a_cars_dict[
+                (point, battery, contract_duration, car_type)
             ]
 
             n = 0
@@ -233,12 +233,12 @@ class AmodNetworkHired(AmodNetwork):
                     iclosest_pk = np.argmin(
                         [
                             self.get_distance(car.point, trip.o)
-                            for trip in a_trips[(o, d)]
+                            for trip in a_trips_dict[(o, d)]
                         ]
                     )
 
                     # Get a trip to apply decision
-                    trip = a_trips[(o, d)].pop(iclosest_pk)
+                    trip = a_trips_dict[(o, d)].pop(iclosest_pk)
                     # trip = a_trips[(o, d)].pop()
 
                     duration, distance, reward = self.pickup(trip, car)
@@ -263,7 +263,7 @@ class AmodNetworkHired(AmodNetwork):
 
         # Remaining trips associated with trip attributes correspond to
         # users who have been denied service
-        denied = list(it.chain.from_iterable(a_trips.values()))
+        denied = list(it.chain.from_iterable(a_trips_dict.values()))
 
         return (total_reward, serviced, denied)
 
@@ -352,10 +352,10 @@ class AmodNetworkHired(AmodNetwork):
             tuple -- time_step, point, battery
         """
 
-        action, point, battery, o, d, type_car, contract_duration, _ = decision
+        action, point, battery, contract_duration, car_type, o, d, _ = decision
 
         battery_post = battery
-        type_post = type_car
+        type_post = car_type
 
         if action == du.RECHARGE_DECISION:
 
@@ -373,7 +373,7 @@ class AmodNetworkHired(AmodNetwork):
             point = d
 
             # Hiring is performed when car rebalance
-            if type_car == Car.TYPE_TO_HIRE:
+            if car_type == Car.TYPE_TO_HIRE:
                 type_post = Car.TYPE_HIRED
 
         elif action == du.STAY_DECISION:
@@ -389,11 +389,11 @@ class AmodNetworkHired(AmodNetwork):
             point = d
 
             # Hiring is performed when car service user
-            if type_car == Car.TYPE_TO_HIRE:
+            if car_type == Car.TYPE_TO_HIRE:
                 type_post = Car.TYPE_HIRED
 
         # Contract duration is altered only for hired cars
-        if type_car == Car.TYPE_HIRED or type_car == Car.TYPE_TO_HIRE:
+        if car_type == Car.TYPE_HIRED or car_type == Car.TYPE_TO_HIRE:
             contract_duration -= int(
                 duration / self.config.contract_duration_level
             )
@@ -460,9 +460,14 @@ class AmodNetworkHired(AmodNetwork):
         ) = self.preview_decision(t, decision)
 
         # Get the value estimation considering a single level
-        if level:
+        if level is not None:
             estimate = self.adp.get_value(
-                post_t, post_pos, post_battery, level=level
+                post_t,
+                post_pos,
+                post_battery,
+                post_contract_duration,
+                post_type_car,
+                level=level,
             )
 
         else:

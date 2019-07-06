@@ -182,13 +182,18 @@ class AdpHired(Adp):
     # True averaging ###################################################
     ####################################################################
 
-    def get_value(self, t, pos, battery, contract_duration=32, level=0):
+    def get_value(self, t, pos, battery, contract_duration, car_type, level=0):
 
         # Point associated to position at disaggregate level
         point = self.points[pos]
 
         # Attribute considering aggregation level
-        attribute = (point.id_level(level), battery, contract_duration)
+        attribute = (
+            point.id_level(level),
+            battery,
+            contract_duration,
+            car_type,
+        )
 
         # Value function
         value = self.values[t][level][attribute]
@@ -205,7 +210,9 @@ class AdpHired(Adp):
 
         # pprint(duals)
 
-        for (pos, battery, contract_duration), new_vf_0 in duals.items():
+        for a, v_ta in duals.items():
+
+            pos, battery, contract_duration, car_type = a
 
             # Get point object associated to position
             point = self.points[pos]
@@ -213,7 +220,7 @@ class AdpHired(Adp):
             for g in range(self.aggregation_levels):
 
                 # Find attribute at level g
-                a_g = (point.id_level(g), battery, contract_duration)
+                a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Current value function of attribute at level g
                 current_vf = self.values[t][g][a_g]
@@ -223,7 +230,7 @@ class AdpHired(Adp):
 
                 # Incremental averaging
                 count_ta_g = self.count[t][g][a_g]
-                increment = (new_vf_0 - current_vf) / count_ta_g
+                increment = (v_ta - current_vf) / count_ta_g
 
                 # Update attribute mean value
                 self.values[t][g][a_g] += increment
@@ -238,7 +245,9 @@ class AdpHired(Adp):
     def get_weights(self):
 
         fleet_weights_dict = defaultdict(list)
-        fleet_weights_avg_dict = defaultdict(lambda:np.zeros(self.aggregation_levels))
+        fleet_weights_avg_dict = defaultdict(
+            lambda: np.zeros(self.aggregation_levels)
+        )
 
         try:
             for attribute, weight_vectors in self.agg_weight_vectors.items():

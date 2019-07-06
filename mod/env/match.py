@@ -19,10 +19,10 @@ import sys
 ACTION = 0
 POSITION = 1
 BATTERY = 2
-ORIGIN = 3
-DESTINATION = 4
-CAR_TYPE = 5
-CONTRACT_DURATION = 6
+CONTRACT_DURATION = 3
+CAR_TYPE = 4
+ORIGIN = 5
+DESTINATION = 6
 SQ_CLASS = 7
 N_DECISIONS = 8
 
@@ -35,7 +35,7 @@ WEIGHTED_UPDATE = "weighted_update"
 # #################################################################### #
 
 
-def extract_duals_relaxed(m, flow_cars_dict):
+def extract_duals_relaxed(m, flow_cars):
     """[summary]
 
     Parameters
@@ -64,25 +64,24 @@ def extract_duals_relaxed(m, flow_cars_dict):
         # diff = m.objVal - fixed.objVal
         # a = fixed.getConstrs()
 
-        for car_type, flow_cars in flow_cars_dict.items():
             # Shadow associated to all car types
             duals[car_type] = dict()
 
-            for pos, battery, contract_duration, car_type in flow_cars:
+        for pos, battery, contract_duration, car_type in flow_cars:
 
-                try:
-                    constr = fixed.getConstrByName(
-                        f"CAR_FLOW_{car_type}[{pos},{battery},{contract_duration},{car_type}]"
-                    )
+            try:
+                constr = fixed.getConstrByName(
+                    f"CAR_FLOW[{pos},{battery},{contract_duration},{car_type}]"
+                )
 
-                    # pi = The constraint dual value in the current solution
-                    shadow_price = constr.pi
+                # pi = The constraint dual value in the current solution
+                shadow_price = constr.pi
 
-                    # print(f'The dual value of {constr.constrName} : {shadow_price}')
-                except:
-                    shadow_price = 0
+                # print(f'The dual value of {constr.constrName} : {shadow_price}')
+            except:
+                shadow_price = 0
 
-                duals[car_type][(pos, battery, contract_duration, car_type)] = shadow_price
+            duals[(pos, battery, contract_duration, car_type)] = shadow_price
 
     except:
         print("Can't create relaxed model.")
@@ -779,9 +778,8 @@ def adp_network_hired(
     charge=True,
     agg_level=None,
     myopic=False,
-    log_path=None,
-    value_function_update=AVERAGED_UPDATE,
-    episode=None,
+    log_iteration=None,
+    value_function_update=WEIGHTED_UPDATE,
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -820,10 +818,10 @@ def adp_network_hired(
     m = Model("assignment")
 
     # Log steps of current episode
-    if log_path:
+    if log_iteration:
         m.setParam("LogToConsole", 0)
-        folder_epi_log = f"{env.config.folder_mip_log}episode_{episode:04}/"
-        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{episode:04}/"
+        folder_epi_log = f"{env.config.folder_mip_log}episode_{log_iteration:04}/"
+        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{log_iteration:04}/"
 
         if not os.path.exists(folder_epi_log):
             os.makedirs(folder_epi_log)
@@ -924,7 +922,7 @@ def adp_network_hired(
     # ---------------------------------------------------------------- #
 
     # Car flow conservation
-    flow_cars_dict = car_flow_constrs(
+    flow_cars_dict = car_flow_constr(
         m, x_var, type_attribute_cars_dict
     )
 
@@ -1057,9 +1055,8 @@ def adp_network_hired2(
     charge=True,
     agg_level=None,
     myopic=False,
-    log_path=None,
     value_function_update=AVERAGED_UPDATE,
-    episode=None,
+    log_iteration=None,
     universal_service=False
 ):
 
@@ -1099,10 +1096,10 @@ def adp_network_hired2(
     m = Model("assignment")
 
     # Log steps of current episode
-    if log_path:
+    if log_iteration is not None:
         m.setParam("LogToConsole", 0)
-        folder_epi_log = f"{env.config.folder_mip_log}episode_{episode:04}/"
-        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{episode:04}/"
+        folder_epi_log = f"{env.config.folder_mip_log}episode_{log_iteration:04}/"
+        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{log_iteration:04}/"
 
         if not os.path.exists(folder_epi_log):
             os.makedirs(folder_epi_log)
@@ -1124,7 +1121,7 @@ def adp_network_hired2(
         # Dictionary of target positions for each position
         rebalance_targets_dict,
         # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
-        type_attribute_cars_dict,
+        attribute_cars_dict,
     ) = sortout_fleets(env)
 
     # ##################################################################
@@ -1154,12 +1151,9 @@ def adp_network_hired2(
         # max_battery_level=env.config.battery_levels,
     )
 
-    # Join decision tuples of both fleets (hired and self owned)
-    all_decisions = list(itertools.chain.from_iterable(decision_cars.values()))
-
     # Create variables
     x_var = m.addVars(
-        tuplelist(all_decisions), name="x", vtype=GRB.INTEGER, lb=0
+        tuplelist(decision_cars), name="x", vtype=GRB.INTEGER, lb=0
     )
 
     # ##################################################################
@@ -1177,7 +1171,7 @@ def adp_network_hired2(
     # use them to determine post decision costs.
     else:
         post_decision_costs = quicksum(
-            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+            (env.post_cost(time_step, d, level=agg_level-1) * x_var[d])
             for d in x_var
         )
 
@@ -1206,7 +1200,7 @@ def adp_network_hired2(
     # ---------------------------------------------------------------- #
 
     # Car flow conservation
-    flow_cars_dict = car_flow_constrs(m, x_var, type_attribute_cars_dict)
+    flow_cars_dict = car_flow_constr(m, x_var, attribute_cars_dict)
 
     # Trip flow conservation
     flow_trips = trip_flow_constrs(
@@ -1224,7 +1218,7 @@ def adp_network_hired2(
     if charge:
         max_battery = env.config.battery_levels
         car_recharge_dict = recharge_constrs(
-            m, x_var, type_attribute_cars_dict, max_battery
+            m, x_var, attribute_cars_dict, max_battery
         )
 
     # Optimize
@@ -1234,7 +1228,7 @@ def adp_network_hired2(
     if m.status == GRB.Status.UNBOUNDED:
         print("The model cannot be solved because it is unbounded")
 
-    if m.status == GRB.Status.OPTIMAL:
+    elif m.status == GRB.Status.OPTIMAL:
 
         # c = time.time()
         # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
@@ -1277,22 +1271,20 @@ def adp_network_hired2(
         # Update shadow prices to be used in the next iterations
         if not myopic:
 
-            duals_dict = extract_duals_relaxed(m, flow_cars_dict)
+            duals = extract_duals_relaxed(m, flow_cars_dict)
 
-            for car_type, duals in duals_dict.items():
-
-                # Are there any shadow prices to update?
-                if duals:
-                    if value_function_update == AVERAGED_UPDATE:
-                        env.adp.averaged_update(time_step, duals)
-                    else:
-                        env.adp.update_values_smoothed(time_step, duals)
+            # Are there any shadow prices to update?
+            if duals:
+                if value_function_update == AVERAGED_UPDATE:
+                    env.adp.averaged_update(time_step, duals)
+                else:
+                    env.adp.update_values_smoothed(time_step, duals)
 
         reward, serviced, denied = env.realize_decision(
             time_step,
             best_decisions,
             attribute_trips_dict,
-            type_attribute_cars_dict,
+            attribute_cars_dict,
         )
         # print(f"Objective Function - {m.objVal:6.2f} X {reward:6.2f} - Decision reward")
 
@@ -1303,13 +1295,13 @@ def adp_network_hired2(
 
         return reward, serviced, rejected
 
-    if (
+    elif (
         m.status != GRB.Status.INF_OR_UNBD and
         m.status != GRB.Status.INFEASIBLE
     ):
         print("Optimization was stopped with status %d" % m.status)
 
-    if m.status == GRB.Status.INFEASIBLE:
+    elif m.status == GRB.Status.INFEASIBLE:
         # do IIS
         print("The model is infeasible; computing IIS")
 
@@ -1326,6 +1318,8 @@ def adp_network_hired2(
         for c in m.getConstrs():
             if c.IISConstr:
                 print("%s" % c.constrName)
+    else:
+        print(f"Error code: {m.status}.")
 
 # #################################################################### #
 # Sortout resources and trips ######################################## #
@@ -1362,13 +1356,13 @@ def sortout_fleets(env):
     # ##################################################################
 
     # How many cars per attribute
-    type_attribute_cars_dict = defaultdict(lambda: defaultdict(list))
+    attribute_cars_dict = defaultdict(list)
 
     # Which positions are surrounding each car position
-    attribute_rebalance = defaultdict(lambda: defaultdict(list))
+    attribute_rebalance = defaultdict(list)
 
     # Which positions are surrounding each car position
-    dict_level_id = defaultdict(lambda: defaultdict(list))
+    dict_level_id = defaultdict(list)
 
     # Cars can explore levels corresponding to the largest region center
     # considered by users.
@@ -1377,11 +1371,11 @@ def sortout_fleets(env):
     for car in env.available + env.available_hired:
 
         # List of cars with the same attribute (pos, battery level)
-        type_attribute_cars_dict[car.type][car.attribute].append(car)
+        attribute_cars_dict[car.attribute].append(car)
 
         # Cars in the same positions can rebalance to the same places.
         # Check if rebalance targets were previously determined
-        if car.point.id not in attribute_rebalance[car.type]:
+        if car.point.id not in attribute_rebalance:
 
             # Get immediate neighbors (intersections) at reach degrees
             if rebalance_reach:
@@ -1398,18 +1392,18 @@ def sortout_fleets(env):
                 )
 
             # All points a car can rebalance to from its corrent point
-            attribute_rebalance[car.type][car.point.id] = rebalance_targets
+            attribute_rebalance[car.point.id] = rebalance_targets
 
         # Associate each car to superior aggregation levels and ids,
         # up until the largest region centers requests can be matched.
         for level in range(max(class_levels) + 1):
             id_level = car.point.id_level(level)
-            dict_level_id[car.type][(level, id_level)].append(car)
+            dict_level_id[(level, id_level)].append(car)
 
     return (
         dict(dict_level_id),
         attribute_rebalance,
-        dict(type_attribute_cars_dict),
+        dict(attribute_cars_dict),
     )
 
 
@@ -1468,19 +1462,17 @@ def sortout_trip_list(trips):
 # CONSTRAINTS ######################################################## #
 # #################################################################### #
 
-def car_flow_constrs(m, x_var, type_attribute_cars_dict):
+def car_flow_constr(m, x_var, attribute_cars_dict):
 
-    flow_cars_dict = dict()
+    flow_cars_dict = m.addConstrs(
+        (
+             x_var.sum("*", *car_attribute, "*", "*",  '*') ==
+            len(attribute_cars_dict[car_attribute])
+            for car_attribute in attribute_cars_dict
 
-    for car_type, attribute_cars in type_attribute_cars_dict.items():
-        flow_cars_dict[car_type] = m.addConstrs(
-            (
-                x_var.sum("*", point, battery, "*", "*", car_type, contract_duration, '*') ==
-                len(attribute_cars[(point, battery, contract_duration, car_type)])
-                for point, battery, contract_duration, car_type in attribute_cars.keys()
-            ),
-            f"CAR_FLOW_{car_type}",
-        )
+        ),
+        f"CAR_FLOW",
+    )
 
     return flow_cars_dict
 
@@ -1490,7 +1482,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
     if universal_service:
         flow_trips = m.addConstrs(
             (
-                x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*", "*", "*") ==
+                x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", o, d, "*") ==
                 len(attribute_trips_dict[(o, d)])
                 for o, d in attribute_trips_dict
             ),
@@ -1500,7 +1492,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
     else:
         flow_trips = m.addConstrs(
         (
-            x_var.sum(du.TRIP_DECISION, "*", "*", o, d, "*", "*", "*") <=
+            x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*",  o, d, "*") <=
             len(attribute_trips_dict[(o, d)])
             for o, d in attribute_trips_dict
         ),

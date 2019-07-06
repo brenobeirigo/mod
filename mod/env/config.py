@@ -16,8 +16,8 @@ TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
         "trips_2011-02-01.csv",
-        "trips_2011-02-08.csv",
-        "trips_2011-02-15.csv",
+        #"trips_2011-02-08.csv",
+        #"trips_2011-02-15.csv",
         # "trips_2011-02-22.csv",
     ]
 ]

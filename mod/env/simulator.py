@@ -21,10 +21,7 @@ import os
 
 class PlotTrack:
 
-    # Plot steps
-    ENABLE_PLOT = False
     # Delay after each assignment (in seconds)
-
     STEP_DELAY = 0
 
     # Max alpha of value function spots

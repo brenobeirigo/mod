@@ -45,6 +45,7 @@ class ClassedTrip(Trip):
 
     sq_classes = dict(A=1.0, B=0.9)
     sq_level_class = dict(A=[3, 3], B=[3, 4])
+    class_proportion = dict(A=0.1, B=0.9)
 
     @classmethod
     def get_levels(cls):
@@ -332,7 +333,7 @@ def get_trips(
                     step,
                     (
                         ClassedTrip.SQ_CLASS_1
-                        if random.random() < 0.3
+                        if random.random() <= ClassedTrip.class_proportion["A"]
                         else ClassedTrip.SQ_CLASS_2
                     ),
                 )

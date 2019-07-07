@@ -57,9 +57,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "UNIVERSAL",
+            ConfigNetwork.TEST_LABEL: "250_FIXED_NOT_SAMPLED_half",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1500,
+            ConfigNetwork.FLEET_SIZE: 250,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -88,7 +88,7 @@ def get_sim_config():
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300],
             # How many levels separated by step secresize_factorc
-            # LEVEL_DIST_LIST must be filled
+            # LEVEL_DIST_LIST must be filled (1=disaggregate)
             ConfigNetwork.AGGREGATION_LEVELS: 5,
             ConfigNetwork.SPEED: 30,
             # -------------------------------------------------------- #
@@ -96,7 +96,7 @@ def get_sim_config():
             # -------------------------------------------------------- #
             ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -104,15 +104,15 @@ def get_sim_config():
             # OD level extension
             ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
             # Demand scenario
-            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_UNBALANCED,
+            ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
             ConfigNetwork.TRIP_BASE_FARE: {
-                tp.ClassedTrip.SQ_CLASS_1: 4.8,
-                tp.ClassedTrip.SQ_CLASS_2: 2.4,
+                tp.ClassedTrip.SQ_CLASS_1: 4,
+                tp.ClassedTrip.SQ_CLASS_2: 2,
             },
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 1,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.05,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             # -------------------------------------------------------- #
             # HIRING ################################################# #
@@ -127,6 +127,9 @@ def get_sim_config():
 run_plot = PlotTrack(get_sim_config())
 
 trip_demand_dict = dict()
+
+# Trip tuples
+trip_od_list = dict()
 
 
 def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
@@ -165,22 +168,49 @@ def hire_cars_centers(amod, contract_duration_h, step):
     return hired_cars
 
 
-def get_ny_demand(amod, tripdata_path):
+def get_ny_demand(amod, tripdata_path, sample_trips=False):
+    """[summary]
+    
+    Parameters
+    ----------
+    amod : [type]
+        [description]
+    tripdata_path : [type]
+        [description]
+    sample_trips : bool, optional
+        Get sample of trips per step (based on resize_factor), by default False
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
 
-    if tripdata_path in trip_demand_dict:
+    # Use preloaded list of trips
+    if not sample_trips and tripdata_path in trip_demand_dict:
         return trip_demand_dict[tripdata_path]
 
-    print("Creating trip tuple list per step...")
-    # Create list of trips with real world data
-    step_trip_od_list = get_step_trip_list(
-        tripdata_path,
-        step=amod.config.time_increment,
-        earliest_step=amod.config.demand_earliest_step_min,
-        max_steps=amod.config.demand_max_steps,
-        # resize_factor=amod.config.demand_resize_factor,
-    )
+    # Use preloaded list of trip tuples (o,d,passenger_count) per step
+    if tripdata_path in trip_od_list:
+        step_trip_od_list = trip_od_list[tripdata_path]
+    else:
+        print("Creating trip tuple list per step...")
+
+        # Create list of trips with real world data
+        step_trip_od_list = get_step_trip_list(
+            tripdata_path,
+            step=amod.config.time_increment,
+            earliest_step=amod.config.demand_earliest_step_min,
+            max_steps=amod.config.demand_max_steps,
+            # resize_factor=amod.config.demand_resize_factor,
+        )
+
+        # Store created list
+        trip_od_list[tripdata_path] = step_trip_od_list
 
     print("Creating trip list per step...")
+
+    # Use loaded trip od list to create RESIZED trip list per step
     step_trip_list = get_trips(
         amod.points,
         step_trip_od_list,
@@ -191,20 +221,28 @@ def get_ny_demand(amod, tripdata_path):
     )
 
     # Count number of trips per step
-    step_trip_count = [len(trips) for trips in step_trip_od_list]
+    step_trip_count = [len(trips) for trips in step_trip_list]
 
-    trip_demand_dict[tripdata_path] = (step_trip_list, step_trip_count)
+    list_count_trips = (step_trip_list, step_trip_count)
 
-    return trip_demand_dict[tripdata_path]
+    # Save trip list
+    if not sample_trips:
+        trip_demand_dict[tripdata_path] = list_count_trips
+
+    return list_count_trips
 
 
 def sim(plot_track, config):
 
     step_delay = PlotTrack.STEP_DELAY
-    enable_plot = PlotTrack.ENABLE_PLOT
-    SKIP_STEPS = 1
-    ENABLE_HIRING = True
-    contract_duration_h = 8
+    enable_plot = False
+    SKIP_STEPS = 0
+    ENABLE_HIRING = False
+    contract_duration_h = 2
+    sq_guarantee = False
+    universal_service = False
+    sample_trips = False
+    classed_trips = True
 
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -270,7 +308,7 @@ def sim(plot_track, config):
                 offset_end=amod.config.offset_termination,
                 origins=origins,
                 destinations=destinations,
-                classed=True,
+                classed=classed_trips,
             )
 
         elif config.demand_scenario == SCENARIO_NYC:
@@ -280,7 +318,7 @@ def sim(plot_track, config):
             print(f"Processing demand file '{trips_file_path}'...")
 
             step_trip_list, step_trip_count = get_ny_demand(
-                amod, trips_file_path
+                amod, trips_file_path, sample_trips=sample_trips
             )
 
         print(
@@ -319,7 +357,7 @@ def sim(plot_track, config):
             # the list of available vehicles.
 
             # Show time step statistics
-            if step % SKIP_STEPS == 0:
+            if SKIP_STEPS > 0 and step % SKIP_STEPS == 0:
                 step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
@@ -344,10 +382,18 @@ def sim(plot_track, config):
             if ENABLE_HIRING:
 
                 hired_cars = []
+                if trips:
 
-                hired_cars = hire_cars_trip_regions(
-                    amod, trips, contract_duration_h, step
-                )
+                    hired_cars = hire_cars_trip_regions(
+                        amod, trips, contract_duration_h, step
+                    )
+                    # print("Hired:", len(hired_cars))
+                else:
+
+                    hired_cars = hire_cars_centers(
+                        amod, contract_duration_h, step
+                    )
+
                 # hired_cars = hire_cars_centers(amod, contract_duration_h, step)
 
                 # Add hired fleet to model
@@ -359,18 +405,25 @@ def sim(plot_track, config):
 
             # Optimize
             revenue, serviced, rejected = adp_network_hired2(
+                # Amod environment with configuration file
                 amod,
+                # Trips to be matched
                 trips,
+                # Service step (+1 trip placement step)
                 step + 1,
-                sq_guarantee=True,
+                # Guarantee lowest pickup delay for a share of users
+                sq_guarantee=sq_guarantee,
+                # All users are picked up
+                universal_service=universal_service,
+                # Allow recharging
                 charge=False,
+                # If True, does not use learned information
                 myopic=False,
+                # Save mip .lp and .log of iteration n
+                # log_iteration=n,
+                # agg_level=1,
+                # Use hierarchical aggregation to update values
                 value_function_update=match.WEIGHTED_UPDATE,
-                episode=n,
-                universal_service=True,
-                # agg_level=0,
-                # log_path=config.folder_mip,
-                # sq_guarantee=False,
             )
 
             # Virtual hired cars are discarded

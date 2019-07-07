@@ -350,7 +350,8 @@ class Adp:
         # Generalized harmonic stepsize
         # Notice that a_stepsize is 1 when count is zero
         a_stepsize = self.harmonic_stepsize
-        stepsize = a_stepsize / (a_stepsize + self.count[t][g][a_g] - 1)
+        # stepsize = a_stepsize / (a_stepsize + self.count[t][g][a_g] - 1)
+        stepsize = a_stepsize / (a_stepsize + max(1, self.n) - 1)
         self.step_size_func[t][g][a_g] = stepsize
 
 

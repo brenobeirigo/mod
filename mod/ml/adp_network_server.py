@@ -57,7 +57,7 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "250_FIXED_NOT_SAMPLED_half",
+            ConfigNetwork.TEST_LABEL: "DIS_1_STEP_1",
             # Fleet
             ConfigNetwork.FLEET_SIZE: 250,
             ConfigNetwork.BATTERY_LEVELS: 1,
@@ -112,7 +112,7 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.05,
+            ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             # -------------------------------------------------------- #
             # HIRING ################################################# #
@@ -247,7 +247,7 @@ def sim(plot_track, config):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 10000
+    episodes = 150
     amod = AmodNetworkHired(config)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
     plot_track.set_env(amod)

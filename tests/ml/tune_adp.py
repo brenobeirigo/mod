@@ -57,7 +57,7 @@ if __name__ == "__main__":
                     setup.update(update_dict)
                     run_plot = PlotTrack(setup)
 
-                    reward_list = alg.sim(run_plot, setup, episodes=n)
+                    reward_list = alg.alg_adp(run_plot, setup, episodes=n)
 
                     # Setting become a column in the dataframe
 

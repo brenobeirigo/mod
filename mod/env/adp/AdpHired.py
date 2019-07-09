@@ -1,13 +1,26 @@
 import numpy as np
 from collections import defaultdict
-from mod.env.adp.adp import Adp
+import mod.env.adp.adp as adp
 
 
-class AdpHired(Adp):
-    def __init__(self, points, agregation_levels, stepsize, harmonic_stepsize):
+class AdpHired(adp.Adp):
+    def __init__(
+        self,
+        points,
+        agregation_levels,
+        stepsize,
+        stepsize_rule=adp.STEPSIZE_CONSTANT,
+        stepsize_constant=0.1,
+        stepsize_harmonic=1,
+    ):
 
         super().__init__(
-            points, agregation_levels, stepsize, harmonic_stepsize
+            points,
+            agregation_levels,
+            stepsize,
+            stepsize_rule=stepsize_rule,
+            stepsize_constant=stepsize_constant,
+            stepsize_harmonic=stepsize_harmonic,
         )
 
     ####################################################################

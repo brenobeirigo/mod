@@ -14,6 +14,8 @@ sys.path.append(root)
 from mod.env.amod.AmodNetworkHired import AmodNetworkHired
 from mod.env.amod.AmodNetwork import AmodNetwork
 from mod.env.visual import StepLog, EpisodeLog
+import mod.env.adp.adp as adp
+
 import mod.env.visual as vi
 from mod.env.config import (
     ConfigNetwork,
@@ -37,6 +39,9 @@ import mod.env.network as nw
 from mod.env.simulator import PlotTrack
 from mod.env import match
 
+# Trip tuples
+trip_od_list = dict()
+
 
 def get_sim_config():
 
@@ -57,9 +62,9 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "DIS_1_STEP_1",
+            ConfigNetwork.TEST_LABEL: "NEW_MAP_4L",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 250,
+            ConfigNetwork.FLEET_SIZE: 50,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
@@ -86,16 +91,17 @@ def get_sim_config():
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
+            # ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300],
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
-            ConfigNetwork.AGGREGATION_LEVELS: 5,
+            ConfigNetwork.AGGREGATION_LEVELS: 4,
             ConfigNetwork.SPEED: 30,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
@@ -112,8 +118,11 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 1,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
+            ConfigNetwork.STEPSIZE_CONSTANT: 0.05,
+            ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
+            # ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_CONSTANT,
             # -------------------------------------------------------- #
             # HIRING ################################################# #
             # -------------------------------------------------------- #
@@ -124,12 +133,10 @@ def get_sim_config():
     return config
 
 
-run_plot = PlotTrack(get_sim_config())
+start_config = get_sim_config()
+run_plot = PlotTrack(start_config)
 
 trip_demand_dict = dict()
-
-# Trip tuples
-trip_od_list = dict()
 
 
 def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
@@ -232,22 +239,28 @@ def get_ny_demand(amod, tripdata_path, sample_trips=False):
     return list_count_trips
 
 
-def sim(plot_track, config):
-
-    step_delay = PlotTrack.STEP_DELAY
-    enable_plot = False
-    SKIP_STEPS = 0
-    ENABLE_HIRING = False
-    contract_duration_h = 2
-    sq_guarantee = False
-    universal_service = False
-    sample_trips = False
-    classed_trips = True
-
+def sim(
+    plot_track,
+    config,
+    episodes=200,
+    # LOG ############################################################ #
+    skip_steps=0,
+    # PLOT ########################################################### #
+    step_delay=PlotTrack.STEP_DELAY,
+    enable_plot=False,
+    # HIRING ######################################################### #
+    enable_hiring=False,
+    contract_duration_h=2,
+    sq_guarantee=False,
+    universal_service=False,
+    # TRIPS ########################################################## #
+    sample_trips=False,
+    classed_trips=True,
+):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
-    episodes = 150
+
     amod = AmodNetworkHired(config)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
     plot_track.set_env(amod)
@@ -357,7 +370,7 @@ def sim(plot_track, config):
             # the list of available vehicles.
 
             # Show time step statistics
-            if SKIP_STEPS > 0 and step % SKIP_STEPS == 0:
+            if skip_steps > 0 and step % skip_steps == 0:
                 step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
@@ -379,7 +392,7 @@ def sim(plot_track, config):
             # Stats summary
             # print(" - Pre-decision statuses:")
             # amod.print_fleet_stats_summary()
-            if ENABLE_HIRING:
+            if enable_hiring:
 
                 hired_cars = []
                 if trips:
@@ -427,7 +440,7 @@ def sim(plot_track, config):
             )
 
             # Virtual hired cars are discarded
-            if ENABLE_HIRING:
+            if enable_hiring:
 
                 discarded = amod.discard_excess_hired()
                 # print(f"{discarded} cars discarded.")
@@ -464,5 +477,8 @@ def sim(plot_track, config):
 
     episode_log.compute_learning()
 
+    return amod.adp.reward
 
-run_plot.start_animation(sim)
+
+# run_plot.start_animation(sim)
+

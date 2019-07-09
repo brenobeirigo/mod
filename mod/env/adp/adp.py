@@ -1,13 +1,29 @@
 import numpy as np
 from collections import defaultdict
 
+STEPSIZE_HARMONIC = "HARM"
+STEPSIZE_CONSTANT = "CONST"
+STEPSIZE_MCCLAIN = "MCCL"
+
+STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
+
 
 class Adp:
-    def __init__(self, points, agregation_levels, stepsize, harmonic_stepsize):
+    def __init__(
+        self,
+        points,
+        agregation_levels,
+        stepsize,
+        stepsize_rule=STEPSIZE_CONSTANT,
+        stepsize_constant=0.1,
+        stepsize_harmonic=1,
+    ):
         self.aggregation_levels = agregation_levels
-        self.harmonic_stepsize = harmonic_stepsize
         self.stepsize = stepsize
         self.points = points
+        self.stepsize_rule = stepsize_rule
+        self.stepsize_harmonic = stepsize_harmonic
+        self.stepsize_constant = stepsize_constant
 
         # Adp track
         self.n = 0
@@ -60,11 +76,11 @@ class Adp:
         )
 
         self.step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
+            lambda: defaultdict(lambda: defaultdict(lambda: 1.0))
         )
 
         self.lambda_stepsize = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
+            lambda: defaultdict(lambda: defaultdict(lambda: 1.0))
         )
 
         # Aggregation bias
@@ -73,7 +89,7 @@ class Adp:
         )
 
         self.agg_weight_vectors = dict()
-         # Estimate of the variance of observations made of state
+        # Estimate of the variance of observations made of state
         # s, using data from aggregation level g, after n
         # observations.
         self.variance_error = defaultdict(
@@ -316,6 +332,32 @@ class Adp:
 
         return avg_agg_levels
 
+    def get_stepsize(self, previous_stepsize):
+        """Return a stepsize to update value functions according to
+        the stepsize rule"""
+
+        if self.stepsize_rule == STEPSIZE_HARMONIC:
+            # Generalized harmonic stepsize
+            # Notice that a_stepsize is 1 when count is zero
+            stepsize = self.stepsize_harmonic / (
+                self.stepsize_harmonic + max(1, self.n) - 1
+            )
+
+        # Fixed value passed as parameter
+        elif self.stepsize_rule == STEPSIZE_CONSTANT:
+
+            stepsize = self.stepsize_constant
+
+        # McClain’s stepsize rule (stop at stepsize_constant)
+        elif self.stepsize_rule == STEPSIZE_MCCLAIN:
+            stepsize = previous_stepsize / (
+                1 + previous_stepsize - self.stepsize_constant
+            )
+        else:
+            stepsize = 1 / self.n
+
+        return stepsize
+
     def update_weights(self, t, g, a_g, sampled_v, count_g):
 
         # WEIGHTING ################################################## #
@@ -347,13 +389,9 @@ class Adp:
         # Update the number of times state was accessed
         self.count[t][g][a_g] += count_g
 
-        # Generalized harmonic stepsize
-        # Notice that a_stepsize is 1 when count is zero
-        a_stepsize = self.harmonic_stepsize
-        # stepsize = a_stepsize / (a_stepsize + self.count[t][g][a_g] - 1)
-        stepsize = a_stepsize / (a_stepsize + max(1, self.n) - 1)
-        self.step_size_func[t][g][a_g] = stepsize
-
+        self.step_size_func[t][g][a_g] = self.get_stepsize(
+            self.step_size_func[t][g][a_g]
+        )
 
         # Estimate of the variance of observations made of state
         # s, using data from aggregation level g, after n
@@ -361,17 +399,17 @@ class Adp:
         self.variance_error[t][g][a_g] = self.get_total_variance(
             self.variance_g[t][g][a_g],
             self.transient_bias[t][g][a_g],
-            self.lambda_stepsize[t][g][a_g]
+            self.lambda_stepsize[t][g][a_g],
         )
 
         # Variance of our estimate of the mean v[-,s,g,n]
-        self.variance[t][g][a_g] =  (
+        self.variance[t][g][a_g] = (
             self.lambda_stepsize[t][g][a_g] * self.variance_error[t][g][a_g]
         )
 
         # Total variation (variance plus the square of the bias)
-        self.total_variation[t][g][a_g] = (
-            self.variance[t][g][a_g] + (self.aggregation_bias[t][g][a_g] ** 2)
+        self.total_variation[t][g][a_g] = self.variance[t][g][a_g] + (
+            self.aggregation_bias[t][g][a_g] ** 2
         )
 
     def update_values_smoothed(self, t, duals):

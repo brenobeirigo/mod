@@ -16,8 +16,8 @@ TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
         "trips_2011-02-01.csv",
-        #"trips_2011-02-08.csv",
-        #"trips_2011-02-15.csv",
+        # "trips_2011-02-08.csv",
+        # "trips_2011-02-15.csv",
         # "trips_2011-02-22.csv",
     ]
 ]
@@ -119,6 +119,8 @@ class Config:
     STEPSIZE = "STEPSIZE"
     DISCOUNT_FACTOR = "DISCOUNT_FACTOR"
     HARMONIC_STEPSIZE = "HARMONIC_STEPSIZE"
+    STEPSIZE_RULE = "STEPSIZE_RULE"
+    STEPSIZE_CONSTANT = "STEPSIZE_FIXED"
 
     # Network
     STEP_SECONDS = "STEP_SECONDS"  # In km/h
@@ -878,9 +880,19 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.DISCOUNT_FACTOR]
 
     @property
-    def harmonic_stepsize(self):
+    def stepsize_harmonic(self):
         """Value 'a' from harmonic stepsize = a/(a+n)"""
         return self.config[Config.HARMONIC_STEPSIZE]
+    
+    @property
+    def stepsize_rule(self):
+        """Fixed, harmonic, or """
+        return self.config[Config.STEPSIZE_RULE]
+    
+    @property
+    def stepsize_constant(self):
+        """Fixed size stepsize, generally 0.1"""
+        return self.config[Config.STEPSIZE_CONSTANT]
 
     @property
     def label(self, name=""):

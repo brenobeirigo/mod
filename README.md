@@ -7,3 +7,7 @@ Running the simulator:
 Running the service rate and fleet status graphs:
 
     bokeh serve --show --port 5003 mod\visual\slide_episode.py
+
+Activate environment `env_slevels`:
+
+    C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels

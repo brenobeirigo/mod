@@ -27,7 +27,7 @@ from collections import defaultdict
 
 plot_width = 900
 plot_height = 500
-start_slider = 150
+start_slider = 1
 end_slider = 303
 update_rate = 5 * 1000 * 60  # 5 min
 
@@ -38,10 +38,7 @@ smooth_sigma_fleet = 5
 doc = curdoc()
 
 # exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-# exp_name = "0.5_FUTURE_HARMONIC_100_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_100_10"
-
-# exp_name = "HBEGIN_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_01_10"
-exp_name = "H_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_01_10"
+exp_name = "weight_0_up_manhattan-island-new-york-city-new-york-usa_UNBALANCED_0001_0001_5_01_0030_02_04_1=8_05_05_01_0.1_01"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -60,9 +57,6 @@ color_dict_demand = {
     "Serviced demand": "#53bc53",
     "Battery level": "#e55215",
 }
-
-# Ignored statuses in read data
-drop_status_list = ["Recharging"]
 
 # Store vehicle count per status at each step of an episode
 episode_fleet_dict = defaultdict(dict)
@@ -141,11 +135,17 @@ def configure_plot_demand(p):
     p.yaxis.axis_label = "#Trips"
 
 
-def configure_plot_fleet(p, status_list):
+def configure_plot_fleet(p):
 
     # Save glyph per status
     items = dict()
-    for status in status_list:
+    for status in [
+        "Rebalancing",
+        "Idle",
+        "With passenger",
+        "Recharging",
+        "Total",
+    ]:
         data = ColumnDataSource(data=dict(x=[], y=[]))
         source_fleet[status] = data
         line = p.line(
@@ -201,7 +201,6 @@ def load_episode(e, smooth_sigma=0):
     # Read dataframe corresponding to episode
     d = pd.read_csv(file_path, index_col=[0])
 
-    d = d.drop(drop_status_list, axis=1)
     # x axis of step values
     steps = np.array(d.index.values)
 
@@ -327,15 +326,7 @@ def update_episode_list():
 
 
 # Setup plots
-status_list = [
-    "Rebalancing",
-    "Idle",
-    "With passenger",
-    # "Recharging",
-    "Total",
-]
-
-configure_plot_fleet(plot_fleet, status_list)
+configure_plot_fleet(plot_fleet)
 configure_plot_demand(plot_demand)
 
 # Start plot from first episode

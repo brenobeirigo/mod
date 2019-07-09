@@ -41,7 +41,7 @@ class PlotTrack:
     SHOW_SP_LINES = False
     SHOW_LINES = True
 
-    N_POINTS = 60
+    N_POINTS = 30
     STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1
@@ -355,11 +355,9 @@ class PlotTrack:
             #     and attribute in self.env.values[future_step][agg_level]
             # ):
             # id_g = point.id_level(agg_level)
-            estimate = self.env.adp.get_weighted_value(
-                future_step, point.id, battery_level, "Inf", "AV"
+            estimate = self.env.get_weighted_value(
+                future_step, point.id, battery_level
             )
-
-            
             values[point.id] = estimate
             # self.env.values[future_step][agg_level][attribute]
 

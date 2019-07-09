@@ -61,9 +61,7 @@ class AmodNetwork(Amod):
             self.points,
             self.config.aggregation_levels,
             self.config.stepsize,
-            stepsize_rule=self.config.stepsize_rule,
-            stepsize_harmonic=self.config.stepsize_harmonic,
-            stepsize_constant=self.config.stepsize_constant,
+            self.config.harmonic_stepsize,
         )
 
         self.adp.init_learning()

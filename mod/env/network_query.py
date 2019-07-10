@@ -1,8 +1,10 @@
 import numpy as np
-from random import choices
+import random
 import functools
 import pprint
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class Point:
 
@@ -222,7 +224,7 @@ def get_demand_origin_centers(points, grid_area, n_centers, zone_size):
     """
 
     # Choose random location
-    random_centers = choices(points, k=n_centers)
+    random_centers = random.choices(points, k=n_centers)
 
     nodes = []
     for c in random_centers:
@@ -474,7 +476,7 @@ def query_centers(points, n_centers, level):
     """
 
     # Choose random location
-    random_centers = choices(points, k=n_centers)
+    random_centers = random.choices(points, k=n_centers)
 
     nodes = []
     for c in random_centers:

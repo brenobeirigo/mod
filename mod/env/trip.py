@@ -6,6 +6,8 @@ import mod.env.network as nw
 from datetime import timedelta, datetime
 import math
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class Trip:
     trip_count = 0

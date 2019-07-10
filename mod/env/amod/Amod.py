@@ -12,6 +12,8 @@ from mod.env.config import FOLDER_EPISODE_TRACK
 import requests
 import functools
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class Amod:
     def __init__(self, config, car_positions=[]):

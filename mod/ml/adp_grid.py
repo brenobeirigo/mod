@@ -22,6 +22,8 @@ import mod.env.network as nw
 from pprint import pprint
 import mod.env.match as match
 
+# Reproducibility of the experiments
+random.seed(1)
 
 if __name__ == "__main__":
 

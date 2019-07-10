@@ -19,6 +19,8 @@ from mod.env.adp.AdpHired import AdpHired
 port = 4999
 url = f"http://localhost:{port}"
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class AmodNetwork(Amod):
     def __init__(self, config, car_positions=[]):

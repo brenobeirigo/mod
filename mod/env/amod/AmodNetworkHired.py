@@ -13,6 +13,8 @@ import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decision_utils as du
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class AmodNetworkHired(AmodNetwork):
     def __init__(self, config, car_positions=[]):

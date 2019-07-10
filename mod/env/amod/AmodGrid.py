@@ -14,6 +14,8 @@ import functools
 from mod.env.amod.Amod import Amod
 import mod.env.decision_utils as du
 
+# Reproducibility of the experiments
+random.seed(1)
 
 class AmodGrid(Amod):
     def __init__(self, config, car_positions=[]):

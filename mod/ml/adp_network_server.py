@@ -39,6 +39,9 @@ import mod.env.network as nw
 from mod.env.simulator import PlotTrack
 from mod.env import match
 
+# Reproducibility of the experiments
+random.seed(1)
+
 # Trip tuples
 trip_od_list = dict()
 
@@ -133,8 +136,8 @@ def get_sim_config():
     return config
 
 
-start_config = get_sim_config()
-run_plot = PlotTrack(start_config)
+# start_config = get_sim_config()
+# run_plot = PlotTrack(start_config)
 
 trip_demand_dict = dict()
 
@@ -328,7 +331,7 @@ def alg_adp(
 
             trips_file_path = random.choice(TRIP_FILES)
 
-            print(f"Processing demand file '{trips_file_path}'...")
+            # print(f"Processing demand file '{trips_file_path}'...")
 
             step_trip_list, step_trip_count = get_ny_demand(
                 amod, trips_file_path, sample_trips=sample_trips

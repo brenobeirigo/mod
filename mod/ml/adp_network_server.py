@@ -98,7 +98,7 @@ def get_sim_config():
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300],
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
-            ConfigNetwork.AGGREGATION_LEVELS: 4,
+            ConfigNetwork.AGGREGATION_LEVELS: 5,
             ConfigNetwork.SPEED: 30,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #

@@ -35,13 +35,13 @@ fleet_size = [300, 500, 1000]
 discount_factor = [0.1, 0.5, 0.7]
 rebalance_levels = [(1,), (1,2), (1,2,3)]
 stepsize_constant = [0.05, 0.1]
-scenarios = [conf.SCENARIO_UNBALANCED, conf.SCENARIO_NYC]
+scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = adp.STEPSIZE_RULES
 stepsize_rules.remove(adp.STEPSIZE_HARMONIC)
 harmonic_stepsize = [1]
 
 iterations = 30
-overall_exp_label = "M"
+overall_exp_label = "AVG4"
 
 processed = set()
 

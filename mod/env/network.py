@@ -7,7 +7,7 @@ import sys
 
 import sys
 
-tenv_mod = "c:/Users/LocalAdmin/Documents/GitHub/tenv"
+tenv_mod = "c:/Users/breno/Documents/phd/tenv"
 sys.path.insert(0, tenv_mod)
 
 import tenv.util as tenv

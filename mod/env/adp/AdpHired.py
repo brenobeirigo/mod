@@ -155,7 +155,7 @@ class AdpHired(adp.Adp):
         # of these duals
         level_update_list = defaultdict(list)
 
-        for a, v_ta in duals.items():
+        for a, v_ta_sampled in duals.items():
 
             pos, battery, contract_duration, car_type = a
 
@@ -169,27 +169,54 @@ class AdpHired(adp.Adp):
                 a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Value is later used to update a_g
-                level_update_list[(g, a_g)].append(v_ta)
+                level_update_list[(g, a_g)].append(v_ta_sampled)
 
+                # Update the number of times state was accessed
+                self.count[t][g][a_g] += 1
+
+                # Bias due to smoothing of transient data series
+                # (value function change every iteration)
+                self.transient_bias[t][g][a_g] = self.get_transient_bias(
+                    self.transient_bias[t][g][a_g],
+                    v_ta_sampled,
+                    self.values[t][g][a_g],
+                    self.stepsize
+                )
+
+                # Estimate of total squared variation,
+                self.variance_g[t][g][a_g] = self.get_variance_g(
+                    v_ta_sampled,
+                    self.values[t][g][a_g],
+                    self.stepsize,
+                    self.variance_g[t][g][a_g]
+                )
+
+        # Loop states (including disaggregate), average all values that
+        # aggregate up to ta_g, and smooth average to previous value
         for state_g, value_list_g in level_update_list.items():
 
             g, a_g = state_g
 
-            # Number of times state g was accessed
-            count_ta_g = len(value_list_g)
+            # Updating lambda stepsize using previous stepsizes
+            self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
+                self.step_size_func[t][g][a_g], self.lambda_stepsize[t][g][a_g]
+            )
 
             # Average value function considering all elements sharing
             # the same state at level g
-            # TODO Test if looping to all values and updating makes more sense (instead of average)
-            v_ta_g = sum(value_list_g) / count_ta_g
-
-            self.update_weights(t, g, a_g, v_ta_g, count_ta_g)
+            v_ta_g = sum(value_list_g) /  len(value_list_g)
 
             # Updating value function at gth level with smoothing
-            self.values[t][g][a_g] = (
-                (1 - self.step_size_func[t][g][a_g]) * self.values[t][g][a_g]
-                + self.step_size_func[t][g][a_g] * v_ta_g
+            old_v_ta_g = self.values[t][g][a_g]
+            stepsize = self.step_size_func[t][g][a_g]
+            new_v_ta_g = (1 - stepsize) * old_v_ta_g + stepsize * v_ta_g
+            self.values[t][g][a_g] = new_v_ta_g
+
+            # Updates ta_g stepsize
+            self.step_size_func[t][g][a_g] = self.get_stepsize(
+                self.step_size_func[t][g][a_g]
             )
+
 
     ####################################################################
     # True averaging ###################################################

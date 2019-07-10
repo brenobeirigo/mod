@@ -189,7 +189,7 @@ class Adp:
         # WEIGHTING ############################################
 
         # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-        aggregation_bias = self.aggregation_bias[t][g][a]
+        aggregation_bias = self.values[t][g][a] - self.values[t][0][a]
 
         # Bias due to smoothing of transient data series (value
         # function change every iteration)
@@ -358,59 +358,6 @@ class Adp:
 
         return stepsize
 
-    def update_weights(self, t, g, a_g, sampled_v, count_g):
-
-        # WEIGHTING ################################################## #
-
-        # Current value function of attribute at level g
-        old_v_ta_g = self.values[t][g][a_g]
-
-        # Updating
-
-        # Bias due to smoothing of transient data series (value
-        # function change every iteration)
-        current_transient_bias = self.transient_bias[t][g][a_g]
-        self.transient_bias[t][g][a_g] = self.get_transient_bias(
-            current_transient_bias, sampled_v, old_v_ta_g, self.stepsize
-        )
-
-        # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-        self.aggregation_bias[t][g][a_g] = old_v_ta_g - sampled_v
-
-        self.variance_g[t][g][a_g] = self.get_variance_g(
-            sampled_v, old_v_ta_g, self.stepsize, self.variance_g[t][g][a_g]
-        )
-
-        # Updating lambda stepsize using previous stepsizes
-        self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
-            self.step_size_func[t][g][a_g], self.lambda_stepsize[t][g][a_g]
-        )
-
-        # Update the number of times state was accessed
-        self.count[t][g][a_g] += count_g
-
-        self.step_size_func[t][g][a_g] = self.get_stepsize(
-            self.step_size_func[t][g][a_g]
-        )
-
-        # Estimate of the variance of observations made of state
-        # s, using data from aggregation level g, after n
-        # observations.
-        self.variance_error[t][g][a_g] = self.get_total_variance(
-            self.variance_g[t][g][a_g],
-            self.transient_bias[t][g][a_g],
-            self.lambda_stepsize[t][g][a_g],
-        )
-
-        # Variance of our estimate of the mean v[-,s,g,n]
-        self.variance[t][g][a_g] = (
-            self.lambda_stepsize[t][g][a_g] * self.variance_error[t][g][a_g]
-        )
-
-        # Total variation (variance plus the square of the bias)
-        self.total_variation[t][g][a_g] = self.variance[t][g][a_g] + (
-            self.aggregation_bias[t][g][a_g] ** 2
-        )
 
     def update_values_smoothed(self, t, duals):
 

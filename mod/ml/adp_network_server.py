@@ -5,7 +5,7 @@ from pprint import pprint
 from threading import Thread
 from copy import deepcopy
 import time
-from random import random, choice
+import random
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -169,7 +169,7 @@ def hire_cars_centers(amod, contract_duration_h, step):
             # battery_level_miles_max=amod.battery_size_distances,
         )
         for c in amod.points_level[2]
-        if random() < 1
+        if random.random() < 1
     ]
 
     return hired_cars
@@ -326,7 +326,7 @@ def alg_adp(
 
         elif config.demand_scenario == SCENARIO_NYC:
 
-            trips_file_path = choice(TRIP_FILES)
+            trips_file_path = random.choice(TRIP_FILES)
 
             print(f"Processing demand file '{trips_file_path}'...")
 

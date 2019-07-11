@@ -95,7 +95,7 @@ class AmodNetwork(Amod):
         return nw.query_neighbors(center_point.id, reach=reach)
 
     @functools.lru_cache(maxsize=None)
-    def get_zone_neighbors(self, center, level=[0], n_neighbors=[4]):
+    def get_zone_neighbors(self, center, level=(0,), n_neighbors=(4,)):
         """Get the ids of "n_neighbors" neighboring region centers
         considering aggregation level around center.
 

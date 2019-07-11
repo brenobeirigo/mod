@@ -22,6 +22,7 @@ TRIP_FILES = [
     ]
 ]
 
+
 # Output folder
 FOLDER_OUTPUT = root + "/data/output/"
 
@@ -61,6 +62,8 @@ class Config:
 
     # This configuration refers to which test case?
     TEST_LABEL = "TEST_LABEL"
+    # Determined in tuning
+    TUNE_LABEL = "TUNE_LABEL"
 
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
@@ -130,6 +133,21 @@ class Config:
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
+
+    # Mathing methods
+
+    # Match cars with immediate neigbors at chosen level
+    MATCH_NEIGHBORS = "MATCH_NEIGHBORS"
+
+    # Match cars within the same center at chosen level
+    MATCH_CENTER = "MATCH_CENTER"
+
+    # Match cars by distance (car can reach travel)
+    MATCH_DISTANCE = "MATCH_DISTANCE"
+
+    MATCH_METHOD = "MATCH_METHOD"
+    MATCH_LEVEL = "MATCH_LEVEL"
+    MATCH_MAX_NEIGHBORS = "MATCH_MAX_NEIGHBORS"
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -719,6 +737,7 @@ class ConfigNetwork(ConfigStandard):
         super().__init__(config)
 
         self.config[Config.TEST_LABEL] = ""
+        self.config[Config.TUNE_LABEL] = None
 
         # Speed cars (kmh) - 20KMH
         self.config["SPEED"] = 20
@@ -781,6 +800,10 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.HARMONIC_STEPSIZE] = 1
         self.config[Config.STEPSIZE] = 0.1
 
+        # MATCHING ################################################### #
+        self.config[Config.MATCH_METHOD] = Config.MATCH_DISTANCE
+        self.config[Config.MATCH_LEVEL] = 0
+        self.config[Config.MATCH_MAX_NEIGHBORS] = 8
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -819,6 +842,30 @@ class ConfigNetwork(ConfigStandard):
         """Number of closest region centers each region center can
         access."""
         return self.config["N_CLOSEST_NEIGHBORS"]
+    
+
+    # ---------------------------------------------------------------- #
+    # Matching ####################################################### #
+    # ---------------------------------------------------------------- #
+
+    @property
+    def match_method(self):
+        return self.config[Config.MATCH_METHOD]
+
+    @property
+    def match_level(self):
+        return self.config[Config.MATCH_LEVEL]
+
+    def match_neighbors(self):
+        return self.config[Config.MATCH_METHOD] == Config.MATCH_NEIGHBORS
+    
+    def match_in_center(self):
+        return self.config[Config.MATCH_METHOD] == Config.MATCH_CENTER
+    @property
+    def match_max_neighbors(self):
+        return self.config[Config.MATCH_MAX_NEIGHBORS] == Config.MATCH_MAX_NEIGHBORS
+
+    
 
     # ---------------------------------------------------------------- #
     # Network data ################################################### #
@@ -896,6 +943,9 @@ class ConfigNetwork(ConfigStandard):
 
     @property
     def label(self, name=""):
+
+        if self.config[Config.TUNE_LABEL] is not None:
+            return self.config[Config.TUNE_LABEL]
 
         reb_neigh = "_".join(
             [

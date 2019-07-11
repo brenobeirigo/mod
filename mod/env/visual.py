@@ -124,7 +124,7 @@ class EpisodeLog:
     def load_ods(self):
         try:
             path_od_ids = self.output_path + "/trip_od_ids.npy"
-            ods = np.load(path_od_ids).item()
+            ods = np.load(path_od_ids, allow_pickle=True).item()
             return ods["origin"], ods["destination"]
 
         except Exception as e:
@@ -245,7 +245,7 @@ class EpisodeLog:
 
         path = self.output_path + "/progress.npy"
 
-        progress = np.load(path).item()
+        progress = np.load(path, allow_pickle=True).item()
 
         self.adp.n, self.adp.reward, self.adp.service_rate, self.adp.weights = self.adp.read_progress(path)
 

@@ -593,7 +593,7 @@ class PlotTrack:
 
         try:
             print("\nReading center data...")
-            center_lines_dict = np.load(self.path_region_center_data).item()
+            center_lines_dict = np.load(self.path_region_center_data, allow_pickle=True).item()
             centers_xy = center_lines_dict["centers_xy"]
             lines_xy = center_lines_dict["lines_xy"]
             print("Center data loaded successfully.")

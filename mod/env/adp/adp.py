@@ -483,7 +483,7 @@ class Adp:
                 level.
         """
 
-        progress = np.load(path).item()
+        progress = np.load(path, allow_pickle=True).item()
 
         self.n = progress.get("episodes", list())
         self.reward = progress.get("reward", list())
@@ -544,7 +544,7 @@ class Adp:
         Arguments:
             path {str} -- File with saved value functions
         """
-        values_old = np.load(path + label + ".npy").item()
+        values_old = np.load(path + label + ".npy", allow_pickle=True).item()
         # print(values_old)
         for t, g_a in values_old.items():
             for g, a_value in g_a.items():

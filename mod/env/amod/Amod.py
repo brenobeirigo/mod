@@ -459,6 +459,13 @@ class Amod:
         else:
             steps = int(round(travel_time_min / self.config.time_increment))
             return steps
+    
+    @functools.lru_cache(maxsize=None)
+    def get_travel_time_od(self, o, d, unit="min"):
+        """Travel time in minutes or steps between od"""
+        distance = self.get_distance(o, d)
+
+        return self.get_travel_time(distance, unit=unit)
 
     # ################################################################ #
     # Prints ######################################################### #

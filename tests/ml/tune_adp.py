@@ -32,12 +32,11 @@ setup.update(
 lock = multiprocessing.Lock()
 
 fleet_size = [300, 500, 1000]
-discount_factor = [0.1, 0.5, 0.7]
-rebalance_levels = [(1,), (1,2), (1,2,3)]
-stepsize_constant = [0.05, 0.1]
+discount_factor = [0.05, 0.01, 0.1]
+rebalance_levels = [(1,)] #, (1,2), (1,2,3)]
+stepsize_constant = [0.1, 0.01, 0.05]
 scenarios = [conf.SCENARIO_NYC]
-stepsize_rules = adp.STEPSIZE_RULES
-stepsize_rules.remove(adp.STEPSIZE_HARMONIC)
+stepsize_rules = [adp.STEPSIZE_CONSTANT, adp.STEPSIZE_MCCLAIN]
 harmonic_stepsize = [1]
 
 iterations = 30
@@ -94,7 +93,7 @@ def get_exp():
                             i+=1
 
                             update_dict = {
-                                Config.TEST_LABEL: f"{exp_name}_STEP_{i:04}",
+                                Config.TEST_LABEL: exp_name,
                                 Config.STEPSIZE_RULE: rule,
                                 Config.DISCOUNT_FACTOR: dist,
                                 Config.STEPSIZE_CONSTANT: step,
@@ -155,7 +154,7 @@ def proc(exp_list):
 
 if __name__ == "__main__":
     try:
-        processed = set(np.load("tune.npy").item())
+        processed = set(np.load("tune.npy", allow_pickle=True).item())
         print("Previous tuning loaded.")
         pprint(processed)
     except:

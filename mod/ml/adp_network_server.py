@@ -65,14 +65,14 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "GET_NEIGHBORS_2",
+            ConfigNetwork.TEST_LABEL: "TOTAL_BUSY",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 300,
+            ConfigNetwork.FLEET_SIZE: 2000,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.OFFSET_REPOSIONING: 60,
-            ConfigNetwork.OFFSET_TERMINATION: 60,
+            ConfigNetwork.OFFSET_REPOSIONING: 30,
+            ConfigNetwork.OFFSET_TERMINATION: 30,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -90,22 +90,22 @@ def get_sim_config():
             ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
             # Cars can rebalance to neighbor centers of level:
             # Why not max rebalance level?
-            ConfigNetwork.REBALANCE_LEVEL: (1,),
+            ConfigNetwork.REBALANCE_LEVEL: (2,),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 360, 600],
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
-            ConfigNetwork.AGGREGATION_LEVELS: 5,
+            ConfigNetwork.AGGREGATION_LEVELS: 13,
             ConfigNetwork.SPEED: 30,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 2,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 9,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -121,9 +121,9 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.1,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.03,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
-            ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
+            ConfigNetwork.STEPSIZE_CONSTANT: 0.05,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
             # ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_CONSTANT,
             # -------------------------------------------------------- #
@@ -132,7 +132,7 @@ def get_sim_config():
             ConfigNetwork.CONTRACT_DURATION_LEVEL: 15,
             ConfigNetwork.CONGESTION_PRICE: 10,
             # -------------------------------------------------------- #
-            ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_NEIGHBORS,
+            ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
             ConfigNetwork.MATCH_LEVEL: 2
         }
     )

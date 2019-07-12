@@ -521,13 +521,21 @@ class Amod:
     # Save/Load ###################################################### #
     # ################################################################ #
 
-    def reset(self, use_previous_car_positions=False):
+    def reset(self):
+        
+        if self.config.cars_start_from_initial_positions:
 
-        if not use_previous_car_positions or not self.cars:
-            new_origins = random.choices(self.points, k=self.fleet_size)
-        else:
-            print("Using previous car positions...")
+            new_origins = self.car_origin_points
+
+        elif self.cars and self.config. cars_start_from_last_positions:
+            # Method: https:// doi.org/10.1287/trsc.1080.0238
+            # Cars start in the last visited positions:
+            #  - The final resource state vector (R_Ta) is the initial 
+            #    resource state vector
             new_origins = [c.point for c in self.cars]
+        
+        else:
+            new_origins = random.choices(self.points, k=self.fleet_size) 
 
         Car.count = 0
 

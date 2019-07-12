@@ -213,6 +213,16 @@ class EpisodeLog:
                 + f"e_demand_status_{self.adp.n:04}.csv"
             )
 
+            df_stats = step_log.get_step_stats()
+
+            stats_file = self.output_path + "/overall_stats.csv"
+            df_stats.to_csv(
+                stats_file,
+                mode="a",
+                index=False,
+                header= not os.path.exists(stats_file)
+            )
+
         # Save what was learned so far
         if self.adp:
 
@@ -321,7 +331,10 @@ class StepLog:
         self.total_battery = list()
         self.n = 0
 
-    def compute_fleet_status(self):
+    def compute_fleet_status(self, step):
+        
+        # Fleet step happens after trip step
+        self.n = step
 
         # Get number of cars per status in a time step
         # and aggregate battery level
@@ -335,7 +348,6 @@ class StepLog:
             self.car_statuses[k].append(dict_status.get(k, 0))
 
     def add_record(self, reward, serviced, rejected):
-        self.n += 1
         self.reward_list.append(reward)
         self.serviced_list.append(len(serviced))
         self.rejected_list.append(len(rejected))
@@ -401,7 +413,7 @@ class StepLog:
         )
 
     def plot_fleet_status(self, file_path=None, file_format="png", dpi=150):
-        steps = np.arange(self.n)
+        steps = np.arange(self.n+1)
 
         for status_label, status_count_step in self.car_statuses.items():
             plt.plot(steps, status_count_step, label=status_label)
@@ -456,14 +468,28 @@ class StepLog:
         self.step_demand_status["Total demand"] = pd.Series(self.total_list)
         self.step_demand_status["Serviced demand"] = pd.Series(self.serviced_list)
         self.step_demand_status["Battery level"] = pd.Series(self.total_battery)
+        self.step_demand_status["Reward"] = pd.Series(self.total_reward)
         self.step_demand_status.index.name = "step"
 
         return self.step_demand_status
 
 
+    def get_step_stats(self):
+
+        self.step_stats = pd.DataFrame()
+        self.step_stats["Episode"] = pd.Series([self.env.adp.n])
+        self.step_stats["Service rate"] = pd.Series([self.env.adp.service_rate[-1]])
+        self.step_stats["Total reward"] = pd.Series([self.env.adp.reward[-1]])
+        for car_type, weights in self.env.adp.weights.items():
+            for i, w in enumerate(weights[-1]):
+                self.step_stats[f"{car_type}_{i:02}"] = pd.Series([w])
+
+        return self.step_stats
+
+
     def plot_service_status(self, file_path=None, file_format="png", dpi=150):
 
-        steps = np.arange(self.n)
+        steps = np.arange(self.n+1)
 
         fig, ax1 = plt.subplots()
         ax1.set_xlabel("Time")

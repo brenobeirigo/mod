@@ -9,6 +9,7 @@ import math
 # Reproducibility of the experiments
 random.seed(1)
 
+
 class Trip:
     trip_count = 0
 
@@ -47,7 +48,7 @@ class ClassedTrip(Trip):
 
     sq_classes = dict(A=1.0, B=0.9)
     sq_level_class = dict(A=[3, 3], B=[3, 4])
-    min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=5, max=10))
+    min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
     class_proportion = dict(A=0.1, B=0.9)
 
     @classmethod
@@ -56,14 +57,14 @@ class ClassedTrip(Trip):
         for levels in cls.sq_level_class.values():
             class_levels.update(levels)
         return class_levels
-    
+
     @property
     def min_delay(self):
-        return ClassedTrip.min_max_time_class[self.sq_class]['min']
-    
+        return ClassedTrip.min_max_time_class[self.sq_class]["min"]
+
     @property
     def max_delay(self):
-        return ClassedTrip.min_max_time_class[self.sq_class]['max']
+        return ClassedTrip.min_max_time_class[self.sq_class]["max"]
 
     def __init__(self, o, d, time, sq_class):
         super().__init__(o, d, time)
@@ -103,6 +104,68 @@ class ClassedTrip(Trip):
 # #################################################################### #
 # Trip helpers ####################################################### #
 # #################################################################### #
+
+# Trip tuples per step (key is file path)
+trip_od_list = dict()
+
+# List of trips and trip counts per step (key is file path)
+trip_demand_dict = dict()
+
+
+def load_trips_ods_from(tripdata_path, config):
+
+    global trip_od_list
+
+    # Load previously read ods
+    if tripdata_path in trip_od_list:
+        step_trip_od_list = trip_od_list[tripdata_path]
+
+    # Read trip ods for the first time
+    else:
+        print("Creating trip tuple list per step...")
+
+        # Sample trip data if resize factor < 1
+        step_trip_od_list = get_step_trip_list(
+            tripdata_path,
+            step=config.time_increment,
+            earliest_step=config.demand_earliest_step_min,
+            max_steps=config.demand_max_steps,
+        )
+
+        # Store created list
+        trip_od_list[tripdata_path] = step_trip_od_list
+
+    return step_trip_od_list
+
+
+def get_ny_demand(config, tripdata_path, points):
+
+    step_trip_od_list = load_trips_ods_from(tripdata_path, config)
+
+    if tripdata_path not in trip_demand_dict:
+
+        # Use loaded trip od list to create RESIZED trip list per step
+        step_trip_list = get_trips(
+            points,
+            step_trip_od_list,
+            offset_start=config.offset_repositioning,
+            offset_end=config.offset_termination,
+            classed=config.demand_is_classed,
+            resize_factor=config.demand_resize_factor,
+        )
+
+        # Count number of trips per step
+        step_trip_count = [len(trips) for trips in step_trip_list]
+        list_count_trips = (step_trip_list, step_trip_count)
+
+        if not config.demand_sampling:
+            # Save trips to be used on next call
+            trip_demand_dict[tripdata_path] = list_count_trips
+
+    else:
+        list_count_trips = trip_demand_dict[tripdata_path]
+
+    return list_count_trips
 
 
 def get_trip_count_step(

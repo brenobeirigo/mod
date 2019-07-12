@@ -24,30 +24,33 @@ output = multiprocessing.Queue()
 setup = alg.get_sim_config()
 setup.update(
     {
-        Config.DEMAND_EARLIEST_HOUR: 9,
-        Config.DEMAND_TOTAL_HOURS: 2,
-        Config.OFFSET_REPOSIONING: 60,
-        Config.OFFSET_TERMINATION: 60,
+        Config.DEMAND_EARLIEST_HOUR: 5,
+        Config.DEMAND_TOTAL_HOURS: 4,
+        Config.OFFSET_REPOSIONING: 30,
+        Config.OFFSET_TERMINATION: 30,
     }
 )
 
 lock = multiprocessing.Lock()
 
-fleet_size = [300]
-discount_factor = [0.05]
-rebalance_levels = [(1,)] #, (1,2), (1,2,3)]
-stepsize_constant = [0.1]
+fleet_size = [1000]
+resize = [0.5]
+discount_factor = [0.03]
+rebalance_levels = [(3,)] #, (1,2), (1,2,3)]
+stepsize_constant = [0.1, 0.05]
 scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = [adp.STEPSIZE_MCCLAIN]
 harmonic_stepsize = [1]
 
 
-match_method = [Config.MATCH_NEIGHBORS, Config.MATCH_CENTER, Config.MATCH_DISTANCE]
-match_max_neighbors = [4, 8]
-match_level = [2,1,3]
+# match_method = [Config.MATCH_NEIGHBORS, Config.MATCH_CENTER, Config.MATCH_DISTANCE]
+match_method = [Config.MATCH_DISTANCE]
+match_max_neighbors = [8]
+match_level_neighbors = [3]
+match_level_centers = [5]
 
 iterations = 30
-overall_exp_label = "MATCHING"
+overall_exp_label = "MATCHINGBUSY"
 
 processed = set()
 
@@ -69,72 +72,84 @@ def get_exp():
     global reward_data
 
     exp_list = []
-
-    for reb_level in rebalance_levels:
-        for sc in scenarios:
-            for f_size in fleet_size:
+    for d_resize in resize:
+        for f_size in fleet_size:
+            for reb_level in rebalance_levels:
+                for sc in scenarios:
                 
-                # File names
-                exp_name = f"{overall_exp_label}"
+                    
+                    # File names
+                    exp_name = f"{overall_exp_label}"
 
-                reward_data[exp_name] = dict()
+                    reward_data[exp_name] = dict()
 
-                # Hyperparam index
-                i = 0
+                    # Hyperparam index
+                    i = 0
 
-                # Tune stepsize rules
-                for dist in discount_factor:
-                    for rule in stepsize_rules:
-                        for step in stepsize_constant:
-                            
-                            for m_max_neighbor in match_max_neighbors:
-                                for m_level in match_level:
+                    # Tune stepsize rules
+                    for dist in discount_factor:
+                        for rule in stepsize_rules:
+                            for step in stepsize_constant:
+
+                                update_match = dict()
+
+                                for m_max_neighbor in match_max_neighbors:
+                                    
                                     for m_method in match_method:
+                                        if m_method == Config.MATCH_CENTER:
+                                            match_level = match_level_centers
 
-                                        
-                            
-                                        update_match = {
-                                            Config.MATCH_MAX_NEIGHBORS: m_max_neighbor,
-                                            Config.MATCH_LEVEL: m_level,
-                                            Config.MATCH_METHOD: m_method,
-                                        }
-                                        
-                                        
-                                        # for harm in harmonic_stepsize:
+                                        elif  m_method == Config.MATCH_NEIGHBORS:
+                                            match_level = match_level_neighbors
+                                            update_match[Config.MATCH_MAX_NEIGHBORS] = m_max_neighbor
+                                        else:
+                                            match_level = [0]
+    
+                                        for m_level in match_level:
 
-                                        # # Harmonic constant is discarded when rule
-                                        # # is not harmonic
-                                        # if rule != adp.STEPSIZE_HARMONIC:
-                                        #     harm = 1
+                                            if m_method != Config.MATCH_DISTANCE:
+                                                update_match[Config.MATCH_LEVEL] = m_level
+
+                                            update_match.update({
+                                                Config.MATCH_METHOD: m_method,
+                                            })
                                             
-                                        # Experiment id
-                                        i+=1
+                                            
+                                            # for harm in harmonic_stepsize:
 
-                                        update_dict = {
-                                            Config.STEPSIZE_RULE: rule,
-                                            Config.DISCOUNT_FACTOR: dist,
-                                            Config.STEPSIZE_CONSTANT: step,
-                                            # Config.HARMONIC_STEPSIZE: harm,
-                                            Config.FLEET_SIZE: f_size,
-                                            Config.DEMAND_SCENARIO: sc,
-                                            Config.REBALANCE_LEVEL: reb_level,
-                                        }
+                                            # # Harmonic constant is discarded when rule
+                                            # # is not harmonic
+                                            # if rule != adp.STEPSIZE_HARMONIC:
+                                            #     harm = 1
+                                                
+                                            # Experiment id
+                                            i+=1
 
-                                        update_dict.update(update_match)
+                                            update_dict = {
+                                                # Config.STEPSIZE_RULE: rule,
+                                                Config.DISCOUNT_FACTOR: dist,
+                                                Config.STEPSIZE_CONSTANT: step,
+                                                # Config.HARMONIC_STEPSIZE: harm,
+                                                Config.FLEET_SIZE: f_size,
+                                                Config.DEMAND_RESIZE_FACTOR: d_resize,
+                                                # Config.DEMAND_SCENARIO: sc,
+                                                Config.REBALANCE_LEVEL: reb_level,
+                                            }
 
-                                        label = "_".join(
-                                            [f"{k}={str(v)}" for k, v in update_dict.items()]
-                                        )
+                                            update_dict.update(update_match)
 
-                                        update_dict[Config.TUNE_LABEL] = f"{overall_exp_label}_{label}"
+                                            label = "_".join(
+                                                [f"{k}={str(v)}" for k, v in update_dict.items()]
+                                            )
 
-                                        
-                                        
+                                            update_dict[Config.TUNE_LABEL] = f"{overall_exp_label}_{label}"
 
-                                        if (exp_name, label) in processed:
-                                            continue
+                                            if (exp_name, label) in processed:
+                                                continue
+                                            
+                                            print(label)
 
-                                        exp_list.append((exp_name, label, update_dict))
+                                            exp_list.append((exp_name, label, update_dict))
     return exp_list
 
 def multi_proc_exp(exp_list):

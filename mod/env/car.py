@@ -85,6 +85,8 @@ class Car:
                 if self.trip is not None
                 else ""
             )
+        else:
+            trip = ""
 
         status = (
             f"{self.label}[{self.status:>15}]"

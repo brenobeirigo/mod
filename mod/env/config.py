@@ -34,7 +34,8 @@ FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
 # Map projections for visualization
 PROJECTION_MERCATOR = "MERCATOR"
 PROJECTION_GPS = "GPS"
-
+FLEET_START_LAST = "FLEET_START_LAST"
+FLEET_START_SAME = "FLEET_START_SAME"
 # #################################################################### #
 # SCENARIOS ########################################################## #
 # #################################################################### #
@@ -67,6 +68,7 @@ class Config:
 
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
+    FLEET_START = "FLEET_START"
 
     BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
 
@@ -133,6 +135,7 @@ class Config:
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
+    MATCHING_LEVELS = "MATCHING_LEVELS"
 
     # Mathing methods
 
@@ -159,6 +162,8 @@ class Config:
     DEMAND_SCENARIO = "DEMAND_SCENARIO"
     TIME_INCREMENT_TIMEDELTA = "TIME_INCREMENT_TIMEDELTA"
     DEMAND_EARLIEST_DATETIME = "DEMAND_EARLIEST_DATETIME"
+    DEMAND_SAMPLING = "DEMAND_SAMPLING"
+    DEMAND_CLASSED = "DEMAND_CLASSED"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -514,6 +519,14 @@ class Config:
     @property
     def demand_total_hours(self):
         return self.config[Config.DEMAND_TOTAL_HOURS]
+    
+    @property
+    def demand_sampling(self):
+        return self.config[Config.DEMAND_SAMPLING]
+    
+    @property
+    def demand_is_classed(self):
+        return self.config[Config.DEMAND_CLASSED]
 
     @property
     def demand_earliest_hour(self):
@@ -560,6 +573,8 @@ class ConfigStandard(Config):
 
         # Total fleet
         self.config["FLEET_SIZE"] = 1500
+
+        self.config[Config.FLEET_START] = FLEET_START_LAST
 
         ################################################################
         # Battery ######################################################
@@ -711,6 +726,8 @@ class ConfigStandard(Config):
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
         self.config[Config.DEMAND_SCENARIO] = SCENARIO_UNBALANCED
+        self.config[Config.DEMAND_SAMPLING] = True
+        self.config[Config.DEMAND_CLASSED] = True
 
     @property
     def label(self):
@@ -804,9 +821,22 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCH_METHOD] = Config.MATCH_DISTANCE
         self.config[Config.MATCH_LEVEL] = 0
         self.config[Config.MATCH_MAX_NEIGHBORS] = 8
+        self.config[Config.MATCHING_LEVELS] = (3, 4)
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
+
+    @property
+    def cars_start_from_last_positions(self):
+        """True if cars should start from the last visited positions"""
+        return self.config[Config.FLEET_START] == FLEET_START_LAST
+    
+    @property
+    def cars_start_from_initial_positions(self):
+        """True if cars should start from the positions chosen in the 
+        beginning of the experiment"""
+        return self.config[Config.FLEET_START] == FLEET_START_SAME
+
 
     @property
     def battery_size_distance(self):
@@ -855,6 +885,10 @@ class ConfigNetwork(ConfigStandard):
     @property
     def match_level(self):
         return self.config[Config.MATCH_LEVEL]
+
+    @property
+    def matching_levels(self):
+        return self.config[Config.MATCHING_LEVELS]
 
     def match_neighbors(self):
         return self.config[Config.MATCH_METHOD] == Config.MATCH_NEIGHBORS

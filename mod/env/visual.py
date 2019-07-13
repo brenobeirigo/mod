@@ -76,6 +76,10 @@ class EpisodeLog:
             if not os.path.exists(self.output_folder_service):
                 os.makedirs(self.output_folder_service)
                 os.makedirs(self.folder_demand_status_data)
+            
+            if not os.path.exists(self.config.folder_mip):
+                os.makedirs(self.config.folder_mip_log)
+                os.makedirs(self.config.folder_mip_lp)
 
                 print(
                     f"\n### Saving episodes at:"
@@ -284,8 +288,8 @@ class EpisodeLog:
             else:
                 plt.show()
 
-        print("# Weights")
-        pprint(self.adp.weights)
+        # print("# Weights")
+        # pprint(self.adp.weights)
 
         for car_type, weights in self.adp.weights.items():
             plot_series(weights, car_type=car_type)

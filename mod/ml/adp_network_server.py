@@ -25,6 +25,9 @@ from mod.env.config import (
     SCENARIO_NYC,
     TRIP_FILES,
 )
+
+import mod.env.config as conf
+
 from mod.env.match import adp_network, adp_network_hired2
 from mod.env.car import Car, HiredCar
 from mod.env.trip import (
@@ -42,9 +45,6 @@ from mod.env import match
 # Reproducibility of the experiments
 random.seed(1)
 
-# Trip tuples
-trip_od_list = dict()
-
 
 def get_sim_config():
 
@@ -58,6 +58,13 @@ def get_sim_config():
         f"\n### Center count: {center_count}"
     )
 
+    level_id_count_dict = {
+        int(level): (i + 1, count)
+        for i, (level, count) in enumerate(center_count.items())
+    }
+
+    level_id_count_dict[0] = (0, node_count)
+
     print(info)
     # ---------------------------------------------------------------- #
     # Amod environment ############################################### #
@@ -65,14 +72,15 @@ def get_sim_config():
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "TOTAL_BUSY",
+            ConfigNetwork.TEST_LABEL: "20KM_200_0.1_PUNISH",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 2000,
+            ConfigNetwork.FLEET_SIZE: 300,
+            ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.OFFSET_REPOSIONING: 30,
-            ConfigNetwork.OFFSET_TERMINATION: 30,
+            ConfigNetwork.OFFSET_REPOSIONING: 15,
+            ConfigNetwork.OFFSET_TERMINATION: 15,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -90,22 +98,34 @@ def get_sim_config():
             ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
             # Cars can rebalance to neighbor centers of level:
             # Why not max rebalance level?
-            ConfigNetwork.REBALANCE_LEVEL: (2,),
+            ConfigNetwork.REBALANCE_LEVEL: (1,),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
-            # ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 180, 300, 600],
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 360, 600],
+            ConfigNetwork.LEVEL_DIST_LIST: [
+                0,
+                60,
+                90,
+                120,
+                180,
+                270,
+                750,
+                1140,
+            ],
+            # Trips and cars have to match in these levels
+            # 9 = 990 and 10=1140
+            ConfigNetwork.MATCHING_LEVELS: (6, 7),
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
-            ConfigNetwork.AGGREGATION_LEVELS: 13,
-            ConfigNetwork.SPEED: 30,
+            ConfigNetwork.AGGREGATION_LEVELS: 6,
+            ConfigNetwork.SPEED: 20,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
             # -------------------------------------------------------- #
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 5,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 1,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_SAMPLING: True,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -121,9 +141,9 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.03,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.02,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
-            ConfigNetwork.STEPSIZE_CONSTANT: 0.05,
+            ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
             # ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_CONSTANT,
             # -------------------------------------------------------- #
@@ -133,16 +153,14 @@ def get_sim_config():
             ConfigNetwork.CONGESTION_PRICE: 10,
             # -------------------------------------------------------- #
             ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
-            ConfigNetwork.MATCH_LEVEL: 2
+            ConfigNetwork.MATCH_LEVEL: 2,
         }
     )
     return config
 
 
-# start_config = get_sim_config()
-# run_plot = PlotTrack(start_config)
-
-trip_demand_dict = dict()
+start_config = get_sim_config()
+run_plot = PlotTrack(start_config)
 
 
 def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
@@ -181,74 +199,12 @@ def hire_cars_centers(amod, contract_duration_h, step):
     return hired_cars
 
 
-def get_ny_demand(amod, tripdata_path, sample_trips=False):
-    """[summary]
-    
-    Parameters
-    ----------
-    amod : [type]
-        [description]
-    tripdata_path : [type]
-        [description]
-    sample_trips : bool, optional
-        Get sample of trips per step (based on resize_factor), by default False
-    
-    Returns
-    -------
-    [type]
-        [description]
-    """
-
-    # Use preloaded list of trips
-    if not sample_trips and tripdata_path in trip_demand_dict:
-        return trip_demand_dict[tripdata_path]
-
-    # Use preloaded list of trip tuples (o,d,passenger_count) per step
-    if tripdata_path in trip_od_list:
-        step_trip_od_list = trip_od_list[tripdata_path]
-    else:
-        print("Creating trip tuple list per step...")
-
-        # Create list of trips with real world data
-        step_trip_od_list = get_step_trip_list(
-            tripdata_path,
-            step=amod.config.time_increment,
-            earliest_step=amod.config.demand_earliest_step_min,
-            max_steps=amod.config.demand_max_steps,
-            # resize_factor=amod.config.demand_resize_factor,
-        )
-
-        # Store created list
-        trip_od_list[tripdata_path] = step_trip_od_list
-
-    print("Creating trip list per step...")
-
-    # Use loaded trip od list to create RESIZED trip list per step
-    step_trip_list = get_trips(
-        amod.points,
-        step_trip_od_list,
-        offset_start=amod.config.offset_repositioning,
-        offset_end=amod.config.offset_termination,
-        classed=True,
-        resize_factor=amod.config.demand_resize_factor,
-    )
-
-    # Count number of trips per step
-    step_trip_count = [len(trips) for trips in step_trip_list]
-
-    list_count_trips = (step_trip_list, step_trip_count)
-
-    # Save trip list
-    if not sample_trips:
-        trip_demand_dict[tripdata_path] = list_count_trips
-
-    return list_count_trips
-
-
 def alg_adp(
     plot_track,
     config,
     episodes=200,
+    enable_charging=False,
+    is_myopic=False,
     # LOG ############################################################ #
     skip_steps=0,
     # PLOT ########################################################### #
@@ -260,7 +216,6 @@ def alg_adp(
     sq_guarantee=False,
     universal_service=False,
     # TRIPS ########################################################## #
-    sample_trips=False,
     classed_trips=True,
 ):
     # ---------------------------------------------------------------- #
@@ -317,7 +272,7 @@ def alg_adp(
     # Loop all episodes, pick up trips, and learn where they are
     for n in range(episode_log.n, episodes):
 
-        if config.demand_scenario == SCENARIO_UNBALANCED:
+        if config.demand_scenario == conf.SCENARIO_UNBALANCED:
 
             # Sample ods for iteration n
             step_trip_list = get_trips_random_ods(
@@ -330,14 +285,14 @@ def alg_adp(
                 classed=classed_trips,
             )
 
-        elif config.demand_scenario == SCENARIO_NYC:
+        elif config.demand_scenario == conf.SCENARIO_NYC:
 
             trips_file_path = random.choice(TRIP_FILES)
 
             # print(f"Processing demand file '{trips_file_path}'...")
 
-            step_trip_list, step_trip_count = get_ny_demand(
-                amod, trips_file_path, sample_trips=sample_trips
+            step_trip_list, step_trip_count = tp.get_ny_demand(
+                config, trips_file_path, amod.points
             )
 
         print(
@@ -354,6 +309,9 @@ def alg_adp(
         # Resetting environment
         amod.reset()
 
+        # print("Position cars:")
+        # pprint([c.point for c in amod.cars])
+
         # ------------------------------------------------------------ #
         # Plot fleet current status ################################## #
         # ------------------------------------------------------------ #
@@ -361,6 +319,8 @@ def alg_adp(
 
             # Computing initial timestep
             plot_track.compute_movements(0)
+
+        start_time = time.time()
 
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(deepcopy(step_trip_list)):
@@ -375,25 +335,25 @@ def alg_adp(
             # Loop cars and update their current status as well as the
             # the list of available vehicles.
 
-            # Show time step statistics
-            if skip_steps > 0 and step % skip_steps == 0:
-                step_log.show_info()
             # print(f"### STEP {step:>4} ###############################")
 
-            # Compute fleet status
-            step_log.compute_fleet_status()
+            # Compute fleet status after making decision in step - 1
+            # What each car is doing when trips are arriving?
+            step_log.compute_fleet_status(step)
 
-            # What each vehicle is doing?
-            # if len(trips) == 0:
-            #     amod.print_fleet_stats(filter_status=[Car.ASSIGN])
-            # amod.print_fleet_stats(filter_status=[])
+            if skip_steps > 0 and step % skip_steps == 0:
+                step_log.show_info()
+                # What each vehicle is doing?
+                # if len(trips) == 0:
+                #     amod.print_fleet_stats(filter_status=[Car.ASSIGN])
+                amod.print_fleet_stats(filter_status=[])
 
             # ######################################################## #
             # TIME INCREMENT HAS PASSED ############################## #
             # ######################################################## #
 
             # ***Change available and available_hired
-            amod.update_fleet_status(step)
+            amod.update_fleet_status(step + 1)
 
             # Stats summary
             # print(" - Pre-decision statuses:")
@@ -435,9 +395,9 @@ def alg_adp(
                 # All users are picked up
                 universal_service=universal_service,
                 # Allow recharging
-                charge=False,
+                charge=enable_charging,
                 # If True, does not use learned information
-                myopic=False,
+                myopic=is_myopic,
                 # Save mip .lp and .log of iteration n
                 # log_iteration=n,
                 # agg_level=1,
@@ -469,7 +429,11 @@ def alg_adp(
 
                 time.sleep(step_delay)
 
-        episode_log.compute_episode(step_log, weights=amod.adp.get_weights())
+        amod.update_fleet_status(step + 1)
+
+        episode_log.compute_episode(
+            step_log, time.time() - start_time, weights=amod.adp.get_weights()
+        )
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################
@@ -486,5 +450,5 @@ def alg_adp(
     return amod.adp.reward
 
 
-# run_plot.start_animation(alg_adp)
+run_plot.start_animation(alg_adp)
 

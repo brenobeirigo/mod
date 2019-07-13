@@ -21,7 +21,7 @@ output = multiprocessing.Queue()
 
 fleet_size = [30]
 resize = [0.1]
-discount_factor = [0.01, 0.05, 0.03]
+discount_factor = [0.03]
 rebalance_levels = [(1,)]
 stepsize_constant = [0.1, 0.05]
 scenarios = [conf.SCENARIO_NYC]
@@ -41,7 +41,7 @@ def run_adp(exp):
 
     run_plot = PlotTrack(exp_setup)
 
-    reward_list = alg.alg_adp(run_plot, exp_setup, episodes=iterations)
+    reward_list = alg.alg_adp(run_plot, exp_setup, False, episodes=iterations)
 
     return (exp_name, label, reward_list)
 

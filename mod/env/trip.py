@@ -48,7 +48,8 @@ class ClassedTrip(Trip):
 
     sq_classes = dict(A=1.0, B=0.9)
     sq_level_class = dict(A=[3, 3], B=[3, 4])
-    min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
+    # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
+    min_max_time_class = dict(A=dict(min=4, max=4), B=dict(min=4, max=9))
     class_proportion = dict(A=0.1, B=0.9)
 
     @classmethod

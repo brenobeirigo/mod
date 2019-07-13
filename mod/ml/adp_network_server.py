@@ -75,15 +75,15 @@ def get_sim_config(update_dict):
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "20KM_200_0.1_PUNISH",
+            ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
             ConfigNetwork.FLEET_SIZE: 300,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.OFFSET_TERMINATION: 15,
+            ConfigNetwork.OFFSET_REPOSIONING: 30,
+            ConfigNetwork.OFFSET_TERMINATION: 60,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -105,6 +105,7 @@ def get_sim_config(update_dict):
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
+            ConfigNetwork.AGGREGATION_LEVELS: 6,
             ConfigNetwork.LEVEL_DIST_LIST: [
                 0,
                 60,
@@ -120,7 +121,6 @@ def get_sim_config(update_dict):
             ConfigNetwork.MATCHING_LEVELS: (6, 7),
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
-            ConfigNetwork.AGGREGATION_LEVELS: 6,
             ConfigNetwork.SPEED: 20,
             # -------------------------------------------------------- #
             # DEMAND ################################################# #
@@ -144,7 +144,7 @@ def get_sim_config(update_dict):
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 1,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.05,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
@@ -453,6 +453,9 @@ def alg_adp(
 
 
 if __name__ == "__main__":
-    start_config = get_sim_config({})
+
+    start_config = get_sim_config(
+        {ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270, 750, 1140]}
+    )
     run_plot = PlotTrack(start_config)
-    alg_adp(run_plot, start_config, False)
+    alg_adp(run_plot, start_config, False, episodes=200)

@@ -19,18 +19,18 @@ reward_data = dict()
 
 output = multiprocessing.Queue()
 
-fleet_size = [30]
+fleet_size = [300]
 resize = [0.1]
-discount_factor = [0.03]
-rebalance_levels = [(1,)]
-stepsize_constant = [0.1, 0.05]
+discount_factor = [0.1]
+rebalance_levels = [(1, 2)]
+stepsize_constant = [0.1]
 scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = [adp.STEPSIZE_MCCLAIN]
 harmonic_stepsize = [1]
 
-iterations = 2
+iterations = 30
 
-exp_name = "TUNING"
+exp_name = "TUNING_123"
 
 
 def run_adp(exp):
@@ -74,17 +74,10 @@ def get_exp(setup):
                                 Config.REBALANCE_LEVEL: reb_level,
                             }
 
-                            label = "_".join(
-                                [
-                                    f"{k}={str(v)}"
-                                    for k, v in update_dict.items()
-                                ]
-                            )
-
                             updated = deepcopy(setup)
                             updated.update(update_dict)
 
-                            exp_list.append((exp_name, label, updated))
+                            exp_list.append((exp_name, updated.label, updated))
     return exp_list
 
 
@@ -92,19 +85,19 @@ def multi_proc_exp(exp_list):
 
     global reward_data
 
-    # pool = multiprocessing.Pool(processes=4)
-    with multiprocessing.Pool() as pool:
-        results = pool.map(run_adp, exp_list)  # , chunksize=1)
+    pool = multiprocessing.Pool(processes=4)
 
-        for exp_name, label, reward_list in results:
+    results = pool.map(run_adp, exp_list)  # , chunksize=1)
 
-            reward_data[exp_name][label] = reward_list
+    for exp_name, label, reward_list in results:
 
-            df = pd.DataFrame.from_dict(reward_data[exp_name])
+        reward_data[exp_name][label] = reward_list
 
-            print(f"###################### Saving {(exp_name, label)}...")
+        df = pd.DataFrame.from_dict(reward_data[exp_name])
 
-            df.to_csv(f"tuning_{exp_name}.csv")
+        print(f"###################### Saving {(exp_name, label)}...")
+
+        df.to_csv(f"tuning_{exp_name}.csv")
 
 
 if __name__ == "__main__":
@@ -113,9 +106,11 @@ if __name__ == "__main__":
     setup = alg.get_sim_config(
         {
             Config.DEMAND_EARLIEST_HOUR: 5,
-            Config.DEMAND_TOTAL_HOURS: 1,
-            Config.OFFSET_REPOSIONING: 0,
-            Config.OFFSET_TERMINATION: 0,
+            Config.DEMAND_TOTAL_HOURS: 4,
+            Config.OFFSET_REPOSIONING: 30,
+            Config.OFFSET_TERMINATION: 60,
+            # Config.AGGREGATION_LEVELS: 7,
+            # Config.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270, 750, 1140],
         }
     )
 

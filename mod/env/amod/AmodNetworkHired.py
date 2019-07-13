@@ -483,6 +483,7 @@ class AmodNetworkHired(AmodNetwork):
                 post_type_car,
             )
 
+                        du.STAY_DECISION,
         return estimate
 
     def print_fleet_stats(self, filter_status=[]):

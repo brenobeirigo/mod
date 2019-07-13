@@ -169,7 +169,8 @@ class EpisodeLog:
         )
 
     def compute_episode(
-        self, step_log, weights=None, plots=True, save_df=True
+        self, step_log, processing_time,
+        weights=None, plots=True, save_df=True
     ):
 
         # Increment number of episodes
@@ -214,6 +215,7 @@ class EpisodeLog:
             )
 
             df_stats = step_log.get_step_stats()
+            df_stats["time"] = pd.Series([processing_time])
 
             stats_file = self.output_path + "/overall_stats.csv"
             df_stats.to_csv(

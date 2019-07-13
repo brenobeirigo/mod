@@ -778,7 +778,7 @@ class PlotTrack:
         """
 
         thread = Thread(
-            target=partial(opt_method, plot_track=self, config=self.config)
+            target=partial(opt_method, plot_track=self, config=self.config, enable_plot=True)
         )
 
         thread.start()

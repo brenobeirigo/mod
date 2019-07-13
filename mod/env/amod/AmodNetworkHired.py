@@ -12,9 +12,11 @@ import requests
 import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decision_utils as du
-
+from copy import deepcopy
+np.set_printoptions(precision=2)
 # Reproducibility of the experiments
 random.seed(1)
+
 
 class AmodNetworkHired(AmodNetwork):
     def __init__(self, config, car_positions=[]):
@@ -483,7 +485,52 @@ class AmodNetworkHired(AmodNetwork):
                 post_type_car,
             )
 
+            avg_busy_stay = list()
+            if decision[0] == du.REBALANCE_DECISION:
+
+                for busy_reb_t in range(t + 1, post_t):
+
+                    _, point, battery, contract_duration, car_type, o, d, d_count = (
+                        decision
+                    )
+
+                    stay = (
                         du.STAY_DECISION,
+                        point,
+                        battery,
+                        contract_duration,
+                        car_type,
+                        point,
+                        point,
+                        d_count,
+                    )
+
+                    # Target attribute if decision was taken
+                    (
+                        stay_post_t,
+                        stay_post_pos,
+                        stay_post_battery,
+                        stay_post_contract_duration,
+                        stay_post_type_car,
+                    ) = self.preview_decision(busy_reb_t, stay)
+
+                    estimate_stay = self.adp.get_weighted_value(
+                        stay_post_t,
+                        stay_post_pos,
+                        stay_post_battery,
+                        stay_post_contract_duration,
+                        stay_post_type_car,
+                    )
+
+                    avg_busy_stay.append(estimate_stay)
+
+                if avg_busy_stay:
+                    avg_stay = sum(avg_busy_stay) / len(avg_busy_stay)
+                    # print(
+                    #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
+                    # )
+                    estimate -= avg_stay
+
         return estimate
 
     def print_fleet_stats(self, filter_status=[]):

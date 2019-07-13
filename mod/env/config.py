@@ -496,10 +496,6 @@ class Config:
         self.folder_mip_log = self.folder_mip + "log/"
         self.folder_mip_lp = self.folder_mip + "lp/"
 
-        if not os.path.exists(self.folder_mip):
-            os.makedirs(self.folder_mip_log)
-            os.makedirs(self.folder_mip_lp)
-
         self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
             minutes=self.config[Config.TIME_INCREMENT]
         )
@@ -992,25 +988,29 @@ class ConfigNetwork(ConfigStandard):
                 )
             ]
         )
-
+        levels = ", ".join([
+            f"{g:>3}"
+            for i, g in enumerate(self.config[Config.LEVEL_DIST_LIST])
+            if i < self.config[Config.AGGREGATION_LEVELS]
+        ])
         return (
             f"{self.config[Config.TEST_LABEL]}_"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"{self.config[Config.FLEET_SIZE]:04}_"
+            f"cars={self.config[Config.FLEET_SIZE]:04}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"{self.config[Config.AGGREGATION_LEVELS]}_"
-            f"{self.config[Config.REBALANCE_LEVEL]}_"
+            f"levels[{self.config[Config.AGGREGATION_LEVELS]}]=({levels})_"
+            f"rebal={str([r for r in self.config[Config.REBALANCE_LEVEL]])}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             # f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
             # f"{reb_neigh}_"
-            f"{self.config[Config.DEMAND_EARLIEST_HOUR]:02}_"
-            f"{self.config[Config.DEMAND_TOTAL_HOURS]:02}_"
-            f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}_"
-            f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
-            f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
+            f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
+            f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h]_"
+            f"resize={self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}_"
+            f"discount={self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
+            f"stepsize={self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
             #f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             #f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

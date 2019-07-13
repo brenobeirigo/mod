@@ -1130,23 +1130,34 @@ def adp_network_hired2(
         level_id_trips_dict,
         # Number of trips per class
         class_count_dict,
-    ) = sortout_trip_list(trips)
+    ) = sortout_trip_list(env, trips)
 
     # ##################################################################
     # VARIABLES ########################################################
     # ##################################################################
 
-    # Get all decision tuples, and trip decision tuples per service 
-    # quality class. If max. battery level is defined, also includes
-    # recharge decisions.
-    decision_cars, decision_class = du.get_decision_set_classed3(
-        env,
-        trips,
-        level_id_cars_dict,
-        level_id_trips_dict,
-        rebalance_targets_dict,
-        # max_battery_level=env.config.battery_levels,
-    )
+    if myopic:
+        # Get all decision tuples, and trip decision tuples per service 
+        # quality class. If max. battery level is defined, also includes
+        # recharge decisions.
+        decision_cars, decision_class = du.get_decision_set_classed4(
+            env,
+            trips,
+            level_id_cars_dict,
+            level_id_trips_dict,
+            rebalance_targets_dict,
+            # max_battery_level=env.config.battery_levels,
+        )
+    else:
+        decision_cars, decision_class = du.get_decision_set_classed4(
+            env,
+            trips,
+            level_id_cars_dict,
+            level_id_trips_dict,
+            rebalance_targets_dict,
+            # max_battery_level=env.config.battery_levels,
+        )
+
 
     # Create variables
     x_var = m.addVars(
@@ -1409,7 +1420,7 @@ def adp_network_hired3(
         level_id_trips_dict,
         # Number of trips per class
         class_count_dict,
-    ) = sortout_trip_list(trips)
+    ) = sortout_trip_list(env, trips)
 
     # ##################################################################
     # VARIABLES ########################################################
@@ -1640,10 +1651,6 @@ def sortout_fleets(env):
     # Which positions are surrounding each car position
     dict_level_id = defaultdict(list)
 
-    # Cars can explore levels corresponding to the largest region center
-    # considered by users.
-    class_levels = ClassedTrip.get_levels()
-
     for car in env.available + env.available_hired:
 
         # List of cars with the same attribute (pos, battery level)
@@ -1659,7 +1666,7 @@ def sortout_fleets(env):
                     car.point,
                     reach=rebalance_reach
                 )
-            # Get region center neighbors
+            # Get region center neighborsss
             else:
                 rebalance_targets = env.get_zone_neighbors(
                     car.point,
@@ -1672,7 +1679,7 @@ def sortout_fleets(env):
 
         # Associate each car to superior aggregation levels and ids,
         # up until the largest region centers requests can be matched.
-        for level in range(max(class_levels) + 1):
+        for level in env.config.matching_levels:
             id_level = car.point.id_level(level)
             dict_level_id[(level, id_level)].append(car)
 
@@ -1683,7 +1690,7 @@ def sortout_fleets(env):
     )
 
 
-def sortout_trip_list(trips):
+def sortout_trip_list(env, trips):
     """
     1 - Associate to each level g and level id g_id lists of trips whose
     G(origin id) is g_id at level g;
@@ -1728,7 +1735,7 @@ def sortout_trip_list(trips):
 
         # Trips can be accessed from any point covered by all its levels
         # up to to the last service quality level.
-        for level in range(0, t.sq2_level + 1):
+        for level in env.config.matching_levels:
             id_level = t.o.id_level(level)
             trip_origins_level_id[(level, id_level)].append(t)
 

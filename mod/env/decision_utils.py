@@ -193,6 +193,119 @@ def get_decision_set(
 
     return decisions
 
+
+def get_decision_set_classed4(
+    env,
+    trips,
+    level_id_cars_dict,
+    level_id_trips_dict,
+    rebalance_targets_dict,
+    max_battery_level=None,
+):
+    """Get list of decision tuples.
+    
+    Parameters
+    ----------
+    cars : list
+        Owned fleet
+    hired_cars : list
+        Third-party fleet
+    level_id_cars_dict : dict
+        For each tuple (level, id), list of cars
+    level_id_trips_dict : dict
+        For each tuple (level, id), list of trips
+    rebalance_targets_dict : dict()
+        List of reachable points from each id
+    max_battery_level : int, optional
+        If declared, add recharge decisions, by default None
+    
+    Returns
+    -------
+    list, list
+        List of all decision tuples and list of trip decisions for each
+        related to each class.
+    """
+
+    decisions = set()
+    decision_class = defaultdict(list)
+
+    for car in env.available + env.available_hired:
+        # Stay ####################################################### #
+        decisions.add(stay_decision(car))
+
+        # Rebalancing ################################################ #
+        rebalance_targets = rebalance_targets_dict[car.point.id]
+        decisions.update(rebalance_decisions(car, rebalance_targets, env))
+
+        # Recharge ################################################### #
+        if max_battery_level and car.battery_level < max_battery_level:
+            decisions.add(recharge_decision(car))
+
+        if env.config.match_neighbors():
+
+            regions = env.get_zone_neighbors(
+                car.point,
+                level=(env.config.match_level,),
+                n_neighbors=(env.config.match_max_neighbors,),
+            )
+
+            regions.add(car.point.id_level(env.config.match_level))
+
+            # print(car, regions)
+
+        for trip in trips:
+
+            # Skip trips not in the car neighborhood
+            if (
+                env.config.match_neighbors()
+                and trip.o.id_level(env.config.match_level) not in regions
+            ):
+                continue
+
+            # Car and trip are not in the same area
+            if env.config.match_in_center() and car.point.id_level(
+                env.config.match_level
+            ) != trip.o.id_level(env.config.match_level):
+                continue
+
+            # Car cannot service trip because it cannot go back
+            # to origin in time
+            if isinstance(car, HiredCar) and not env.can_move(
+                car.point.id,
+                trip.o.id,
+                trip.d.id,
+                car.depot.id,
+                car.contract_duration,
+            ):
+                continue
+
+            # Time to reach trip origin
+            travel_time = env.get_travel_time_od(car.point, trip.o)
+
+            # Can the car reach the trip origin?
+            if travel_time <= trip.max_delay:
+
+                # Setup decisions
+                d = trip_decision(car, trip)
+                decisions.add(d)
+
+                # Car can fulfill the shortest delay
+                if travel_time <= trip.min_delay:
+
+                    # ---------------------------------------- #
+                    # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #
+                    # ---------------------------------------- #
+
+                    # There might be repeated decisions
+                    # associated to the same class since
+                    # several trips can depart from the same
+                    # place.
+
+                    decision_class[trip.sq_class].append(d)
+
+    return decisions, decision_class
+
+
 def get_decision_set_classed3(
     env,
     trips,
@@ -228,7 +341,7 @@ def get_decision_set_classed3(
     decisions = set()
     decision_class = defaultdict(list)
 
-    for car in env.available+env.available_hired:
+    for car in env.available + env.available_hired:
         # Stay ####################################################### #
         decisions.add(stay_decision(car))
 
@@ -240,13 +353,12 @@ def get_decision_set_classed3(
         if max_battery_level and car.battery_level < max_battery_level:
             decisions.add(recharge_decision(car))
 
-
         if env.config.match_neighbors():
-            
+
             regions = env.get_zone_neighbors(
                 car.point,
                 level=(env.config.match_level,),
-                n_neighbors=(env.config.match_max_neighbors,)
+                n_neighbors=(env.config.match_max_neighbors,),
             )
 
             regions.add(car.point.id_level(env.config.match_level))
@@ -254,16 +366,18 @@ def get_decision_set_classed3(
             # print(car, regions)
 
         for trip in trips:
-            
+
             # Skip trips not in the car neighborhood
-            if env.config.match_neighbors() and trip.o.id_level(env.config.match_level) not in regions:
+            if (
+                env.config.match_neighbors()
+                and trip.o.id_level(env.config.match_level) not in regions
+            ):
                 continue
 
             # Car and trip are not in the same area
-            if (
-                env.config.match_in_center() and
-                car.point.id_level(env.config.match_level) != trip.o.id_level(env.config.match_level)
-            ):
+            if env.config.match_in_center() and car.point.id_level(
+                env.config.match_level
+            ) != trip.o.id_level(env.config.match_level):
                 continue
 
             # Car cannot service trip because it cannot go back
@@ -282,14 +396,14 @@ def get_decision_set_classed3(
 
             # Can the car reach the trip origin?
             if travel_time <= trip.max_delay:
-                
-                 # Setup decisions
+
+                # Setup decisions
                 d = trip_decision(car, trip)
                 decisions.add(d)
-                
+
                 # Car can fulfill the shortest delay
                 if travel_time <= trip.min_delay:
-                    
+
                     # ---------------------------------------- #
                     # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #
                     # ---------------------------------------- #
@@ -300,6 +414,114 @@ def get_decision_set_classed3(
                     # place.
 
                     decision_class[trip.sq_class].append(d)
+
+    return decisions, decision_class
+
+
+def get_decision_set_classed6(
+    env,
+    level_id_cars_dict,
+    level_id_trips_dict,
+    rebalance_targets_dict,
+    max_battery_level=None,
+):
+    """Get list of decision tuples.
+    
+    Parameters
+    ----------
+    cars : list
+        Owned fleet
+    hired_cars : list
+        Third-party fleet
+    level_id_cars_dict : dict
+        For each tuple (level, id), list of cars
+    level_id_trips_dict : dict
+        For each tuple (level, id), list of trips
+    rebalance_targets_dict : dict()
+        List of reachable points from each id
+    max_battery_level : int, optional
+        If declared, add recharge decisions, by default None
+    
+    Returns
+    -------
+    list, list
+        List of all decision tuples and list of trip decisions for each
+        related to each class.
+    """
+
+    decisions = set()
+    decision_class = defaultdict(list)
+
+    for car in env.available + env.available_hired:
+        # Stay ####################################################### #
+        decisions.add(stay_decision(car))
+
+        # Rebalancing ################################################ #
+        rebalance_targets = rebalance_targets_dict[car.point.id]
+        decisions.update(rebalance_decisions(car, rebalance_targets, env))
+
+        # Recharge ################################################### #
+        if max_battery_level and car.battery_level < max_battery_level:
+            decisions.add(recharge_decision(car))
+
+    # ################################################################ #
+    # TRIP X CARS #################################################### #
+    # ################################################################ #
+
+    # Trips sorted out by level and level and level_id
+    for (level, level_id), trip_list in level_id_trips_dict.items():
+
+        # Matching trips to cars
+        for trip in trip_list:
+
+            # A trip is matched to a car a single time. If the car was
+            # already matched before, a decision was already created
+            # for it.
+            set_matched = set()
+
+            # Check if there are cars to match to trips. Hired
+            # vehicles always match trips.
+            for car in level_id_cars_dict[(level, level_id)]:
+                # Car cannot service trip because it cannot go back
+                # to origin in time
+                if isinstance(car, HiredCar) and not env.can_move(
+                    car.point.id,
+                    trip.o.id,
+                    trip.d.id,
+                    car.depot.id,
+                    car.contract_duration,
+                ):
+                    continue
+
+                # If car not previosly matched (matched before)
+                if car not in set_matched:
+
+                    # A car is matched to a trip a single time
+                    set_matched.add(car)
+
+                    # Time to reach trip origin
+                    travel_time = env.get_travel_time_od(car.point, trip.o)
+
+                    # Can the car reach the trip origin?
+                    if travel_time <= trip.max_delay:
+
+                        # Setup decisions
+                        d = trip_decision(car, trip)
+                        decisions.add(d)
+
+                        # Car can fulfill the shortest delay
+                        if travel_time <= trip.min_delay:
+
+                            # ---------------------------------------- #
+                            # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #
+                            # ---------------------------------------- #
+
+                            # There might be repeated decisions
+                            # associated to the same class since
+                            # several trips can depart from the same
+                            # place.
+
+                            decision_class[trip.sq_class].append(d)
 
     return decisions, decision_class
 
@@ -337,7 +559,7 @@ def get_decision_set_classed(
     decisions = set()
     decision_class = defaultdict(list)
 
-    for car in env.available+env.available_hired:
+    for car in env.available + env.available_hired:
         # Stay ####################################################### #
         decisions.add(stay_decision(car))
 

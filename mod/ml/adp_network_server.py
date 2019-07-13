@@ -46,16 +46,19 @@ from mod.env import match
 random.seed(1)
 
 
-def get_sim_config():
+def get_sim_config(update_dict):
 
     config = ConfigNetwork()
     # Pull graph info
-    region, label, node_count, center_count, edge_count = nw.query_info()
+    region, label, node_count, center_count, edge_count, region_type = (
+        nw.query_info()
+    )
 
     info = (
         "##############################################################"
         f"\n### Region: {region} G(V={node_count}, E={edge_count})"
         f"\n### Center count: {center_count}"
+        f"\n### Region type: {region_type}"
     )
 
     level_id_count_dict = {
@@ -141,7 +144,7 @@ def get_sim_config():
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.02,
+            ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
@@ -156,11 +159,10 @@ def get_sim_config():
             ConfigNetwork.MATCH_LEVEL: 2,
         }
     )
+
+    config.update(update_dict)
+
     return config
-
-
-start_config = get_sim_config()
-run_plot = PlotTrack(start_config)
 
 
 def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
@@ -202,14 +204,14 @@ def hire_cars_centers(amod, contract_duration_h, step):
 def alg_adp(
     plot_track,
     config,
-    episodes=200,
+    enable_plot,
+    # PLOT ########################################################### #
+    step_delay=PlotTrack.STEP_DELAY,
+    episodes=30,
     enable_charging=False,
     is_myopic=False,
     # LOG ############################################################ #
     skip_steps=0,
-    # PLOT ########################################################### #
-    step_delay=PlotTrack.STEP_DELAY,
-    enable_plot=False,
     # HIRING ######################################################### #
     enable_hiring=False,
     contract_duration_h=2,
@@ -450,5 +452,7 @@ def alg_adp(
     return amod.adp.reward
 
 
-run_plot.start_animation(alg_adp)
-
+if __name__ == "__main__":
+    start_config = get_sim_config({})
+    run_plot = PlotTrack(start_config)
+    alg_adp(run_plot, start_config, False)

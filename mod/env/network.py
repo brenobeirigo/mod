@@ -7,13 +7,16 @@ import sys
 
 import sys
 
-tenv_mod = "c:/Users/breno/Documents/phd/tenv"
+# tenv_mod = "c:/Users/breno/Documents/phd/tenv"
+tenv_mod = "C:\\Users\\LocalAdmin\\OneDrive\\leap_forward\\street_network_server\\tenv"
+
 sys.path.insert(0, tenv_mod)
 
 import tenv.util as tenv
 
 # Reproducibility of the experiments
 random.seed(1)
+
 
 class Point:
 
@@ -498,8 +501,9 @@ def query_info():
     node_count = info["node_count"]
     region = info["region"]
     label = info["label"]
+    region_type = info["region_type"]
 
-    return region, label, node_count, center_count, edge_count
+    return region, label, node_count, center_count, edge_count, region_type
 
 
 def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):

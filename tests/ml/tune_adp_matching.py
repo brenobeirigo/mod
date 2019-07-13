@@ -27,16 +27,16 @@ setup.update(
         Config.DEMAND_EARLIEST_HOUR: 5,
         Config.DEMAND_TOTAL_HOURS: 4,
         Config.OFFSET_REPOSIONING: 30,
-        Config.OFFSET_TERMINATION: 30,
+        Config.OFFSET_TERMINATION: 60,
     }
 )
 
 lock = multiprocessing.Lock()
 
-fleet_size = [1000]
-resize = [0.5]
-discount_factor = [0.03]
-rebalance_levels = [(3,)] #, (1,2), (1,2,3)]
+fleet_size = [300]
+resize = [0.1]
+discount_factor = [0.05, 0.03]
+rebalance_levels = [(1,)]
 stepsize_constant = [0.1, 0.05]
 scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = [adp.STEPSIZE_MCCLAIN]
@@ -49,8 +49,8 @@ match_max_neighbors = [8]
 match_level_neighbors = [3]
 match_level_centers = [5]
 
-iterations = 30
-overall_exp_label = "MATCHINGBUSY"
+iterations = 50
+overall_exp_label = ""
 
 processed = set()
 
@@ -66,7 +66,7 @@ def run_exp(exp, output):
 
     # Setting become a column in the dataframe
     output.put((exp_name, label, reward_list))
-   
+
 
 def get_exp():
     global reward_data
@@ -76,8 +76,7 @@ def get_exp():
         for f_size in fleet_size:
             for reb_level in rebalance_levels:
                 for sc in scenarios:
-                
-                    
+
                     # File names
                     exp_name = f"{overall_exp_label}"
 
@@ -131,7 +130,7 @@ def get_exp():
                                                 Config.STEPSIZE_CONSTANT: step,
                                                 # Config.HARMONIC_STEPSIZE: harm,
                                                 Config.FLEET_SIZE: f_size,
-                                                Config.DEMAND_RESIZE_FACTOR: d_resize,
+                                                # Config.DEMAND_RESIZE_FACTOR: d_resize,
                                                 # Config.DEMAND_SCENARIO: sc,
                                                 Config.REBALANCE_LEVEL: reb_level,
                                             }

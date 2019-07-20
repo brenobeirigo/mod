@@ -19,20 +19,21 @@ reward_data = dict()
 
 output = multiprocessing.Queue()
 
-fleet_size = [30]
-resize = [0.1]
-discount_factor = [0.01, 0.05, 0.03]
-rebalance_levels = [(1,)]
-stepsize_constant = [0.1, 0.05]
-scenarios = [conf.SCENARIO_NYC]
-stepsize_rules = [adp.STEPSIZE_MCCLAIN]
-harmonic_stepsize = [1]
 
-iterations = 2
-exp_name = "TUNING"
+ update_dict = {
+                                Config.TEST_LABEL: exp_name,
+                                # Config.STEPSIZE_RULE: rule,
+                                Config.DISCOUNT_FACTOR: dist,
+                                Config.STEPSIZE_CONSTANT: step,
+                                # Config.HARMONIC_STEPSIZE: harm,
+                                Config.FLEET_SIZE: f_size,
+                                Config.DEMAND_SCENARIO: sc,
+                                Config.REBALANCE_LEVEL: reb_level,
+                            }
 
 
-def run_exp(exp):
+
+def run_adp(exp):
 
     global iterations
 
@@ -51,6 +52,7 @@ def get_exp(setup):
 
     exp_list = []
 
+    for key, setting_list in tuning.setting
     for reb_level in rebalance_levels:
         for sc in scenarios:
             for f_size in fleet_size:
@@ -61,13 +63,6 @@ def get_exp(setup):
                 for dist in discount_factor:
                     for rule in stepsize_rules:
                         for step in stepsize_constant:
-
-                            # for harm in harmonic_stepsize:
-
-                            # # Harmonic constant is discarded when rule
-                            # # is not harmonic
-                            # if rule != adp.STEPSIZE_HARMONIC:
-                            #     harm = 1
 
                             update_dict = {
                                 Config.TEST_LABEL: exp_name,
@@ -98,10 +93,9 @@ def multi_proc_exp(exp_list):
 
     global reward_data
 
-    # with multiprocessing.Pool() as pool:
     pool = multiprocessing.Pool(processes=4)
-    # pool.processes = 2
-    results = pool.map(run_exp, exp_list, chunksize=1)
+
+    results = pool.map(run_adp, exp_list, chunksize=1)
 
     for exp_name, label, reward_list in results:
 
@@ -109,69 +103,40 @@ def multi_proc_exp(exp_list):
 
         df = pd.DataFrame.from_dict(reward_data[exp_name])
 
-        # processed.add((exp_name, label))
         print(f"###################### Saving {(exp_name, label)}...")
 
         df.to_csv(f"tuning_{exp_name}.csv")
 
 
-def proc(exp_list):
-    # Setup a list of processes that we want to run
-
-    n_workers = 3
-
-    for i1 in range(0, len(exp_list), n_workers):
-        processes = [
-            multiprocessing.Process(target=run_exp, args=(exp_list[i], output))
-            for i in range(i1, min(i1 + n_workers, len(exp_list)))
-        ]
-
-        # Run processes
-        for p in processes:
-            p.start()
-
-        # Exit the completed processes
-        for p in processes:
-            p.join()
-
-        results = [output.get() for p in processes]
-
-        for exp_name, label, reward_list in results:
-
-            reward_data[exp_name][label] = reward_list
-
-            df = pd.DataFrame.from_dict(reward_data[exp_name])
-
-            # processed.add((exp_name, label))
-            print(f"###################### Saving {(exp_name, label)}...")
-
-            df.to_csv(f"tuning_{exp_name}.csv")
-            # np.save("tune.npy", processed)
-
-
 if __name__ == "__main__":
-    # try:
-    #     processed = set(np.load("tune.npy", allow_pickle=True).item())
-    #     print("Previous tuning loaded.")
-    #     pprint(processed)
-    # except:
-    #     print("Starting tuning...")
 
     # Setup shared by all experiments
-    setup = alg.get_sim_config(
-        {
-            Config.DEMAND_EARLIEST_HOUR: 5,
-            Config.DEMAND_TOTAL_HOURS: 1,
-            Config.OFFSET_REPOSIONING: 0,
-            Config.OFFSET_TERMINATION: 0,
-        }
-    )
+    setup = alg.get_sim_config()
+
+    iterations = 2
+
+    exp_name = "TUNE_NO_PUNISH"
+
+    tuning_settings = {
+        Config.TEST_LABEL: exp_name,
+        Config.FLEET_SIZE: [30],
+        Config.DEMAND_RESIZE_FACTOR: [0.1],
+        Config.DISCOUNT_FACTOR: [0.01, 0.05, 0.03],
+        Config.DEMAND_SCENARIO: [conf.SCENARIO_NYC],
+        Config.REBALANCE_LEVEL: [(1,)],
+        Config.STEPSIZE_CONSTANT: [0.1, 0.05],
+        Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
+        Config.HARMONIC_STEPSIZE: [1],
+        Config.DEMAND_EARLIEST_HOUR: 5,
+        Config.DEMAND_TOTAL_HOURS: 1,
+        Config.OFFSET_REPOSIONING: 0,
+        Config.OFFSET_TERMINATION: 0,
+    }
+
+
+
 
     print(setup.label)
-
     exp_list = get_exp(setup)
-    # print(exp_list)
-    # proc(exp_list)
     multi_proc_exp(exp_list)
-    # for exp in exp_list:
-    #     run_exp(exp)
+

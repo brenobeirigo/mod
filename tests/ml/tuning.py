@@ -19,18 +19,18 @@ reward_data = dict()
 
 output = multiprocessing.Queue()
 
-fleet_size = [300]
+fleet_size = [400]
 resize = [0.1]
-discount_factor = [0.1]
-rebalance_levels = [(1, 2)]
+discount_factor = [0.05]
+rebalance_levels = [(0, 1)]
 stepsize_constant = [0.1]
 scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = [adp.STEPSIZE_MCCLAIN]
 harmonic_stepsize = [1]
 
-iterations = 30
+iterations = 50
 
-exp_name = "TUNING_123"
+exp_name = "SHORT_CLASSED"
 
 
 def run_adp(exp):
@@ -41,7 +41,17 @@ def run_adp(exp):
 
     run_plot = PlotTrack(exp_setup)
 
-    reward_list = alg.alg_adp(run_plot, exp_setup, False, episodes=iterations)
+    reward_list = alg.alg_adp(
+        run_plot,
+        exp_setup,
+        False,
+        episodes=iterations,
+        classed_trips=True,
+        # enable_hiring=True,
+        # contract_duration_h=2,
+        # sq_guarantee=True,
+        # universal_service=True,
+    )
 
     return (exp_name, label, reward_list)
 
@@ -85,7 +95,7 @@ def multi_proc_exp(exp_list):
 
     global reward_data
 
-    pool = multiprocessing.Pool(processes=4)
+    pool = multiprocessing.Pool(processes=1)
 
     results = pool.map(run_adp, exp_list)  # , chunksize=1)
 
@@ -107,10 +117,12 @@ if __name__ == "__main__":
         {
             Config.DEMAND_EARLIEST_HOUR: 5,
             Config.DEMAND_TOTAL_HOURS: 4,
-            Config.OFFSET_REPOSIONING: 30,
-            Config.OFFSET_TERMINATION: 60,
-            # Config.AGGREGATION_LEVELS: 7,
-            # Config.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270, 750, 1140],
+            Config.OFFSET_REPOSIONING: 15,
+            Config.OFFSET_TERMINATION: 30,
+            Config.AGGREGATION_LEVELS: 6,
+            Config.CONTRACT_DURATION_LEVEL: 10,
+            Config.N_CLOSEST_NEIGHBORS: (8, 8),
+            Config.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270, 750, 1140],
         }
     )
 

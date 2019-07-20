@@ -13,7 +13,6 @@ import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decision_utils as du
 from copy import deepcopy
-
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
 random.seed(1)
@@ -532,8 +531,6 @@ class AmodNetworkHired(AmodNetwork):
                     # )
                     estimate -= avg_stay
 
-        # if decision[0] == du.TRIP_DECISION:
-        #     estimate = 100 * estimate
         return estimate
 
     def print_fleet_stats(self, filter_status=[]):

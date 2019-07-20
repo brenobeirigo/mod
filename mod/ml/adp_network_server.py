@@ -77,7 +77,7 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1500,
+            ConfigNetwork.FLEET_SIZE: 300,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
@@ -95,13 +95,13 @@ def get_sim_config(update_dict):
             # Region centers are created in steps of how much time?
             ConfigNetwork.STEP_SECONDS: 30,
             # Cars rebalance to up to #region centers
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: (8, 8),
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: (8,),
             # Cars can access locations within region centers
             # established in which neighborhood level?
             ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
             # Cars can rebalance to neighbor centers of level:
             # Why not max rebalance level?
-            ConfigNetwork.REBALANCE_LEVEL: (0, 1),
+            ConfigNetwork.REBALANCE_LEVEL: (1,),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
@@ -375,7 +375,7 @@ def alg_adp(
                         amod, contract_duration_h, step
                     )
 
-                hired_cars = hire_cars_centers(amod, contract_duration_h, step)
+                # hired_cars = hire_cars_centers(amod, contract_duration_h, step)
 
                 # Add hired fleet to model
                 amod.hired_cars.extend(hired_cars)
@@ -458,14 +458,4 @@ if __name__ == "__main__":
         {ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270, 750, 1140]}
     )
     run_plot = PlotTrack(start_config)
-    alg_adp(
-        run_plot,
-        start_config,
-        False,
-        episodes=200,
-        enable_hiring=True,
-        contract_duration_h=2,
-        sq_guarantee=True,
-        universal_service=True,
-    )
-
+    alg_adp(run_plot, start_config, False, episodes=200)

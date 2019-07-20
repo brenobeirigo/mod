@@ -27,14 +27,12 @@ from collections import defaultdict
 
 plot_width = 900
 plot_height = 500
-start_slider = 0
-end_slider = 25
+start_slider = 150
+end_slider = 303
 update_rate = 5 * 1000 * 60  # 5 min
-axes_font_size = "20px"
-label_font_size = "20px"
-title_font_size = "20px"
+
 smooth_sigma_demand = 1
-smooth_sigma_fleet = 1
+smooth_sigma_fleet = 5
 
 
 doc = curdoc()
@@ -43,7 +41,7 @@ doc = curdoc()
 # exp_name = "0.5_FUTURE_HARMONIC_100_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_100_10"
 
 # exp_name = "HBEGIN_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_01_10"
-exp_name = "SHORT_CLASSED_cars=0400_levels[6]=(  0,  60,  90, 120, 180, 270)_rebal=[0, 1]_[05h,+04h]_resize=0.10_discount=0.05_stepsize=0.10"
+exp_name = "H_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_01_10"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -78,7 +76,7 @@ plot_demand = figure(plot_width=plot_width, plot_height=plot_height)
 
 # Setup slider
 episode_slider = Slider(
-    title="Iteration",
+    title="Episode",
     width=800,
     align="center",
     value=start_slider,
@@ -120,8 +118,7 @@ def configure_plot_demand(p):
         background_fill_alpha=0.8,
         click_policy="mute",
         border_line_width=0,
-        label_text_font_size=label_font_size,
-        title_text_font_size=title_font_size,
+        title_text_font_size="12px",
         title_text_font_style="bold",
         # title="Demand",
     )
@@ -129,7 +126,7 @@ def configure_plot_demand(p):
     # Setup title
     title = Title(
         align="center",
-        text=f"Iteration {episode_slider.value:>4}",
+        text=f"Episode {episode_slider.value:>4}",
         text_font_size="16pt",
         text_color="#929292",
         text_font_style="normal",
@@ -138,18 +135,10 @@ def configure_plot_demand(p):
     # Add legend outside plot
     p.add_layout(legend, "right")
 
-    # Add title
+    # Add title and axes
     p.title = title
-
-    # Set x axis settings
     p.xaxis.axis_label = "Step"
-    p.xaxis.major_label_text_font_size = axes_font_size
-    p.xaxis.axis_label_text_font_size = axes_font_size
-
-    # Set y axis settings
     p.yaxis.axis_label = "#Trips"
-    p.yaxis.major_label_text_font_size = axes_font_size
-    p.yaxis.axis_label_text_font_size = axes_font_size
 
 
 def configure_plot_fleet(p, status_list):
@@ -180,8 +169,7 @@ def configure_plot_fleet(p, status_list):
         background_fill_alpha=0.8,
         click_policy="mute",
         border_line_width=0,
-        label_text_font_size=label_font_size,
-        title_text_font_size=title_font_size,
+        title_text_font_size="12px",
         title_text_font_style="bold",
         title="Vehicle status",
     )
@@ -189,7 +177,7 @@ def configure_plot_fleet(p, status_list):
     # Setup title
     title = Title(
         align="center",
-        text=f"Iteration {episode_slider.value:>4}",
+        text=f"Episode {episode_slider.value:>4}",
         text_font_size="16pt",
         text_color="#929292",
         text_font_style="normal",
@@ -198,18 +186,10 @@ def configure_plot_fleet(p, status_list):
     # Add legend outside plot
     p.add_layout(legend, "right")
 
-    # Add title
+    # Add title and axes
     p.title = title
-
-    # Set x axis settings
     p.xaxis.axis_label = "Step"
-    p.xaxis.major_label_text_font_size = axes_font_size
-    p.xaxis.axis_label_text_font_size = axes_font_size
-
-    # Set y axis settings
     p.yaxis.axis_label = "#Vehicle/Status"
-    p.yaxis.major_label_text_font_size = axes_font_size
-    p.yaxis.axis_label_text_font_size = axes_font_size
 
 
 def load_episode(e, smooth_sigma=0):
@@ -293,7 +273,7 @@ def show_fleet_status(episode):
         for status, count in episode_fleet_dict[episode].items():
             source_fleet[status].data["y"] = count
 
-    plot_fleet.title.text = f"Iteration {episode:>4}"
+    plot_fleet.title.text = f"Episode {episode:>4}"
 
 
 @gen.coroutine
@@ -319,7 +299,7 @@ def show_demand_status(episode):
             source_demand[status].data["y"] = count
 
     s_rate = episode_demand_dict[episode]["service_rate"]
-    plot_demand.title.text = f"Iteration {episode:>4} ({s_rate:>7.2%})"
+    plot_demand.title.text = f"Episode {episode:>4} ({s_rate:>7.2%})"
 
 
 def update_data(attrname, old, new):
@@ -363,5 +343,5 @@ update_data("value", start_slider, start_slider)
 update_episode_list()
 
 doc.add_root(column(row(plot_fleet, plot_demand), episode_slider))
-doc.title = "Iteration history"
+doc.title = "Episode history"
 doc.add_periodic_callback(update_episode_list, update_rate)

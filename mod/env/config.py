@@ -805,7 +805,7 @@ class ConfigNetwork(ConfigStandard):
 
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
-        self.config[Config.CONTRACT_DURATION_LEVEL] = 5  # Min.
+        self.config[Config.CONTRACT_DURATION_LEVEL] = 15  # Min.
         self.config[Config.CONGESTION_PRICE] = 10
 
         # LEARNING ################################################### #

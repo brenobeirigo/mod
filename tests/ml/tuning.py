@@ -22,11 +22,21 @@ output = multiprocessing.Queue()
 fleet_size = [400]
 resize = [0.1]
 discount_factor = [0.05]
-rebalance_levels = [(0, 1)]
+rebalance_levels = [((0, 1), (8, 8))]
 stepsize_constant = [0.1]
 scenarios = [conf.SCENARIO_NYC]
 stepsize_rules = [adp.STEPSIZE_MCCLAIN]
 harmonic_stepsize = [1]
+N_PROCESSES = 2
+
+aggregation_levels = [
+    (
+        [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
+        [0, 60, 90, 120, 180, 270],
+        [1],
+    ),
+    ([(0, 0), (0, 1), (0, 2), (0, 3)], [0, 60, 120, 270], [1]),
+]
 
 iterations = 50
 
@@ -61,41 +71,47 @@ def get_exp(setup):
     global reward_data
 
     exp_list = []
+    for agg_levels, level_dist_list, level_time_list in aggregation_levels:
+        for reb_level, neighbors in rebalance_levels:
+            for sc in scenarios:
+                for f_size in fleet_size:
 
-    for reb_level in rebalance_levels:
-        for sc in scenarios:
-            for f_size in fleet_size:
+                    reward_data[exp_name] = dict()
 
-                reward_data[exp_name] = dict()
+                    # Tune stepsize rules
+                    for dist in discount_factor:
+                        for rule in stepsize_rules:
+                            for step in stepsize_constant:
 
-                # Tune stepsize rules
-                for dist in discount_factor:
-                    for rule in stepsize_rules:
-                        for step in stepsize_constant:
+                                update_dict = {
+                                    Config.TEST_LABEL: exp_name,
+                                    # Config.STEPSIZE_RULE: rule,
+                                    Config.DISCOUNT_FACTOR: dist,
+                                    Config.STEPSIZE_CONSTANT: step,
+                                    # Config.HARMONIC_STEPSIZE: harm,
+                                    Config.FLEET_SIZE: f_size,
+                                    Config.DEMAND_SCENARIO: sc,
+                                    Config.REBALANCE_LEVEL: reb_level,
+                                    Config.N_CLOSEST_NEIGHBORS: neighbors,
+                                    Config.AGGREGATION_LEVELS: agg_levels,
+                                    Config.LEVEL_DIST_LIST: level_dist_list,
+                                    Config.LEVEL_TIME_LIST: level_time_list,
+                                }
 
-                            update_dict = {
-                                Config.TEST_LABEL: exp_name,
-                                # Config.STEPSIZE_RULE: rule,
-                                Config.DISCOUNT_FACTOR: dist,
-                                Config.STEPSIZE_CONSTANT: step,
-                                # Config.HARMONIC_STEPSIZE: harm,
-                                Config.FLEET_SIZE: f_size,
-                                Config.DEMAND_SCENARIO: sc,
-                                Config.REBALANCE_LEVEL: reb_level,
-                            }
+                                updated = deepcopy(setup)
+                                updated.update(update_dict)
 
-                            updated = deepcopy(setup)
-                            updated.update(update_dict)
-
-                            exp_list.append((exp_name, updated.label, updated))
-    return exp_list
+                                exp_list.append(
+                                    (exp_name, updated.label, updated)
+                                )
+        return exp_list
 
 
-def multi_proc_exp(exp_list):
+def multi_proc_exp(exp_list, processes=4):
 
     global reward_data
 
-    pool = multiprocessing.Pool(processes=1)
+    pool = multiprocessing.Pool(processes=processes)
 
     results = pool.map(run_adp, exp_list)  # , chunksize=1)
 
@@ -119,13 +135,10 @@ if __name__ == "__main__":
             Config.DEMAND_TOTAL_HOURS: 4,
             Config.OFFSET_REPOSIONING: 15,
             Config.OFFSET_TERMINATION: 30,
-            Config.AGGREGATION_LEVELS: 6,
             Config.CONTRACT_DURATION_LEVEL: 10,
-            Config.N_CLOSEST_NEIGHBORS: (8, 8),
-            Config.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270, 750, 1140],
         }
     )
 
     print(setup.label)
     exp_list = get_exp(setup)
-    multi_proc_exp(exp_list)
+    multi_proc_exp(exp_list, processes=N_PROCESSES)

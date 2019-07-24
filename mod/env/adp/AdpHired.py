@@ -8,6 +8,7 @@ class AdpHired(adp.Adp):
         self,
         points,
         agregation_levels,
+        temporal_levels,
         stepsize,
         stepsize_rule=adp.STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
@@ -17,6 +18,7 @@ class AdpHired(adp.Adp):
         super().__init__(
             points,
             agregation_levels,
+            temporal_levels,
             stepsize,
             stepsize_rule=stepsize_rule,
             stepsize_constant=stepsize_constant,
@@ -27,80 +29,6 @@ class AdpHired(adp.Adp):
     # Smoothed #########################################################
     ####################################################################
 
-    def get_weights_and_agg_value(self, t, pos, battery, contract_duration=32):
-        # Get point object associated to position
-        point = self.points[pos]
-
-        # Value function of level 0 in previous iteration
-        v_ta_0 = (
-            self.values[t][0][(pos, battery)]
-            if t in self.values
-            and 0 in self.values[t]
-            and (pos, battery, contract_duration) in self.values[t][0]
-            else 0
-        )
-
-        weight_vector = np.zeros(self.aggregation_levels)
-        value_vector = np.zeros(self.aggregation_levels)
-
-        for g in range(self.aggregation_levels):
-
-            # Find attribute at level g
-            ta_g = (point.id_level(g), battery, contract_duration)
-
-            # Current value function of attribute at level g
-            value_vector[g] = (
-                self.values[t][g][ta_g]
-                if t in self.values
-                and 0 in self.values[t]
-                and (pos, battery, contract_duration) in self.values[t][0]
-                else 0
-            )
-
-            # WEIGHTING ############################################
-
-            # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-            aggregation_bias = self.aggregation_bias[t][g][ta_g]
-
-            # Bias due to smoothing of transient data series (value
-            # function change every iteration)
-            transient_bias = self.transient_bias[t][g][ta_g]
-
-            variance_g = self.variance_g[t][g][ta_g]
-
-            # Lambda stepsize from iteration n-1
-            lambda_step_size = self.lambda_stepsize[t][g][ta_g]
-
-            # Estimate of the variance of observations made of state
-            # s, using data from aggregation level g, after n
-            # observations.
-            variance_error = self.get_total_variance(
-                variance_g, transient_bias, lambda_step_size
-            )
-
-            # Variance of our estimate of the mean v[-,s,g,n]
-            variance = lambda_step_size * variance_error
-
-            # Total variation (variance plus the square of the bias)
-            total_variation = variance + (aggregation_bias ** 2)
-
-            if total_variation == 0:
-                weight_vector[g] = 0
-            else:
-                weight_vector[g] = 1 / total_variation
-
-        if len(np.unique(value_vector)) <= 1:
-            value_estimation = 0
-        else:
-            weight_vector = weight_vector / sum(weight_vector)
-            value_estimation = sum(
-                np.prod([weight_vector, value_vector], axis=0)
-            )
-            # Upate weight vector
-            # self.agg_weight_vectors[(t, pos, battery)] = weight_vector
-
-        return weight_vector, value_estimation
-
     def get_weighted_value(self, t, pos, battery, contract_duration, car_type):
 
         # Get point object associated to position
@@ -109,25 +37,30 @@ class AdpHired(adp.Adp):
         value_estimation = 0
 
         # Calculate value estimation based on hierarchical aggregation
-        weight_vector = np.zeros(self.aggregation_levels)
-        value_vector = np.zeros(self.aggregation_levels)
+        weight_vector = np.zeros(len(self.aggregation_levels))
+        value_vector = np.zeros(len(self.aggregation_levels))
 
-        for g in range(0, self.aggregation_levels):
+        for i, (g_time, g) in enumerate(self.aggregation_levels):
 
+            # Time in level g
+            t_g = self.time_step_level(t, level=g_time)
+
+            # Position in level g
             pos_g = point.id_level(g)
+
             # Find attribute at level g
             a_g = (pos_g, battery, contract_duration, car_type)
 
             # Current value function of attribute at level g
-            value_vector[g] = (
-                self.values[t][g][a_g]
-                if t in self.values
-                and 0 in self.values[t]
-                and a_g in self.values[t][g]
+            value_vector[i] = (
+                self.values[t_g][g][a_g]
+                if t_g in self.values
+                and 0 in self.values[t_g]
+                and a_g in self.values[t_g][g]
                 else 0
             )
 
-            weight_vector[g] = self.get_weight(t, g, a_g)
+            weight_vector[i] = self.get_weight(t_g, g, a_g)
 
         # Normalize (weights have to sum up to one)
         weight_sum = sum(weight_vector)
@@ -163,60 +96,65 @@ class AdpHired(adp.Adp):
             point = self.points[pos]
 
             # Append duals to all superior hierachical states
-            for g in range(0, self.aggregation_levels):
+            for g_time, g in self.aggregation_levels:
+
+                # Time in level g
+                t_g = self.time_step_level(t, level=g_time)
 
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Value is later used to update a_g
-                level_update_list[(g, a_g)].append(v_ta_sampled)
+                level_update_list[(g_time, g, a_g)].append(v_ta_sampled)
 
                 # Update the number of times state was accessed
-                self.count[t][g][a_g] += 1
+                self.count[t_g][g][a_g] += 1
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
-                self.transient_bias[t][g][a_g] = self.get_transient_bias(
-                    self.transient_bias[t][g][a_g],
+                self.transient_bias[t_g][g][a_g] = self.get_transient_bias(
+                    self.transient_bias[t_g][g][a_g],
                     v_ta_sampled,
-                    self.values[t][g][a_g],
-                    self.stepsize
+                    self.values[t_g][g][a_g],
+                    self.stepsize,
                 )
 
                 # Estimate of total squared variation,
-                self.variance_g[t][g][a_g] = self.get_variance_g(
+                self.variance_g[t_g][g][a_g] = self.get_variance_g(
                     v_ta_sampled,
-                    self.values[t][g][a_g],
+                    self.values[t_g][g][a_g],
                     self.stepsize,
-                    self.variance_g[t][g][a_g]
+                    self.variance_g[t_g][g][a_g],
                 )
 
         # Loop states (including disaggregate), average all values that
         # aggregate up to ta_g, and smooth average to previous value
         for state_g, value_list_g in level_update_list.items():
 
-            g, a_g = state_g
+            g_time, g, a_g = state_g
+
+            t_g = (g_time, t)
 
             # Updating lambda stepsize using previous stepsizes
-            self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
-                self.step_size_func[t][g][a_g], self.lambda_stepsize[t][g][a_g]
+            self.lambda_stepsize[t_g][g][a_g] = self.get_lambda_stepsize(
+                self.step_size_func[t_g][g][a_g],
+                self.lambda_stepsize[t_g][g][a_g],
             )
 
             # Average value function considering all elements sharing
             # the same state at level g
-            v_ta_g = sum(value_list_g) /  len(value_list_g)
+            v_ta_g = sum(value_list_g) / len(value_list_g)
 
             # Updating value function at gth level with smoothing
-            old_v_ta_g = self.values[t][g][a_g]
-            stepsize = self.step_size_func[t][g][a_g]
+            old_v_ta_g = self.values[t_g][g][a_g]
+            stepsize = self.step_size_func[t_g][g][a_g]
             new_v_ta_g = (1 - stepsize) * old_v_ta_g + stepsize * v_ta_g
-            self.values[t][g][a_g] = new_v_ta_g
+            self.values[t_g][g][a_g] = new_v_ta_g
 
             # Updates ta_g stepsize
-            self.step_size_func[t][g][a_g] = self.get_stepsize(
-                self.step_size_func[t][g][a_g]
+            self.step_size_func[t_g][g][a_g] = self.get_stepsize(
+                self.step_size_func[t_g][g][a_g]
             )
-
 
     ####################################################################
     # True averaging ###################################################
@@ -227,6 +165,9 @@ class AdpHired(adp.Adp):
         # Point associated to position at disaggregate level
         point = self.points[pos]
 
+        # Time in level g
+        t_g = self.time_step_level(t, level=level)
+
         # Attribute considering aggregation level
         attribute = (
             point.id_level(level),
@@ -236,7 +177,7 @@ class AdpHired(adp.Adp):
         )
 
         # Value function
-        value = self.values[t][level][attribute]
+        value = self.values[t_g][level][attribute]
 
         return value
 
@@ -257,23 +198,26 @@ class AdpHired(adp.Adp):
             # Get point object associated to position
             point = self.points[pos]
 
-            for g in range(self.aggregation_levels):
+            for g_time, g in self.aggregation_levels:
+
+                # Time in level g
+                t_g = self.time_step_level(t, level=g_time)
 
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Current value function of attribute at level g
-                current_vf = self.values[t][g][a_g]
+                current_vf = self.values[t_g][g][a_g]
 
                 # Increment every time attribute ta_g is accessed
-                self.count[t][g][a_g] += 1
+                self.count[t_g][g][a_g] += 1
 
                 # Incremental averaging
-                count_ta_g = self.count[t][g][a_g]
+                count_ta_g = self.count[t_g][g][a_g]
                 increment = (v_ta - current_vf) / count_ta_g
 
                 # Update attribute mean value
-                self.values[t][g][a_g] += increment
+                self.values[t_g][g][a_g] += increment
 
         # Update weights using new value function estimate
         # self.update_weights(t, g, a_g, new_vf_0, 1)
@@ -286,7 +230,7 @@ class AdpHired(adp.Adp):
 
         fleet_weights_dict = defaultdict(list)
         fleet_weights_avg_dict = defaultdict(
-            lambda: np.zeros(self.aggregation_levels)
+            lambda: np.zeros(len(self.aggregation_levels))
         )
 
         try:

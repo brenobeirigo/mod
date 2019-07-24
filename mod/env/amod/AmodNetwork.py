@@ -22,6 +22,7 @@ url = f"http://localhost:{port}"
 # Reproducibility of the experiments
 random.seed(1)
 
+
 class AmodNetwork(Amod):
     def __init__(self, config, car_positions=[]):
         """Street network Amod environment
@@ -62,6 +63,7 @@ class AmodNetwork(Amod):
         self.adp = AdpHired(
             self.points,
             self.config.aggregation_levels,
+            self.config.level_time_list,
             self.config.stepsize,
             stepsize_rule=self.config.stepsize_rule,
             stepsize_harmonic=self.config.stepsize_harmonic,

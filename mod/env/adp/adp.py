@@ -1,11 +1,19 @@
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+import functools
 
 STEPSIZE_HARMONIC = "HARM"
 STEPSIZE_CONSTANT = "CONST"
 STEPSIZE_MCCLAIN = "MCCL"
 
+AVERAGED_UPDATE = "AVERAGED_UPDATE"
+WEIGHTED_UPDATE = "WEIGHTED_UPDATE"
+
 STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
+
+TIME_INCREMENT = 5
+
+AggLevel = namedtuple("AggregationLevel", "temporal, spatial")
 
 
 class Adp:
@@ -13,12 +21,14 @@ class Adp:
         self,
         points,
         agregation_levels,
+        temporal_levels,
         stepsize,
         stepsize_rule=STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
         stepsize_harmonic=1,
     ):
         self.aggregation_levels = agregation_levels
+        self.temporal_levels = temporal_levels
         self.stepsize = stepsize
         self.points = points
         self.stepsize_rule = stepsize_rule
@@ -56,8 +66,8 @@ class Adp:
         self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
         # Averaging weights each round
-        self.counts = np.zeros(self.aggregation_levels)
-        self.weight_track = np.zeros(self.aggregation_levels)
+        self.counts = np.zeros(len(self.aggregation_levels))
+        self.weight_track = np.zeros(len(self.aggregation_levels))
 
         self.current_weights = np.array([])
 
@@ -109,80 +119,6 @@ class Adp:
     ####################################################################
     # Smoothed #########################################################
     ####################################################################
-
-    def get_weights_and_agg_value(self, t, pos, battery):
-        # Get point object associated to position
-        point = self.points[pos]
-
-        # Value function of level 0 in previous iteration
-        v_ta_0 = (
-            self.values[t][0][(pos, battery)]
-            if t in self.values
-            and 0 in self.values[t]
-            and (pos, battery) in self.values[t][0]
-            else 0
-        )
-
-        weight_vector = np.zeros(self.aggregation_levels)
-        value_vector = np.zeros(self.aggregation_levels)
-
-        for g in range(self.aggregation_levels):
-
-            # Find attribute at level g
-            ta_g = (point.id_level(g), battery)
-
-            # Current value function of attribute at level g
-            value_vector[g] = (
-                self.values[t][g][ta_g]
-                if t in self.values
-                and 0 in self.values[t]
-                and (pos, battery) in self.values[t][0]
-                else 0
-            )
-
-            # WEIGHTING ############################################
-
-            # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-            aggregation_bias = self.aggregation_bias[t][g][ta_g]
-
-            # Bias due to smoothing of transient data series (value
-            # function change every iteration)
-            transient_bias = self.transient_bias[t][g][ta_g]
-
-            variance_g = self.variance_g[t][g][ta_g]
-
-            # Lambda stepsize from iteration n-1
-            lambda_step_size = self.lambda_stepsize[t][g][ta_g]
-
-            # Estimate of the variance of observations made of state
-            # s, using data from aggregation level g, after n
-            # observations.
-            variance_error = self.get_total_variance(
-                variance_g, transient_bias, lambda_step_size
-            )
-
-            # Variance of our estimate of the mean v[-,s,g,n]
-            variance = lambda_step_size * variance_error
-
-            # Total variation (variance plus the square of the bias)
-            total_variation = variance + (aggregation_bias ** 2)
-
-            if total_variation == 0:
-                weight_vector[g] = 0
-            else:
-                weight_vector[g] = 1 / total_variation
-
-        if len(np.unique(value_vector)) <= 1:
-            value_estimation = 0
-        else:
-            weight_vector = weight_vector / sum(weight_vector)
-            value_estimation = sum(
-                np.prod([weight_vector, value_vector], axis=0)
-            )
-            # Upate weight vector
-            # self.agg_weight_vectors[(t, pos, battery)] = weight_vector
-
-        return weight_vector, value_estimation
 
     def get_weight(self, t, g, a):
 
@@ -309,24 +245,12 @@ class Adp:
 
     def get_weights(self, steps):
 
-        # print("Calculating average weights")
-        # avg_vec = np.zeros(self.aggregation_levels)
-        # for t in range(1, steps+1):
-        #     for point in self.points:
-        #         p = point.id
-        #         for battery in range(0,self.battery_levels+1):
-        #             vector, value = self.get_weights_and_agg_value(t,p,battery)
-
-        #             avg_vec += vector
-
-        # return avg_vec/(steps*len(self.points)*self.battery_levels)
-
         try:
             avg_agg_levels = sum(self.agg_weight_vectors.values()) / len(
                 self.agg_weight_vectors
             )
         except:
-            return np.zeros(self.aggregation_levels)
+            return np.zeros(len(self.aggregation_levels))
 
         self.agg_weight_vectors = dict()
 
@@ -357,7 +281,6 @@ class Adp:
             stepsize = 1 / self.n
 
         return stepsize
-
 
     def update_values_smoothed(self, t, duals):
 
@@ -499,16 +422,20 @@ class Adp:
         )
 
         for t, g_a in progress["progress"].items():
-            for g, a_saved in g_a.items():
+            for (g_time, g), a_saved in g_a.items():
+
+                # Time in level g
+                t_g = self.time_step_level(t, level=g_time)
+
                 for a, saved in a_saved.items():
                     v, c, t_bias, variance, step, lam, agg_bias = saved
-                    self.values[t][g][a] = v
-                    self.count[t][g][a] = c
-                    self.transient_bias[t][g][a] = t_bias
-                    self.variance_g[t][g][a] = variance
-                    self.step_size_func[t][g][a] = step
-                    self.lambda_stepsize[t][g][a] = lam
-                    self.aggregation_bias[t][g][a] = agg_bias
+                    self.values[t_g][g][a] = v
+                    self.count[t_g][g][a] = c
+                    self.transient_bias[t_g][g][a] = t_bias
+                    self.variance_g[t_g][g][a] = variance
+                    self.step_size_func[t_g][g][a] = step
+                    self.lambda_stepsize[t_g][g][a] = lam
+                    self.aggregation_bias[t_g][g][a] = agg_bias
 
         return self.n, self.reward, self.service_rate, self.weights
 
@@ -548,6 +475,17 @@ class Adp:
         # print(values_old)
         for t, g_a in values_old.items():
             for g, a_value in g_a.items():
-                for a, value in a_value.items():
-                    self.values[t][g][a] = value
 
+                # Time in level g
+                t_g = self.time_step_level(t, level=g)
+
+                for a, value in a_value.items():
+                    self.values[t_g][g][a] = value
+
+    @functools.lru_cache(maxsize=None)
+    def time_step_level(self, t, level=0):
+        """Time steps in minutes"""
+        # Since t start from 1, t-1 guarantee first slice is of size 2
+        # 
+        g_t = (t-1) // self.temporal_levels[level]
+        return (level, g_t)

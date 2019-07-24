@@ -28,7 +28,7 @@ from mod.env.config import (
 
 import mod.env.config as conf
 
-from mod.env.match import adp_network, adp_network_hired2
+from mod.env.match import adp_network, adp_network_hired2, service_trips
 from mod.env.car import Car, HiredCar
 from mod.env.trip import (
     get_trip_count_step,
@@ -77,13 +77,13 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 1500,
+            ConfigNetwork.FLEET_SIZE: 300,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.OFFSET_REPOSIONING: 30,
-            ConfigNetwork.OFFSET_TERMINATION: 60,
+            ConfigNetwork.OFFSET_REPOSIONING: 15,
+            ConfigNetwork.OFFSET_TERMINATION: 30,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -105,7 +105,23 @@ def get_sim_config(update_dict):
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
-            ConfigNetwork.AGGREGATION_LEVELS: 6,
+            ConfigNetwork.AGGREGATION_LEVELS: [
+                adp.AggLevel(temporal=0, spatial=0),
+                adp.AggLevel(temporal=0, spatial=1),
+                adp.AggLevel(temporal=0, spatial=2),
+                adp.AggLevel(temporal=0, spatial=3),
+                adp.AggLevel(temporal=0, spatial=4),
+                adp.AggLevel(temporal=0, spatial=5),
+                # adp.AggLevel(temporal=0, spatial=1),
+                # adp.AggLevel(temporal=0, spatial=2),
+                # adp.AggLevel(temporal=1, spatial=2),
+                # adp.AggLevel(temporal=2, spatial=2),
+                # adp.AggLevel(temporal=0, spatial=3),
+                # adp.AggLevel(temporal=1, spatial=3),
+                # adp.AggLevel(temporal=2, spatial=3),
+                # adp.AggLevel(temporal=1, spatial=5),
+            ],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 4],
             ConfigNetwork.LEVEL_DIST_LIST: [
                 0,
                 60,
@@ -128,7 +144,7 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-            ConfigNetwork.DEMAND_SAMPLING: True,
+            ConfigNetwork.DEMAND_SAMPLING: False,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -138,13 +154,13 @@ def get_sim_config(update_dict):
             # Demand scenario
             ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
             ConfigNetwork.TRIP_BASE_FARE: {
-                tp.ClassedTrip.SQ_CLASS_1: 4,
-                tp.ClassedTrip.SQ_CLASS_2: 2,
+                tp.ClassedTrip.SQ_CLASS_1: 2.4,
+                tp.ClassedTrip.SQ_CLASS_2: 2.4,
             },
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.05,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.03,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
@@ -385,7 +401,7 @@ def alg_adp(
             # print(f"Hiring {len(hired_cars)} cars.")
 
             # Optimize
-            revenue, serviced, rejected = adp_network_hired2(
+            revenue, serviced, rejected = service_trips(
                 # Amod environment with configuration file
                 amod,
                 # Trips to be matched
@@ -404,7 +420,6 @@ def alg_adp(
                 # log_iteration=n,
                 # agg_level=1,
                 # Use hierarchical aggregation to update values
-                value_function_update=match.WEIGHTED_UPDATE,
             )
 
             # Virtual hired cars are discarded
@@ -454,8 +469,24 @@ def alg_adp(
 
 if __name__ == "__main__":
 
+    try:
+        test_label = sys.argv[1]
+    except:
+        test_label = "SIMt"
     start_config = get_sim_config(
-        {ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270, 750, 1140]}
+        {
+            ConfigNetwork.LEVEL_DIST_LIST: [
+                0,
+                60,
+                90,
+                120,
+                180,
+                270,
+                750,
+                1140,
+            ],
+            ConfigNetwork.TEST_LABEL: test_label,
+        }
     )
     run_plot = PlotTrack(start_config)
     alg_adp(
@@ -463,9 +494,9 @@ if __name__ == "__main__":
         start_config,
         False,
         episodes=200,
-        enable_hiring=True,
+        enable_hiring=False,
         contract_duration_h=2,
-        sq_guarantee=True,
-        universal_service=True,
+        sq_guarantee=False,
+        universal_service=False,
     )
 

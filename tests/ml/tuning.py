@@ -17,35 +17,46 @@ import multiprocessing
 # Reward data for experiment
 reward_data = dict()
 
-output = multiprocessing.Queue()
-
-fleet_size = [400]
-resize = [0.1]
-discount_factor = [0.05]
-rebalance_levels = [((0, 1), (8, 8))]
-stepsize_constant = [0.1]
-scenarios = [conf.SCENARIO_NYC]
-stepsize_rules = [adp.STEPSIZE_MCCLAIN]
-harmonic_stepsize = [1]
 N_PROCESSES = 2
 
-aggregation_levels = [
-    (
-        [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
-        [0, 60, 90, 120, 180, 270],
-        [1],
-    ),
-    ([(0, 0), (0, 1), (0, 2), (0, 3)], [0, 60, 120, 270], [1]),
-]
+ITERATIONS = 50
 
-iterations = 50
+from pprint import pprint
 
-exp_name = "SHORT_CLASSED"
+
+def test_all(
+    tuning_labels, tuning_params, update_dict, all_settings, exp_list
+):
+
+    try:
+
+        param = tuning_labels.pop(0)
+
+        for e in tuning_params[param]:
+
+            # Parameters work in tandem
+            if isinstance(e, dict):
+                update_dict.update(e)
+            # Single update
+            else:
+                update_dict[param] = e
+
+            test_all(
+                tuning_labels,
+                tuning_params,
+                update_dict,
+                all_settings,
+                exp_list,
+            )
+
+    except:
+
+        updated = deepcopy(all_settings)
+        updated.update(update_dict)
+        exp_list.append((all_settings.test_label, updated.label, updated))
 
 
 def run_adp(exp):
-
-    global iterations
 
     exp_name, label, exp_setup = exp
 
@@ -55,7 +66,7 @@ def run_adp(exp):
         run_plot,
         exp_setup,
         False,
-        episodes=iterations,
+        episodes=ITERATIONS,
         classed_trips=True,
         # enable_hiring=True,
         # contract_duration_h=2,
@@ -64,47 +75,6 @@ def run_adp(exp):
     )
 
     return (exp_name, label, reward_list)
-
-
-def get_exp(setup):
-
-    global reward_data
-
-    exp_list = []
-    for agg_levels, level_dist_list, level_time_list in aggregation_levels:
-        for reb_level, neighbors in rebalance_levels:
-            for sc in scenarios:
-                for f_size in fleet_size:
-
-                    reward_data[exp_name] = dict()
-
-                    # Tune stepsize rules
-                    for dist in discount_factor:
-                        for rule in stepsize_rules:
-                            for step in stepsize_constant:
-
-                                update_dict = {
-                                    Config.TEST_LABEL: exp_name,
-                                    # Config.STEPSIZE_RULE: rule,
-                                    Config.DISCOUNT_FACTOR: dist,
-                                    Config.STEPSIZE_CONSTANT: step,
-                                    # Config.HARMONIC_STEPSIZE: harm,
-                                    Config.FLEET_SIZE: f_size,
-                                    Config.DEMAND_SCENARIO: sc,
-                                    Config.REBALANCE_LEVEL: reb_level,
-                                    Config.N_CLOSEST_NEIGHBORS: neighbors,
-                                    Config.AGGREGATION_LEVELS: agg_levels,
-                                    Config.LEVEL_DIST_LIST: level_dist_list,
-                                    Config.LEVEL_TIME_LIST: level_time_list,
-                                }
-
-                                updated = deepcopy(setup)
-                                updated.update(update_dict)
-
-                                exp_list.append(
-                                    (exp_name, updated.label, updated)
-                                )
-        return exp_list
 
 
 def multi_proc_exp(exp_list, processes=4):
@@ -128,17 +98,47 @@ def multi_proc_exp(exp_list, processes=4):
 
 if __name__ == "__main__":
 
+    tuning_params = {
+        Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
+        Config.DISCOUNT_FACTOR: [0.05],
+        Config.STEPSIZE_CONSTANT: [0.1],
+        Config.HARMONIC_STEPSIZE: [1],
+        Config.FLEET_SIZE: [300],
+        Config.DEMAND_SCENARIO: [conf.SCENARIO_NYC],
+        Config.DEMAND_RESIZE_FACTOR: [0.1],
+        "REBAL_NEIGHBORS": [
+            {
+                Config.REBALANCE_LEVEL: (0, 1),
+                Config.N_CLOSEST_NEIGHBORS: (8, 8),
+            },
+            {Config.REBALANCE_LEVEL: (1,), Config.N_CLOSEST_NEIGHBORS: (8,)},
+        ],
+        Config.AGGREGATION_LEVELS: [
+            [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
+            [(0, 0), (0, 1), (0, 2), (0, 3)],
+        ],
+    }
+
     # Setup shared by all experiments
     setup = alg.get_sim_config(
         {
+            Config.TEST_LABEL: "TEST",
             Config.DEMAND_EARLIEST_HOUR: 5,
             Config.DEMAND_TOTAL_HOURS: 4,
             Config.OFFSET_REPOSIONING: 15,
             Config.OFFSET_TERMINATION: 30,
             Config.CONTRACT_DURATION_LEVEL: 10,
+            Config.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270],
+            Config.LEVEL_TIME_LIST: [1, 2, 4],
         }
     )
 
-    print(setup.label)
-    exp_list = get_exp(setup)
+    tuning_labels = list(tuning_params.keys())
+
+    exp_list = []
+
+    test_all(tuning_labels, tuning_params, {}, setup, exp_list)
+
+    pprint(exp_list)
+
     multi_proc_exp(exp_list, processes=N_PROCESSES)

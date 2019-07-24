@@ -945,6 +945,10 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
+    
+    @property
+    def test_label(self):
+        return self.config[Config.TEST_LABEL]
 
     @property
     def rebalance_reach(self):

@@ -1690,6 +1690,275 @@ def sortout_fleets(env):
     )
 
 
+def service_trips(
+    env,
+    trips,
+    time_step,
+    sq_guarantee=False,
+    charge=True,
+    agg_level=None,
+    myopic=False,
+    log_iteration=None,
+    universal_service=False
+):
+
+    """Assign trips to available vehicles optimally at the current
+        time step.
+
+    Parameters
+    ----------
+    env : Environment
+        AMoD environment
+    trips : list
+        List of trips
+    time_step : int
+        Time step after receiving trips
+    charge : bool, optional
+        Apply the charging constraint, by default True
+    agg_level : [type], optional
+        Attributes are queried according to an aggregation level, 
+        by default None
+    myopic : bool, optional
+        If True, does not learn between iterations, by default False
+    neighborhood_level : int, optional
+        How large are region centers (
+            e.g., 1 = reachable in 1min,
+                  2 = reachable in 2min
+            ), by default 1
+    n_neighbors : int, optional
+        Max. neighbors of region centers, by default 4
+
+    Returns
+    -------
+    float, list, list
+        total contribution, serviced trips, rejected trips
+    """
+
+    # Starting assignment model
+    m = Model("assignment")
+
+    # Log steps of current episode
+    if log_iteration is not None:
+        m.setParam("LogToConsole", 0)
+        folder_epi_log = f"{env.config.folder_mip_log}episode_{log_iteration:04}/"
+        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{log_iteration:04}/"
+
+        if not os.path.exists(folder_epi_log):
+            os.makedirs(folder_epi_log)
+            os.makedirs(folder_epi_lp)
+
+        m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}.log"
+        m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}.lp"
+
+    else:
+        # Disables all logging (file and console)
+        m.setParam("OutputFlag", 0)
+
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+    attribute_cars_dict = defaultdict(list)
+
+    for car in env.available + env.available_hired:
+        # List of cars with the same attribute (pos, battery level)
+        attribute_cars_dict[car.attribute].append(car)
+
+    # ##################################################################
+    # SORT TRIPS #######################################################
+    # ##################################################################
+
+    class_count_dict = defaultdict(int)
+    attribute_trips_dict = defaultdict(list)
+
+    # Create a dictionary associate
+    for t in trips:
+
+        # Trip count per class
+        class_count_dict[t.sq_class] += 1
+
+        # Group trips with the same ods
+        attribute_trips_dict[(t.o.id, t.d.id)].append(t)
+
+    # ##################################################################
+    # VARIABLES ########################################################
+    # ##################################################################
+
+    # Get all decision tuples, and trip decision tuples per service 
+    # quality class. If max. battery level is defined, also includes
+    # recharge decisions.
+    decision_cars, decision_class = du.get_decisions(
+        env,
+        trips,
+        # max_battery_level=env.config.battery_levels,
+    )
+
+    # Create variables
+    x_var = m.addVars(
+        tuplelist(decision_cars), name="x", vtype=GRB.INTEGER, lb=0
+    )
+
+    # ##################################################################
+    # MODEL ############################################################
+    # ##################################################################
+
+    # ---------------------------------------------------------------- #
+    # COST FUNCTION ####################################################
+    # ---------------------------------------------------------------- #
+
+    if myopic:
+        post_decision_costs = 0
+
+    # Model has learned shadow costs from previous iterations and can
+    # use them to determine post decision costs.
+    else:
+        post_decision_costs = quicksum(
+            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+            for d in x_var
+        )
+
+    # Cost of current decision
+    present_contribution = quicksum(
+        env.cost_func(
+            d[CAR_TYPE],
+            d[ACTION],
+            d[POSITION],
+            d[ORIGIN],
+            d[DESTINATION],
+            d[SQ_CLASS]
+        ) * x_var[d]
+        for d in x_var
+    )
+
+    # Maximize present and future outcome
+    m.setObjective(
+        present_contribution
+        + env.config.discount_factor*post_decision_costs,
+        GRB.MAXIMIZE
+    )
+
+    # ---------------------------------------------------------------- #
+    # CONSTRAINTS ######################################################
+    # ---------------------------------------------------------------- #
+
+    # Car flow conservation
+    flow_cars_dict = car_flow_constr(m, x_var, attribute_cars_dict)
+
+    # Trip flow conservation
+    flow_trips = trip_flow_constrs(
+        m, x_var, attribute_trips_dict, universal_service=universal_service
+    )
+
+    # Service quality constraints
+    if sq_guarantee:
+        sq_flow_dict = sq_constrs(
+            m, x_var, decision_class, class_count_dict
+        )
+
+    # Car is obliged to charged if battery reaches minimum level
+    # Car flow conservation
+    if charge:
+        max_battery = env.config.battery_levels
+        car_recharge_dict = recharge_constrs(
+            m, x_var, attribute_cars_dict, max_battery
+        )
+
+    # Optimize
+    m.optimize()
+    # m.write(f"adp{time_step:04}.lp")
+
+    if m.status == GRB.Status.UNBOUNDED:
+        print("The model cannot be solved because it is unbounded")
+
+    elif m.status == GRB.Status.OPTIMAL:
+
+        # c = time.time()
+        # best_decisions2 = extract_duals(flow_cars, cars_with_attribute.keys())
+        # decisions = extract_decisions(x_var)
+        # a = time.time()
+        best_decisions = extract_decisions(x_var)
+
+        # Number of customers rejected per origin id
+        denied_count_dict = get_denied_ids(
+            best_decisions,
+            attribute_trips_dict
+        )
+
+        # Hired fleet is appearing in trip origins
+        # hired_cars = [
+        #     HiredCar(
+        #         env.points[env.points[pos].id_level(3)],
+        #         env.battery_levels,
+        #         20,
+        #         current_step=time_step,
+        #         current_arrival=time_step * env.config.time_increment,
+        #         battery_level_miles_max=env.battery_size_distances,
+        #     )
+        #     for pos, count in denied_count_dict.items()
+        # ]
+
+        # # Add hired fleet to model
+        # env.hired_cars.extend(hired_cars)
+        # env.available_hired.extend(hired_cars)
+
+        # (
+        #     # Dictionary of cars per tuple (g, G(position))
+        #     level_id_cars_dict,
+        #     # Dictionary of target positions for each position
+        #     rebalance_targets_dict,
+        #     # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
+        #     type_attribute_cars_dict,
+        # ) = sortout_fleets(env)
+
+        # Update shadow prices to be used in the next iterations
+        if not myopic:
+
+            duals = extract_duals_relaxed(m, flow_cars_dict)
+
+            env.update_vf(duals, time_step)
+
+        reward, serviced, denied = env.realize_decision(
+            time_step,
+            best_decisions,
+            attribute_trips_dict,
+            attribute_cars_dict,
+        )
+        # print(f"Objective Function - {m.objVal:6.2f} X {reward:6.2f} - Decision reward")
+
+        rejected = []
+
+        # Update list of rejected orders
+        rejected.extend(denied)
+
+        return reward, serviced, rejected
+
+    elif (
+        m.status != GRB.Status.INF_OR_UNBD and
+        m.status != GRB.Status.INFEASIBLE
+    ):
+        print("Optimization was stopped with status %d" % m.status)
+
+    elif m.status == GRB.Status.INFEASIBLE:
+        # do IIS
+        print("The model is infeasible; computing IIS")
+
+        # Save model
+        m.write("myopic.lp")
+
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)
+    else:
+        print(f"Error code: {m.status}.")
+
 def sortout_trip_list(env, trips):
     """
     1 - Associate to each level g and level id g_id lists of trips whose

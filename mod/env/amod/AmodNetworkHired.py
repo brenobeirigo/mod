@@ -13,6 +13,7 @@ import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decision_utils as du
 from copy import deepcopy
+
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
 random.seed(1)
@@ -451,6 +452,25 @@ class AmodNetworkHired(AmodNetwork):
         stats["Available"] = {"Hired": len(self.hired_cars)}
 
         return stats
+
+    def update_vf(self, duals, time_step):
+        """Update value function using duals from a time step.
+
+        Parameters
+        ----------
+        duals : dict
+            Attribute tuple and dual value
+        time_step : int
+            Time step from which duals were generated
+        """
+
+        if duals:
+
+            if self.config.update_values_averaged():
+                self.adp.averaged_update(time_step, duals)
+
+            elif self.config.update_values_smoothed():
+                self.adp.update_values_smoothed(time_step, duals)
 
     def post_cost(self, t, decision, level=None):
 

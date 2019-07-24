@@ -58,6 +58,9 @@ SCENARIO_LAST_MILE = "LAST_MILE"
 # Uses the real-world New York city data from 2011-02-01
 SCENARIO_NYC = "NYC"
 
+# ADP update methods
+AVERAGED_UPDATE = "AVERAGED_UPDATE"
+WEIGHTED_UPDATE = "WEIGHTED_UPDATE"
 
 class Config:
 
@@ -91,6 +94,8 @@ class Config:
     # collection of aggregation functions, G(g) : A → A(g), where A(g)
     # represents the gth level of aggregation of the attribute space A.
     AGGREGATION_LEVELS = "AGGREGATION_LEVELS"
+    LEVEL_DIST_LIST = "LEVEL_LIST"
+    LEVEL_TIME_LIST = "LEVEL_TIME_LIST"
     INCUMBENT_AGGREGATION_LEVEL = "INCUMBENT_AGGREGATION_LEVEL"
 
     ZONE_WIDTH = "ZONE_WIDTH"
@@ -126,12 +131,12 @@ class Config:
     HARMONIC_STEPSIZE = "HARMONIC_STEPSIZE"
     STEPSIZE_RULE = "STEPSIZE_RULE"
     STEPSIZE_CONSTANT = "STEPSIZE_FIXED"
+    UPDATE_METHOD = "UPDATE_METHOD" # AVERAGED, WEIGTHED
 
     # Network
     STEP_SECONDS = "STEP_SECONDS"  # In km/h
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
-    LEVEL_DIST_LIST = "LEVEL_LIST"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
@@ -378,6 +383,11 @@ class Config:
     def aggregation_levels(self):
         """Number of aggregation levels"""
         return self.config["AGGREGATION_LEVELS"]
+    
+    @property
+    def n_aggregation_levels(self):
+        """Number of aggregation levels"""
+        return len(self.config["AGGREGATION_LEVELS"])
 
     @property
     def incumbent_aggregation_level(self):
@@ -758,6 +768,10 @@ class ConfigNetwork(ConfigStandard):
         self.config["PROJECTION"] = PROJECTION_MERCATOR
         self.config[Config.LEVEL_DIST_LIST] = []
 
+        # List of time aggregation (min) starting with the disaggregate
+        # level, that is, the time increment
+        self.config[Config.LEVEL_TIME_LIST] = [self.config[Config.TIME_INCREMENT]]
+
         # Battery ######################################################
 
         self.config["RECHARGE_RATE"] = 483  # km/hour
@@ -812,6 +826,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.DISCOUNT_FACTOR] = 1
         self.config[Config.HARMONIC_STEPSIZE] = 1
         self.config[Config.STEPSIZE] = 0.1
+        self.config[Config.UPDATE_METHOD] = AVERAGED_UPDATE
 
         # MATCHING ################################################### #
         self.config[Config.MATCH_METHOD] = Config.MATCH_DISTANCE
@@ -853,6 +868,11 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.LEVEL_DIST_LIST]
 
     @property
+    def level_time_list(self):
+        """Coordinates can be mercator or gps"""
+        return self.config[Config.LEVEL_TIME_LIST]
+
+    @property
     def neighborhood_level(self):
         """Extent of the reachability of the region centers. E.g.,
         level = 0 - Region centers are nodes
@@ -888,14 +908,14 @@ class ConfigNetwork(ConfigStandard):
 
     def match_neighbors(self):
         return self.config[Config.MATCH_METHOD] == Config.MATCH_NEIGHBORS
-    
+
     def match_in_center(self):
         return self.config[Config.MATCH_METHOD] == Config.MATCH_CENTER
     @property
     def match_max_neighbors(self):
         return self.config[Config.MATCH_MAX_NEIGHBORS] == Config.MATCH_MAX_NEIGHBORS
 
-    
+
 
     # ---------------------------------------------------------------- #
     # Network data ################################################### #
@@ -951,6 +971,7 @@ class ConfigNetwork(ConfigStandard):
         """Contract duration is sliced in levels of X minutes"""
         return self.config[Config.CONTRACT_DURATION_LEVEL]
 
+    # LEARNING ################################################### #
     @property
     def discount_factor(self):
         """Post cost is multiplied by weight in [0,1]"""
@@ -972,6 +993,19 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.STEPSIZE_CONSTANT]
 
     @property
+    def update_method(self):
+        """How value functions are updated"""
+        return self.config[Config.UPDATE_METHOD]
+    
+    def update_values_averaged(self):
+        """How value functions are updated"""
+        return self.update_method == AVERAGED_UPDATE
+    
+    def update_values_smoothed(self):
+        """How value functions are updated"""
+        return self.update_method == WEIGHTED_UPDATE
+
+    @property
     def label(self, name=""):
 
         if self.config[Config.TUNE_LABEL] is not None:
@@ -989,17 +1023,16 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
         levels = ", ".join([
-            f"{g:>3}"
-            for i, g in enumerate(self.config[Config.LEVEL_DIST_LIST])
-            if i < self.config[Config.AGGREGATION_LEVELS]
-        ])
+            f"{self.config[Config.LEVEL_DIST_LIST][spatial]:>3}"
+            for temporal, spatial in self.config[Config.AGGREGATION_LEVELS]])
+
         return (
             f"{self.config[Config.TEST_LABEL]}_"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
             f"cars={self.config[Config.FLEET_SIZE]:04}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"levels[{self.config[Config.AGGREGATION_LEVELS]}]=({levels})_"
+            f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
             f"rebal={str([r for r in self.config[Config.REBALANCE_LEVEL]])}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"

@@ -221,7 +221,7 @@ class PlotTrack:
 
     def set_env(self, env):
         self.env = env
-        self.slide_agg_level.end = env.config.aggregation_levels
+        self.slide_agg_level.end = env.config.n_aggregation_levels
         self.slide_time_ahead.end = env.config.time_steps
         self.slide_battery_level.end = env.config.battery_levels
 

@@ -50,7 +50,7 @@ class ClassedTrip(Trip):
     sq_level_class = dict(A=[0, 0], B=[0, 0])
     # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
     min_max_time_class = dict(A=dict(min=4, max=4), B=dict(min=4, max=9))
-    class_proportion = dict(A=0.1, B=0.9)
+    class_proportion = dict(A=0.0, B=1)
 
     @classmethod
     def get_levels(cls):
@@ -313,7 +313,6 @@ def get_random_trips(
         if o != d:
 
             if classed:
-                newvariable577 = 0.1
                 trips.append(
                     ClassedTrip(
                         o,
@@ -321,7 +320,8 @@ def get_random_trips(
                         time_step,
                         (
                             ClassedTrip.SQ_CLASS_1
-                            if random.random() < newvariable577
+                            if random.random()
+                            < ClassedTrip.class_proportion["A"]
                             else ClassedTrip.SQ_CLASS_2
                         ),
                     )

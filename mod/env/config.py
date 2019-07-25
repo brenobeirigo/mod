@@ -36,6 +36,7 @@ PROJECTION_MERCATOR = "MERCATOR"
 PROJECTION_GPS = "GPS"
 FLEET_START_LAST = "FLEET_START_LAST"
 FLEET_START_SAME = "FLEET_START_SAME"
+FLEET_START_RANDOM = "FLEET_START_RANDOM"
 # #################################################################### #
 # SCENARIOS ########################################################## #
 # #################################################################### #
@@ -847,6 +848,11 @@ class ConfigNetwork(ConfigStandard):
         """True if cars should start from the positions chosen in the 
         beginning of the experiment"""
         return self.config[Config.FLEET_START] == FLEET_START_SAME
+    
+    @property
+    def cars_start_from_random_positions(self):
+        """True if cars should start from random positions"""
+        return self.config[Config.FLEET_START] == FLEET_START_RANDOM
 
 
     @property
@@ -945,7 +951,7 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
-    
+
     @property
     def test_label(self):
         return self.config[Config.TEST_LABEL]
@@ -1015,9 +1021,9 @@ class ConfigNetwork(ConfigStandard):
         if self.config[Config.TUNE_LABEL] is not None:
             return self.config[Config.TUNE_LABEL]
 
-        reb_neigh = "_".join(
+        reb_neigh = ", ".join(
             [
-                f"{level}={n_neighbors}"
+                f"{level}-{n_neighbors}"
                 for level, n_neighbors in list(
                     zip(
                         self.config[Config.REBALANCE_LEVEL],
@@ -1030,14 +1036,26 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.LEVEL_DIST_LIST][spatial]:>3}"
             for temporal, spatial in self.config[Config.AGGREGATION_LEVELS]])
 
+        # Is the demand sampled or fixed?
+        sample = ("S" if self.config[Config.DEMAND_SAMPLING] else "F")
+
+        # Does fleet start from random positions or last?
+        # L = Last visited position
+        # S = Same position
+        start = (
+            "L" if self.cars_start_from_last_positions else (
+                "R" if self.cars_start_from_random_positions else "I"
+            )
+        )
+
         return (
             f"{self.config[Config.TEST_LABEL]}_"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"cars={self.config[Config.FLEET_SIZE]:04}_"
+            f"cars={self.config[Config.FLEET_SIZE]:04}({start})_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal={str([r for r in self.config[Config.REBALANCE_LEVEL]])}_"
+            f"rebal=({reb_neigh})_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
@@ -1045,7 +1063,7 @@ class ConfigNetwork(ConfigStandard):
             # f"{reb_neigh}_"
             f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
             f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h]_"
-            f"resize={self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}_"
+            f"resize={self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"discount={self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
             f"stepsize={self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
             #f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"

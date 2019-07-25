@@ -15,6 +15,7 @@ import functools
 # Reproducibility of the experiments
 random.seed(1)
 
+
 class Amod:
     def __init__(self, config, car_positions=[]):
         """Start AMoD environment
@@ -459,7 +460,7 @@ class Amod:
         else:
             steps = int(round(travel_time_min / self.config.time_increment))
             return steps
-    
+
     @functools.lru_cache(maxsize=None)
     def get_travel_time_od(self, o, d, unit="min"):
         """Travel time in minutes or steps between od"""
@@ -522,20 +523,21 @@ class Amod:
     # ################################################################ #
 
     def reset(self):
-        
+
         if self.config.cars_start_from_initial_positions:
 
             new_origins = self.car_origin_points
 
-        elif self.cars and self.config. cars_start_from_last_positions:
+        elif self.cars and self.config.cars_start_from_last_positions:
             # Method: https:// doi.org/10.1287/trsc.1080.0238
             # Cars start in the last visited positions:
-            #  - The final resource state vector (R_Ta) is the initial 
+            #  - The final resource state vector (R_Ta) is the initial
             #    resource state vector
             new_origins = [c.point for c in self.cars]
-        
-        else:
-            new_origins = random.choices(self.points, k=self.fleet_size) 
+
+        elif self.config.cars_start_from_random_positions:
+
+            new_origins = random.choices(self.points, k=self.fleet_size)
 
         Car.count = 0
 

@@ -13,9 +13,10 @@ from mod.env.config import Config
 import pandas as pd
 from copy import deepcopy
 import multiprocessing
+from collections import defaultdict
 
 # Reward data for experiment
-reward_data = dict()
+reward_data = defaultdict(dict)
 
 N_PROCESSES = 2
 
@@ -30,16 +31,19 @@ def test_all(
 
     try:
 
+        tuning_labels = deepcopy(tuning_labels)
+
         param = tuning_labels.pop(0)
 
         for e in tuning_params[param]:
 
             # Parameters work in tandem
             if isinstance(e, dict):
-                update_dict.update(e)
+                update_dict = {**update_dict, **e}
+
             # Single update
             else:
-                update_dict[param] = e
+                update_dict = {**update_dict, **{param: e}}
 
             test_all(
                 tuning_labels,
@@ -89,7 +93,7 @@ def multi_proc_exp(exp_list, processes=4):
 
         reward_data[exp_name][label] = reward_list
 
-        df = pd.DataFrame.from_dict(reward_data[exp_name])
+        df = pd.DataFrame.from_dict(dict(reward_data[exp_name]))
 
         print(f"###################### Saving {(exp_name, label)}...")
 
@@ -103,26 +107,41 @@ if __name__ == "__main__":
         Config.DISCOUNT_FACTOR: [0.05],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [300],
-        Config.DEMAND_SCENARIO: [conf.SCENARIO_NYC],
+        Config.FLEET_SIZE: [3, 4],
+        Config.FLEET_START: [
+            conf.FLEET_START_LAST,
+            conf.FLEET_START_SAME,
+            conf.FLEET_START_RANDOM,
+        ],
+        # -------------------------------------------------------- #
+        # DEMAND ################################################# #
+        # -------------------------------------------------------- #
+        "DEMAND_TW": [
+            {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
+            {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
+        ],
+        Config.DEMAND_SAMPLING: [
+            True,
+            # False
+        ],
         Config.DEMAND_RESIZE_FACTOR: [0.1],
-        "REBAL_NEIGHBORS": [
+        "REBAL_LEVELS_NEIGHBORS": [
             {
-                Config.REBALANCE_LEVEL: (0, 1),
-                Config.N_CLOSEST_NEIGHBORS: (8, 8),
+                Config.REBALANCE_LEVEL: (0, 1, 2),
+                Config.N_CLOSEST_NEIGHBORS: (4, 4, 4),
             },
-            {Config.REBALANCE_LEVEL: (1,), Config.N_CLOSEST_NEIGHBORS: (8,)},
+            # {Config.REBALANCE_LEVEL: (1,), Config.N_CLOSEST_NEIGHBORS: (8,)},
         ],
         Config.AGGREGATION_LEVELS: [
             [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
-            [(0, 0), (0, 1), (0, 2), (0, 3)],
+            # [(0, 0), (0, 1), (0, 2), (0, 3)],
         ],
     }
 
     # Setup shared by all experiments
     setup = alg.get_sim_config(
         {
-            Config.TEST_LABEL: "TEST",
+            Config.TEST_LABEL: "SHORT2",
             Config.DEMAND_EARLIEST_HOUR: 5,
             Config.DEMAND_TOTAL_HOURS: 4,
             Config.OFFSET_REPOSIONING: 15,

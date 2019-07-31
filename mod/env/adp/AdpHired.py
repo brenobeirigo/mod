@@ -1,6 +1,10 @@
 import numpy as np
 from collections import defaultdict
 import mod.env.adp.adp as adp
+import mod.util.log_aux as la
+from pprint import pprint
+
+np.set_printoptions(precision=4)
 
 
 class AdpHired(adp.Adp):
@@ -42,7 +46,7 @@ class AdpHired(adp.Adp):
 
         for i, (g_time, g) in enumerate(self.aggregation_levels):
 
-            # Time in level g
+            # Time in level g (g_time, g_time(t))
             t_g = self.time_step_level(t, level=g_time)
 
             # Position in level g
@@ -55,7 +59,7 @@ class AdpHired(adp.Adp):
             value_vector[i] = (
                 self.values[t_g][g][a_g]
                 if t_g in self.values
-                and 0 in self.values[t_g]
+                and g in self.values[t_g]
                 and a_g in self.values[t_g][g]
                 else 0
             )
@@ -79,6 +83,13 @@ class AdpHired(adp.Adp):
                 (t, pos, battery, contract_duration, car_type)
             ] = weight_vector
 
+            la.log_weights(
+                "__main__." + __name__,
+                weight_vector,
+                value_vector,
+                value_estimation,
+            )
+
         return value_estimation
 
     def update_values_smoothed(self, t, duals):
@@ -98,14 +109,14 @@ class AdpHired(adp.Adp):
             # Append duals to all superior hierachical states
             for g_time, g in self.aggregation_levels:
 
-                # Time in level g
+                # Tuple t_g = (g_time, g_time(t))
                 t_g = self.time_step_level(t, level=g_time)
 
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery, contract_duration, car_type)
 
                 # Value is later used to update a_g
-                level_update_list[(g_time, g, a_g)].append(v_ta_sampled)
+                level_update_list[(t_g, g, a_g)].append(v_ta_sampled)
 
                 # Update the number of times state was accessed
                 self.count[t_g][g][a_g] += 1
@@ -131,9 +142,7 @@ class AdpHired(adp.Adp):
         # aggregate up to ta_g, and smooth average to previous value
         for state_g, value_list_g in level_update_list.items():
 
-            g_time, g, a_g = state_g
-
-            t_g = (g_time, t)
+            t_g, g, a_g = state_g
 
             # Updating lambda stepsize using previous stepsizes
             self.lambda_stepsize[t_g][g][a_g] = self.get_lambda_stepsize(
@@ -155,6 +164,10 @@ class AdpHired(adp.Adp):
             self.step_size_func[t_g][g][a_g] = self.get_stepsize(
                 self.step_size_func[t_g][g][a_g]
             )
+
+        la.log_update_values_smoothed(
+            "__main__." + __name__, t, level_update_list, self.values
+        )
 
     ####################################################################
     # True averaging ###################################################
@@ -239,9 +252,11 @@ class AdpHired(adp.Adp):
                 fleet_weights_dict[car_type].append(weight_vectors)
 
             for fleet_type, weight_vectors_list in fleet_weights_dict.items():
-                fleet_weights_avg_dict[fleet_type] = sum(
-                    weight_vectors_list
-                ) / len(weight_vectors_list)
+
+                weight_vector_sum = sum(weight_vectors_list)
+                fleet_weights_avg_dict[fleet_type] = weight_vector_sum / sum(
+                    weight_vector_sum
+                )
 
         except:
             pass

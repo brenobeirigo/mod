@@ -6,9 +6,6 @@ STEPSIZE_HARMONIC = "HARM"
 STEPSIZE_CONSTANT = "CONST"
 STEPSIZE_MCCLAIN = "MCCL"
 
-AVERAGED_UPDATE = "AVERAGED_UPDATE"
-WEIGHTED_UPDATE = "WEIGHTED_UPDATE"
-
 STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
 
 TIME_INCREMENT = 5
@@ -246,13 +243,11 @@ class Adp:
     def get_weights(self, steps):
 
         try:
-            avg_agg_levels = sum(self.agg_weight_vectors.values()) / len(
-                self.agg_weight_vectors
-            )
+            weight_vector_sum = sum(self.agg_weight_vectors.values())
+            avg_agg_levels = weight_vector_sum / sum(weight_vector_sum)
+
         except:
             return np.zeros(len(self.aggregation_levels))
-
-        self.agg_weight_vectors = dict()
 
         return avg_agg_levels
 
@@ -357,8 +352,6 @@ class Adp:
             duals {dict} -- Dictionary of attribute tuples and duals
         """
 
-        # pprint(duals)
-
         for (pos, battery), new_vf_0 in duals.items():
 
             # Get point object associated to position
@@ -421,12 +414,8 @@ class Adp:
             f"(max={max(self.service_rate):15.2%})\n"
         )
 
-        for t, g_a in progress["progress"].items():
-            for (g_time, g), a_saved in g_a.items():
-
-                # Time in level g
-                t_g = self.time_step_level(t, level=g_time)
-
+        for t_g, g_a in progress["progress"].items():
+            for g, a_saved in g_a.items():
                 for a, saved in a_saved.items():
                     v, c, t_bias, variance, step, lam, agg_bias = saved
                     self.values[t_g][g][a] = v
@@ -486,6 +475,5 @@ class Adp:
     def time_step_level(self, t, level=0):
         """Time steps in minutes"""
         # Since t start from 1, t-1 guarantee first slice is of size 2
-        # 
-        g_t = (t-1) // self.temporal_levels[level]
+        g_t = (t - 1) // self.temporal_levels[level]
         return (level, g_t)

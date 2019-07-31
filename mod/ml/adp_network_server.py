@@ -1,8 +1,5 @@
 import os
 import sys
-import numpy as np
-from pprint import pprint
-from threading import Thread
 from copy import deepcopy
 import time
 import random
@@ -12,15 +9,14 @@ root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
 from mod.env.amod.AmodNetworkHired import AmodNetworkHired
-from mod.env.amod.AmodNetwork import AmodNetwork
 from mod.env.visual import StepLog, EpisodeLog
 import mod.env.adp.adp as adp
+
+import mod.util.log_aux as la
 
 import mod.env.visual as vi
 from mod.env.config import (
     ConfigNetwork,
-    FOLDER_OUTPUT,
-    NY_TRIPS_EXCERPT_DAY,
     SCENARIO_UNBALANCED,
     SCENARIO_NYC,
     TRIP_FILES,
@@ -28,19 +24,15 @@ from mod.env.config import (
 
 import mod.env.config as conf
 
-from mod.env.match import adp_network, adp_network_hired2, service_trips
-from mod.env.car import Car, HiredCar
-from mod.env.trip import (
-    get_trip_count_step,
-    get_trips_random_ods,
-    get_step_trip_list,
-    get_trips,
-)
+from mod.env.match import service_trips
+from mod.env.car import HiredCar
+from mod.env.trip import get_trip_count_step, get_trips_random_ods
 import mod.env.trip as tp
 import mod.env.network as nw
 
+from pprint import pprint
+
 from mod.env.simulator import PlotTrack
-from mod.env import match
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -49,6 +41,7 @@ random.seed(1)
 def get_sim_config(update_dict):
 
     config = ConfigNetwork()
+
     # Pull graph info
     region, label, node_count, center_count, edge_count, region_type = (
         nw.query_info()
@@ -77,7 +70,7 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 300,
+            ConfigNetwork.FLEET_SIZE: 200,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
@@ -93,25 +86,36 @@ def get_sim_config(update_dict):
             ConfigNetwork.EDGE_COUNT: edge_count,
             ConfigNetwork.CENTER_COUNT: center_count,
             # Region centers are created in steps of how much time?
-            ConfigNetwork.STEP_SECONDS: 30,
-            # Cars rebalance to up to #region centers
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: (8, 8),
+            ConfigNetwork.STEP_SECONDS: 15,
             # Cars can access locations within region centers
             # established in which neighborhood level?
-            ConfigNetwork.NEIGHBORHOOD_LEVEL: 4,
+            ConfigNetwork.NEIGHBORHOOD_LEVEL: 0,
             # Cars can rebalance to neighbor centers of level:
             # Why not max rebalance level?
-            ConfigNetwork.REBALANCE_LEVEL: (0, 1),
+            ConfigNetwork.REBALANCE_LEVEL: (0, 1, 2, 3, 4, 5),
+            # Cars rebalance to up to #region centers
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: (4, 4, 4, 2, 2, 1),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
             ConfigNetwork.AGGREGATION_LEVELS: [
                 adp.AggLevel(temporal=0, spatial=0),
-                adp.AggLevel(temporal=0, spatial=1),
-                adp.AggLevel(temporal=0, spatial=2),
-                adp.AggLevel(temporal=0, spatial=3),
-                adp.AggLevel(temporal=0, spatial=4),
-                adp.AggLevel(temporal=0, spatial=5),
+                adp.AggLevel(temporal=1, spatial=0),
+                adp.AggLevel(temporal=1, spatial=1),
+                adp.AggLevel(temporal=1, spatial=2),
+                adp.AggLevel(temporal=1, spatial=3),
+                adp.AggLevel(temporal=1, spatial=4),
+                adp.AggLevel(temporal=1, spatial=5),
+                adp.AggLevel(temporal=1, spatial=6),
+                # adp.AggLevel(temporal=0, spatial=4),
+                # adp.AggLevel(temporal=0, spatial=5),
+                # adp.AggLevel(temporal=0, spatial=1),
+                # adp.AggLevel(temporal=1, spatial=1),
+                # adp.AggLevel(temporal=2, spatial=1),
+                # adp.AggLevel(temporal=2, spatial=2),
+                # adp.AggLevel(temporal=2, spatial=3),
+                # adp.AggLevel(temporal=0, spatial=4),
+                # adp.AggLevel(temporal=0, spatial=5),
                 # adp.AggLevel(temporal=0, spatial=1),
                 # adp.AggLevel(temporal=0, spatial=2),
                 # adp.AggLevel(temporal=1, spatial=2),
@@ -121,20 +125,19 @@ def get_sim_config(update_dict):
                 # adp.AggLevel(temporal=2, spatial=3),
                 # adp.AggLevel(temporal=1, spatial=5),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 4],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3],
             ConfigNetwork.LEVEL_DIST_LIST: [
                 0,
+                30,
                 60,
-                90,
                 120,
-                180,
-                270,
-                750,
-                1140,
-            ],
+                150,
+                240,
+                600,
+            ],  # , 300],
             # Trips and cars have to match in these levels
             # 9 = 990 and 10=1140
-            ConfigNetwork.MATCHING_LEVELS: (6, 7),
+            ConfigNetwork.MATCHING_LEVELS: (0, 0),
             # How many levels separated by step secresize_factorc
             # LEVEL_DIST_LIST must be filled (1=disaggregate)
             ConfigNetwork.SPEED: 20,
@@ -144,23 +147,23 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-            ConfigNetwork.DEMAND_SAMPLING: False,
+            ConfigNetwork.DEMAND_SAMPLING: True,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
             ConfigNetwork.DESTINATION_CENTERS: 3,
             # OD level extension
-            ConfigNetwork.DEMAND_CENTER_LEVEL: 4,
+            ConfigNetwork.DEMAND_CENTER_LEVEL: 0,
             # Demand scenario
             ConfigNetwork.DEMAND_SCENARIO: SCENARIO_NYC,
             ConfigNetwork.TRIP_BASE_FARE: {
-                tp.ClassedTrip.SQ_CLASS_1: 2.4,
-                tp.ClassedTrip.SQ_CLASS_2: 2.4,
+                tp.ClassedTrip.SQ_CLASS_1: 400,
+                tp.ClassedTrip.SQ_CLASS_2: 400,
             },
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 0.03,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.05,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
@@ -220,7 +223,6 @@ def hire_cars_centers(amod, contract_duration_h, step):
 def alg_adp(
     plot_track,
     config,
-    enable_plot,
     # PLOT ########################################################### #
     step_delay=PlotTrack.STEP_DELAY,
     episodes=30,
@@ -242,12 +244,21 @@ def alg_adp(
 
     amod = AmodNetworkHired(config)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
-    plot_track.set_env(amod)
+    if plot_track:
+        plot_track.set_env(amod)
+
+    # Logging events
+    logger = la.get_logger(
+        __name__,
+        level_file=la.DEBUG,
+        level_console=la.INFO,
+        log_file=config.log_path,
+    )
 
     # ---------------------------------------------------------------- #
     # Plot centers and guidelines #################################### #
     # ---------------------------------------------------------------- #
-    if enable_plot:
+    if plot_track:
         plot_track.plot_centers(
             amod.points,
             nw.Point.levels,
@@ -290,6 +301,12 @@ def alg_adp(
     # Loop all episodes, pick up trips, and learn where they are
     for n in range(episode_log.n, episodes):
 
+        logger.debug(
+            "##################################"
+            f" Iteration {n:04} "
+            "##################################"
+        )
+
         if config.demand_scenario == conf.SCENARIO_UNBALANCED:
 
             # Sample ods for iteration n
@@ -305,6 +322,7 @@ def alg_adp(
 
         elif config.demand_scenario == conf.SCENARIO_NYC:
 
+            # Load a random .csv file with trips from NYC
             trips_file_path = random.choice(TRIP_FILES)
 
             # print(f"Processing demand file '{trips_file_path}'...")
@@ -318,8 +336,8 @@ def alg_adp(
             f" - min: {min(step_trip_count)}"
             f" - max: {max(step_trip_count)}"
         )
-
-        plot_track.opt_episode = n
+        if plot_track:
+            plot_track.opt_episode = n
 
         # Start saving data of each step in the adp_network
         step_log = StepLog(amod)
@@ -333,7 +351,7 @@ def alg_adp(
         # ------------------------------------------------------------ #
         # Plot fleet current status ################################## #
         # ------------------------------------------------------------ #
-        if enable_plot:
+        if plot_track:
 
             # Computing initial timestep
             plot_track.compute_movements(0)
@@ -343,7 +361,7 @@ def alg_adp(
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(deepcopy(step_trip_list)):
 
-            if enable_plot:
+            if plot_track:
                 # Update optimization time step
                 plot_track.opt_step = step
 
@@ -416,10 +434,14 @@ def alg_adp(
                 charge=enable_charging,
                 # If True, does not use learned information
                 myopic=is_myopic,
-                # Save mip .lp and .log of iteration n
+                # # Save mip .lp and .log of iteration n
                 # log_iteration=n,
+                # # Use hierarchical aggregation to update values
                 # agg_level=1,
-                # Use hierarchical aggregation to update values
+                # Penalize rebalancing by subtracting the potential
+                # profit accrued by staying still during the rebalance
+                # process.
+                penalize_rebalance=True,
             )
 
             # Virtual hired cars are discarded
@@ -440,7 +462,7 @@ def alg_adp(
             # Plotting fleet activity ################################ #
             # -------------------------------------------------------- #
             # print("Computing movements...")
-            if enable_plot:
+            if plot_track:
                 plot_track.compute_movements(step + 1)
                 # print("Finished computing...")
 
@@ -472,31 +494,22 @@ if __name__ == "__main__":
     try:
         test_label = sys.argv[1]
     except:
-        test_label = "SIMt"
+        test_label = "ADO"
+    print("###### STARTING EXPERIMENTS")
     start_config = get_sim_config(
         {
-            ConfigNetwork.LEVEL_DIST_LIST: [
-                0,
-                60,
-                90,
-                120,
-                180,
-                270,
-                750,
-                1140,
-            ],
-            ConfigNetwork.TEST_LABEL: test_label,
+            # ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 120, 300],
+            # ConfigNetwork.LEVEL_DIST_LIST: [0, 45, 60, 90, 150],
+            ConfigNetwork.TEST_LABEL: test_label
         }
     )
-    run_plot = PlotTrack(start_config)
+
     alg_adp(
-        run_plot,
+        None,
         start_config,
-        False,
         episodes=200,
         enable_hiring=False,
         contract_duration_h=2,
         sq_guarantee=False,
         universal_service=False,
     )
-

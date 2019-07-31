@@ -251,6 +251,9 @@ class EpisodeLog:
                 },
             )
 
+            # Clean weight track
+            self.adp.agg_weight_vectors = dict()
+
     def load_progress(self):
         """Load episodes learned so farD
 
@@ -261,9 +264,12 @@ class EpisodeLog:
 
         path = self.output_path + "/progress.npy"
 
-        progress = np.load(path, allow_pickle=True).item()
-
-        self.adp.n, self.adp.reward, self.adp.service_rate, self.adp.weights = self.adp.read_progress(path)
+        (
+            self.adp.n,
+            self.adp.reward,
+            self.adp.service_rate,
+            self.adp.weights
+        ) = self.adp.read_progress(path)
 
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"

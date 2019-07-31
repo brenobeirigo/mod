@@ -359,7 +359,6 @@ class PlotTrack:
                 future_step, point.id, battery_level, "Inf", "AV"
             )
 
-            
             values[point.id] = estimate
             # self.env.values[future_step][agg_level][attribute]
 
@@ -593,7 +592,9 @@ class PlotTrack:
 
         try:
             print("\nReading center data...")
-            center_lines_dict = np.load(self.path_region_center_data, allow_pickle=True).item()
+            center_lines_dict = np.load(
+                self.path_region_center_data, allow_pickle=True
+            ).item()
             centers_xy = center_lines_dict["centers_xy"]
             lines_xy = center_lines_dict["lines_xy"]
             print("Center data loaded successfully.")
@@ -778,7 +779,7 @@ class PlotTrack:
         """
 
         thread = Thread(
-            target=partial(opt_method, plot_track=self, config=self.config, enable_plot=True)
+            target=partial(opt_method, plot_track=self, config=self.config)
         )
 
         thread.start()

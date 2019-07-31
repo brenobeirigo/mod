@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from datetime import datetime, timedelta
 
 # Adding project folder to import modules
@@ -11,11 +12,13 @@ TRIPS_FILE_ALL = "trips_2011-02-01.csv"
 TRIPS_FILE_4 = "32874_samples_01_feb_2011_NY.csv"
 NY_TRIPS_EXCERPT_DAY = root + f"/data/input/nyc/{TRIPS_FILE_ALL}"
 
+FOLDER_TUNING = root + "/data/input/tuning/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
 TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
-        "trips_2011-02-01.csv",
+        "trips_2011-01-04-enriched.csv"
+        # "trips_2011-02-01.csv",
         # "trips_2011-02-08.csv",
         # "trips_2011-02-15.csv",
         # "trips_2011-02-22.csv",
@@ -190,6 +193,10 @@ class Config:
     ####################################################################
     ### Area ###########################################################
     ####################################################################
+
+    @property
+    def log_path(self):
+        return f"{FOLDER_OUTPUT + self.label}/adp_trace.log"
 
     @property
     def origin_centers(self):
@@ -451,6 +458,23 @@ class Config:
         )
 
     def update(self, dict_update):
+
+        # Guarantee elements are tuples
+        if Config.REBALANCE_LEVEL in dict_update:
+            dict_update[Config.REBALANCE_LEVEL] = tuple(
+                dict_update[Config.REBALANCE_LEVEL]
+            )
+
+        if Config.N_CLOSEST_NEIGHBORS in dict_update:
+            dict_update[Config.N_CLOSEST_NEIGHBORS] = tuple(
+                dict_update[Config.N_CLOSEST_NEIGHBORS]
+            )
+
+        if Config.AGGREGATION_LEVELS in dict_update:
+            dict_update[Config.AGGREGATION_LEVELS] = tuple(
+                dict_update[Config.AGGREGATION_LEVELS]
+            )
+
         self.config.update(dict_update)
 
         self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
@@ -649,7 +673,7 @@ class ConfigStandard(Config):
 
         # How many aggregation levels (level 0, i.e., no aggregation)
         # included
-        self.config["AGGREGATION_LEVELS"] = 5
+        self.config["AGGREGATION_LEVELS"] = [0, 60, 120, 300]
 
         # Attributes are based on a single aggregation level
         self.config[Config.INCUMBENT_AGGREGATION_LEVEL] = 2
@@ -790,8 +814,8 @@ class ConfigNetwork(ConfigStandard):
         # Time #########################################################
 
         self.config[Config.STEP_SECONDS] = 60
-        self.config["N_CLOSEST_NEIGHBORS"] = (4,)
-        self.config["NEIGHBORHOOD_LEVEL"] = 1
+        self.config[Config.N_CLOSEST_NEIGHBORS] = (4,)
+        self.config[Config.NEIGHBORHOOD_LEVEL] = 1
 
         self.config[Config.REBALANCE_LEVEL] = (1,)
         self.config[Config.REBALANCE_REACH] = None
@@ -827,7 +851,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.DISCOUNT_FACTOR] = 1
         self.config[Config.HARMONIC_STEPSIZE] = 1
         self.config[Config.STEPSIZE] = 0.1
-        self.config[Config.UPDATE_METHOD] = AVERAGED_UPDATE
+        self.config[Config.UPDATE_METHOD] = WEIGHTED_UPDATE
 
         # MATCHING ################################################### #
         self.config[Config.MATCH_METHOD] = Config.MATCH_DISTANCE
@@ -894,7 +918,6 @@ class ConfigNetwork(ConfigStandard):
         """Number of closest region centers each region center can
         access."""
         return self.config["N_CLOSEST_NEIGHBORS"]
-    
 
     # ---------------------------------------------------------------- #
     # Matching ####################################################### #
@@ -1033,7 +1056,7 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
         levels = ", ".join([
-            f"{self.config[Config.LEVEL_DIST_LIST][spatial]:>3}"
+            f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
             for temporal, spatial in self.config[Config.AGGREGATION_LEVELS]])
 
         # Is the demand sampled or fixed?
@@ -1063,9 +1086,19 @@ class ConfigNetwork(ConfigStandard):
             # f"{reb_neigh}_"
             f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
             f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h]_"
-            f"resize={self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
-            f"discount={self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
-            f"stepsize={self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
+            f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
+            f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
+            f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
             #f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             #f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
+    
+    def save(self, file_path):
+        with open(file_path, 'w') as outfile:
+            json.dump(data, outfile, sort_keys=True, indent=4)
+
+def save_json(data, file_path=None, folder=None, file_name=None):
+    if not file_path:
+        file_path = folder + file_name + ".json"
+    with open(file_path, 'w') as outfile:
+        json.dump(data, outfile, sort_keys=True, indent=4)

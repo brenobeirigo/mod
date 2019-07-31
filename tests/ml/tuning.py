@@ -1,6 +1,7 @@
 import os
 import sys
 
+
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
@@ -18,9 +19,7 @@ from collections import defaultdict
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-N_PROCESSES = 2
-
-ITERATIONS = 50
+ITERATIONS = 100
 
 from pprint import pprint
 
@@ -64,12 +63,9 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
-    run_plot = PlotTrack(exp_setup)
-
     reward_list = alg.alg_adp(
-        run_plot,
+        None,
         exp_setup,
-        False,
         episodes=ITERATIONS,
         classed_trips=True,
         # enable_hiring=True,
@@ -102,23 +98,36 @@ def multi_proc_exp(exp_list, processes=4):
 
 if __name__ == "__main__":
 
+    try:
+        test_label = sys.argv[1]
+    except:
+        test_label = "TUNE"
+
+    try:
+        N_PROCESSES = int(sys.argv[2])
+    except:
+        N_PROCESSES = 2
+
     tuning_params = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
         Config.DISCOUNT_FACTOR: [0.05],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [3, 4],
+        Config.FLEET_SIZE: [
+            # 300,
+            400
+        ],
         Config.FLEET_START: [
             conf.FLEET_START_LAST,
-            conf.FLEET_START_SAME,
-            conf.FLEET_START_RANDOM,
+            # conf.FLEET_START_SAME,
+            # conf.FLEET_START_RANDOM,
         ],
         # -------------------------------------------------------- #
         # DEMAND ################################################# #
         # -------------------------------------------------------- #
         "DEMAND_TW": [
             {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
-            {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
+            # {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
         ],
         Config.DEMAND_SAMPLING: [
             True,
@@ -127,37 +136,66 @@ if __name__ == "__main__":
         Config.DEMAND_RESIZE_FACTOR: [0.1],
         "REBAL_LEVELS_NEIGHBORS": [
             {
-                Config.REBALANCE_LEVEL: (0, 1, 2),
-                Config.N_CLOSEST_NEIGHBORS: (4, 4, 4),
+                Config.REBALANCE_LEVEL: (0, 1, 2, 3, 4, 5, 6),
+                Config.N_CLOSEST_NEIGHBORS: (4, 4, 4, 2, 2, 1, 1),
             },
-            # {Config.REBALANCE_LEVEL: (1,), Config.N_CLOSEST_NEIGHBORS: (8,)},
+            # {
+            #     Config.REBALANCE_LEVEL: (0, 1),
+            #     Config.N_CLOSEST_NEIGHBORS: (8, 8),
+            # },
         ],
         Config.AGGREGATION_LEVELS: [
-            [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
-            # [(0, 0), (0, 1), (0, 2), (0, 3)],
+            [
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (2, 1),
+                (2, 2),
+                (2, 3),
+                (2, 4),
+                (2, 5),
+                (2, 6),
+            ],
+            # [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6)],
+            [(0, 0), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6)],
         ],
     }
 
-    # Setup shared by all experiments
-    setup = alg.get_sim_config(
-        {
-            Config.TEST_LABEL: "SHORT2",
-            Config.DEMAND_EARLIEST_HOUR: 5,
-            Config.DEMAND_TOTAL_HOURS: 4,
-            Config.OFFSET_REPOSIONING: 15,
-            Config.OFFSET_TERMINATION: 30,
-            Config.CONTRACT_DURATION_LEVEL: 10,
-            Config.LEVEL_DIST_LIST: [0, 60, 90, 120, 180, 270],
-            Config.LEVEL_TIME_LIST: [1, 2, 4],
-        }
+    shared_settings = {
+        Config.TEST_LABEL: test_label,
+        Config.OFFSET_REPOSIONING: 15,
+        Config.OFFSET_TERMINATION: 30,
+        Config.CONTRACT_DURATION_LEVEL: 10,
+        Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
+        Config.LEVEL_TIME_LIST: [1, 2, 4, 8],
+    }
+
+    conf.save_json(
+        dict(tuning_settings=tuning_params, shared_settings=shared_settings),
+        folder=conf.FOLDER_TUNING,
+        file_name=test_label,
     )
+
+    # Setup shared by all experiments
+    setup = alg.get_sim_config(shared_settings)
+
+    print("################ Initial setup")
+    pprint(setup.config)
 
     tuning_labels = list(tuning_params.keys())
 
+    # List with tuples (EXPERIMENT_NAME, FOLDER_NAME, SETTINGS)
     exp_list = []
 
-    test_all(tuning_labels, tuning_params, {}, setup, exp_list)
+    # Dictionary updated during recursion
+    update_dict = {}
 
-    pprint(exp_list)
+    test_all(tuning_labels, tuning_params, update_dict, setup, exp_list)
+
+    exp_list = sorted(exp_list, key=lambda x: x[1])
+
+    print("\n################ Experiment folders:")
+    for exp in exp_list:
+        print(f" - {exp[1]}")
 
     multi_proc_exp(exp_list, processes=N_PROCESSES)

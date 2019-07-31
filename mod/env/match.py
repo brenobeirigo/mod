@@ -11,6 +11,9 @@ import itertools
 import mod.env.decision_utils as du
 import os
 import sys
+import mod.util.log_aux as la
+
+logger = la.get_logger("__main__."+__name__)
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION)
@@ -36,19 +39,30 @@ WEIGHTED_UPDATE = "weighted_update"
 
 
 def extract_duals_relaxed(m, flow_cars):
-    """[summary]
+    """ Get LP from MILP, apply MILP solution and extract duals.
+    For MIP problems, no dual information is ever available.
 
     Parameters
     ----------
-    m : [type]
-        [description]
-    flow_cars_dict : [type]
-        [description]
+    m : Gurobi model
+        MIP already optimized
+    flow_cars: dict
+        Dictionary of car flow attributes with key tuples:
+        (pos, battery, contract_duration, car_type)
 
     Returns
     -------
     dict(dict())
         Dual value for each car type and attribute (point, battery)
+
+    Details
+    -------
+    Gurobi cannot extract duals from multi-objective models:
+
+    "We haven't attempted to generalize the notions of dual solutions
+    or simplex bases for continuous multi-objective models, so you can't
+    query attributes such as Pi, RC, VBasis, or CBasis for
+    multi-objective solutions."
     """
 
     # Shadow prices associated to car attributes
@@ -374,11 +388,9 @@ def adp_network(
         print("Optimization was stopped with status %d" % m.status)
 
     if m.status == GRB.Status.INFEASIBLE:
+
         # do IIS
         print("The model is infeasible; computing IIS")
-
-        # Save model
-        m.write("myopic.lp")
 
         m.computeIIS()
 
@@ -1699,7 +1711,8 @@ def service_trips(
     agg_level=None,
     myopic=False,
     log_iteration=None,
-    universal_service=False
+    universal_service=False,
+    penalize_rebalance=True
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -1739,6 +1752,7 @@ def service_trips(
 
     # Log steps of current episode
     if log_iteration is not None:
+        
         m.setParam("LogToConsole", 0)
         folder_epi_log = f"{env.config.folder_mip_log}episode_{log_iteration:04}/"
         folder_epi_lp = f"{env.config.folder_mip_lp}episode_{log_iteration:04}/"
@@ -1749,6 +1763,9 @@ def service_trips(
 
         m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}.log"
         m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}.lp"
+
+        logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
+        logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
 
     else:
         # Disables all logging (file and console)
@@ -1814,7 +1831,14 @@ def service_trips(
     # use them to determine post decision costs.
     else:
         post_decision_costs = quicksum(
-            (env.post_cost(time_step, d, level=agg_level) * x_var[d])
+            (
+                env.post_cost(
+                    time_step,
+                    d,
+                    level=agg_level,
+                    penalize_rebalance=penalize_rebalance
+                ) * x_var[d]
+            )
             for d in x_var
         )
 
@@ -1915,6 +1939,9 @@ def service_trips(
         if not myopic:
 
             duals = extract_duals_relaxed(m, flow_cars_dict)
+
+            # Log duals
+            la.log_duals('__main__.' + __name__, duals)
 
             env.update_vf(duals, time_step)
 

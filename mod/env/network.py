@@ -511,14 +511,17 @@ def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):
     if not waypoint:
         waypoint = o
 
-    query = (
-        f"{url}/sp_sliced/{o.id}/{d.id}/{waypoint.id}/"
-        f"{n_points}/{steps}/{projection}"
-    )
+    # query = (
+    #     f"{url}/sp_sliced/{o.id}/{d.id}/{waypoint.id}/"
+    #     f"{n_points}/{steps}/{projection}"
+    # )
 
+    sp_coords = tenv.sp_sliced(
+        o.id, d.id, waypoint.id, n_points, steps, projection=projection
+    )
     # print(query)
-    r = requests.get(url=query)
-    sp_coords = r.json()["sp"]
+    # r = requests.get(url=query)
+    # sp_coords = r.json()["sp"]
 
     # pprint.pprint(sp_coords)
     return sp_coords

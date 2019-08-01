@@ -1,16 +1,38 @@
 import logging
 import sys
+import numpy as np
 
-FORMATTER = logging.Formatter(
+np.set_printoptions(precision=3)
+
+FORMATTER = logging.Formatter("%(asctime)s — %(levelname)s — %(message)s")
+
+FORMATTER_VERBOSE = logging.Formatter(
     "%(asctime)s — %(name)s — %(levelname)s — %(message)s"
 )
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
 
-LOG_WEIGHTS = False
-LOG_VALUE_UPDATE = False
-LOG_DUALS = False
+LOG_WEIGHTS = True
+LOG_VALUE_UPDATE = True
+LOG_DUALS = True
+LOG_FLEET_ACTIVITY = True
+
+
+def log_fleet_activity(name, step, skip_steps, step_log, filter_status=[]):
+
+    if LOG_FLEET_ACTIVITY:
+
+        logger = logging.getLogger(name)
+
+        if skip_steps > 0 and step % skip_steps == 0:
+
+            logger.debug("")
+            logger.debug(step_log.info())
+
+            car_status_list = step_log.env.print_fleet_stats(filter_status=filter_status)
+            for c in car_status_list:
+                logger.debug(c)
 
 
 def get_console_handler():
@@ -33,7 +55,7 @@ def log_weights(name, weights, value_vector, value_estimation):
 
         logger.debug(
             f"weights={weights}, values={value_vector}, "
-            f"estimation={value_estimation}"
+            f"estimation={value_estimation:6.2f}"
         )
 
 
@@ -70,6 +92,9 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
             if g_time != previous_g_time or g != previous_g:
 
+                previous_g = g
+                previous_g_time = g_time
+
                 logger.debug("")
                 logger.debug(
                     f"  ## Value count={count_values:>4}, "
@@ -83,8 +108,6 @@ def log_update_values_smoothed(name, t, level_update_list, values):
                 )
 
                 count_values = 0
-                previous_g = g
-                previous_g_time = g_time
                 count_locations = 0
 
             count_locations += 1

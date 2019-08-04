@@ -100,6 +100,8 @@ class Config:
     AGGREGATION_LEVELS = "AGGREGATION_LEVELS"
     LEVEL_DIST_LIST = "LEVEL_LIST"
     LEVEL_TIME_LIST = "LEVEL_TIME_LIST"
+    LEVEL_CONTRACT_DURATION = "LEVEL_CONTRACT_DURATION"
+    LEVEL_CAR_TYPE = "LEVEL_CAR_TYPE"
     INCUMBENT_AGGREGATION_LEVEL = "INCUMBENT_AGGREGATION_LEVEL"
 
     ZONE_WIDTH = "ZONE_WIDTH"
@@ -160,6 +162,7 @@ class Config:
     MATCH_METHOD = "MATCH_METHOD"
     MATCH_LEVEL = "MATCH_LEVEL"
     MATCH_MAX_NEIGHBORS = "MATCH_MAX_NEIGHBORS"
+    LEVEL_RC = "LEVEL_RC"
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -858,6 +861,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCH_LEVEL] = 0
         self.config[Config.MATCH_MAX_NEIGHBORS] = 8
         self.config[Config.MATCHING_LEVELS] = (3, 4)
+        self.config[Config.LEVEL_RC] = 2
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -903,6 +908,16 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.LEVEL_TIME_LIST]
 
     @property
+    def level_car_type_dict(self):
+        """Car type for each aggregated level"""
+        return self.config[Config.LEVEL_CAR_TYPE]
+
+    @property
+    def level_contract_duration_dict(self):
+        """Contract duration for each car type and aggregated level"""
+        return self.config[Config.LEVEL_CONTRACT_DURATION]
+
+    @property
     def neighborhood_level(self):
         """Extent of the reachability of the region centers. E.g.,
         level = 0 - Region centers are nodes
@@ -940,10 +955,15 @@ class ConfigNetwork(ConfigStandard):
 
     def match_in_center(self):
         return self.config[Config.MATCH_METHOD] == Config.MATCH_CENTER
+
     @property
     def match_max_neighbors(self):
         return self.config[Config.MATCH_MAX_NEIGHBORS] == Config.MATCH_MAX_NEIGHBORS
 
+    @property
+    def level_rc(self):
+        """Region center level from where cars are hired"""
+        return self.config[Config.LEVEL_RC]
 
 
     # ---------------------------------------------------------------- #
@@ -1057,7 +1077,7 @@ class ConfigNetwork(ConfigStandard):
         )
         levels = ", ".join([
             f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
-            for temporal, spatial in self.config[Config.AGGREGATION_LEVELS]])
+            for temporal, spatial, contract, car_type in self.config[Config.AGGREGATION_LEVELS]])
 
         # Is the demand sampled or fixed?
         sample = ("S" if self.config[Config.DEMAND_SAMPLING] else "F")

@@ -8,11 +8,12 @@ import random
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
+from mod.env.matching import service_trips
+import mod.util.log_aux as la
+
 from mod.env.amod.AmodNetworkHired import AmodNetworkHired
 from mod.env.visual import StepLog, EpisodeLog
 import mod.env.adp.adp as adp
-
-import mod.util.log_aux as la
 
 import mod.env.visual as vi
 from mod.env.config import (
@@ -24,13 +25,11 @@ from mod.env.config import (
 
 import mod.env.config as conf
 
-from mod.env.match import service_trips
-from mod.env.car import HiredCar
+
+from mod.env.car import Car, HiredCar
 from mod.env.trip import get_trip_count_step, get_trips_random_ods
 import mod.env.trip as tp
 import mod.env.network as nw
-
-from pprint import pprint
 
 from mod.env.simulator import PlotTrack
 
@@ -70,7 +69,7 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 200,
+            ConfigNetwork.FLEET_SIZE: 500,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
@@ -97,35 +96,70 @@ def get_sim_config(update_dict):
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (4, 4, 4, 2, 2, 1),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
-            # ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 90, 120, 180, 270],
+            # Aggregation (temporal, spatial, contract, car type)
             ConfigNetwork.AGGREGATION_LEVELS: [
-                adp.AggLevel(temporal=0, spatial=0),
-                adp.AggLevel(temporal=1, spatial=0),
-                adp.AggLevel(temporal=1, spatial=1),
-                adp.AggLevel(temporal=1, spatial=2),
-                adp.AggLevel(temporal=1, spatial=3),
-                adp.AggLevel(temporal=1, spatial=4),
-                adp.AggLevel(temporal=1, spatial=5),
-                adp.AggLevel(temporal=1, spatial=6),
-                # adp.AggLevel(temporal=0, spatial=4),
-                # adp.AggLevel(temporal=0, spatial=5),
-                # adp.AggLevel(temporal=0, spatial=1),
-                # adp.AggLevel(temporal=1, spatial=1),
-                # adp.AggLevel(temporal=2, spatial=1),
-                # adp.AggLevel(temporal=2, spatial=2),
-                # adp.AggLevel(temporal=2, spatial=3),
-                # adp.AggLevel(temporal=0, spatial=4),
-                # adp.AggLevel(temporal=0, spatial=5),
-                # adp.AggLevel(temporal=0, spatial=1),
-                # adp.AggLevel(temporal=0, spatial=2),
-                # adp.AggLevel(temporal=1, spatial=2),
-                # adp.AggLevel(temporal=2, spatial=2),
-                # adp.AggLevel(temporal=0, spatial=3),
-                # adp.AggLevel(temporal=1, spatial=3),
-                # adp.AggLevel(temporal=2, spatial=3),
-                # adp.AggLevel(temporal=1, spatial=5),
+                adp.AggLevel(
+                    temporal=adp.DISAGGREGATE,
+                    spatial=adp.DISAGGREGATE,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=adp.DISAGGREGATE,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=1,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=2,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=3,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=4,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=5,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=6,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                ),
             ],
             ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3],
+            ConfigNetwork.LEVEL_CAR_TYPE: {
+                Car.TYPE_FLEET: {adp.DISCARD: Car.TYPE_FLEET},
+                Car.TYPE_HIRED: {adp.DISCARD: Car.TYPE_FLEET},
+                Car.TYPE_TO_HIRE: {adp.DISCARD: Car.TYPE_FLEET},
+            },
+            ConfigNetwork.LEVEL_CONTRACT_DURATION: {
+                Car.TYPE_FLEET: {adp.DISCARD: Car.INFINITE_CONTRACT_DURATION},
+                Car.TYPE_HIRED: {adp.DISCARD: Car.INFINITE_CONTRACT_DURATION},
+                Car.TYPE_TO_HIRE: {
+                    adp.DISCARD: Car.INFINITE_CONTRACT_DURATION
+                },
+            },
             ConfigNetwork.LEVEL_DIST_LIST: [
                 0,
                 30,
@@ -135,6 +169,8 @@ def get_sim_config(update_dict):
                 240,
                 600,
             ],  # , 300],
+            # From which region center levels cars are hired
+            ConfigNetwork.LEVEL_RC: 5,
             # Trips and cars have to match in these levels
             # 9 = 990 and 10=1140
             ConfigNetwork.MATCHING_LEVELS: (0, 0),
@@ -172,7 +208,7 @@ def get_sim_config(update_dict):
             # HIRING ################################################# #
             # -------------------------------------------------------- #
             ConfigNetwork.CONTRACT_DURATION_LEVEL: 15,
-            ConfigNetwork.CONGESTION_PRICE: 10,
+            ConfigNetwork.CONGESTION_PRICE: 1000,
             # -------------------------------------------------------- #
             ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
             ConfigNetwork.MATCH_LEVEL: 2,
@@ -201,7 +237,7 @@ def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
     return hired_cars
 
 
-def hire_cars_centers(amod, contract_duration_h, step):
+def hire_cars_centers(amod, contract_duration_h, step, rc_level=2):
     # Hired fleet is appearing in trip origins
 
     hired_cars = [
@@ -213,8 +249,8 @@ def hire_cars_centers(amod, contract_duration_h, step):
             duration_level=amod.config.contract_duration_level,
             # battery_level_miles_max=amod.battery_size_distances,
         )
-        for c in amod.points_level[2]
-        if random.random() < 1
+        for c in amod.points_level[rc_level]
+        # if random.random() < 1
     ]
 
     return hired_cars
@@ -229,7 +265,7 @@ def alg_adp(
     enable_charging=False,
     is_myopic=False,
     # LOG ############################################################ #
-    skip_steps=0,
+    skip_steps=1,
     # HIRING ######################################################### #
     enable_hiring=False,
     contract_duration_h=2,
@@ -237,6 +273,18 @@ def alg_adp(
     universal_service=False,
     # TRIPS ########################################################## #
     classed_trips=True,
+    # Progress track
+    save_progress=True,
+    # Create service rate and fleet status plots for each iteration
+    plots=False,
+    # Save .csv files for each iteration with fleet and demand statuses
+    # throughtout all time steps
+    save_df=False,
+    # Save total reward, total service rate, and weights after iteration
+    save_overall_stats=True,
+    # Update value functions (dictionary in progress.npy file)
+    # after each iteration
+    save_learning=True,
 ):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -249,8 +297,8 @@ def alg_adp(
 
     # Logging events
     logger = la.get_logger(
-        __name__,
-        level_file=la.DEBUG,
+        config.label,
+        level_file=la.INFO,
         level_console=la.INFO,
         log_file=config.log_path,
     )
@@ -301,12 +349,6 @@ def alg_adp(
     # Loop all episodes, pick up trips, and learn where they are
     for n in range(episode_log.n, episodes):
 
-        logger.debug(
-            "##################################"
-            f" Iteration {n:04} "
-            "##################################"
-        )
-
         if config.demand_scenario == conf.SCENARIO_UNBALANCED:
 
             # Sample ods for iteration n
@@ -331,11 +373,14 @@ def alg_adp(
                 config, trips_file_path, amod.points
             )
 
-        print(
-            f"### DEMAND ###"
-            f" - min: {min(step_trip_count)}"
-            f" - max: {max(step_trip_count)}"
+        logger.debug(
+            "##################################"
+            f" Iteration {n:04} "
+            f"- Demand (min={min(step_trip_count)}"
+            f", max={max(step_trip_count)})"
+            "##################################"
         )
+
         if plot_track:
             plot_track.opt_episode = n
 
@@ -344,9 +389,6 @@ def alg_adp(
 
         # Resetting environment
         amod.reset()
-
-        # print("Position cars:")
-        # pprint([c.point for c in amod.cars])
 
         # ------------------------------------------------------------ #
         # Plot fleet current status ################################## #
@@ -361,62 +403,74 @@ def alg_adp(
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(deepcopy(step_trip_list)):
 
+            logger.debug(
+                "###########################################"
+                f" (step={step}, trips={len(trips)}) "
+                "###########################################"
+            )
+
             if plot_track:
                 # Update optimization time step
                 plot_track.opt_step = step
 
-                # Assign trips at step
+                # Create trip dictionary of coordinates
                 plot_track.trips_dict[step] = vi.compute_trips(trips)
 
-            # Loop cars and update their current status as well as the
-            # the list of available vehicles.
-
-            # print(f"### STEP {step:>4} ###############################")
-
-            # Compute fleet status after making decision in step - 1
-            # What each car is doing when trips are arriving?
-            step_log.compute_fleet_status(step)
-
-            if skip_steps > 0 and step % skip_steps == 0:
-                step_log.show_info()
-                # What each vehicle is doing?
-                # if len(trips) == 0:
-                #     amod.print_fleet_stats(filter_status=[Car.ASSIGN])
-                amod.print_fleet_stats(filter_status=[])
+            if save_progress:
+                logger.debug("  - Computing fleet status...")
+                # Compute fleet status after making decision in step - 1
+                # What each car is doing when trips are arriving?
+                step_log.compute_fleet_status(step)
 
             # ######################################################## #
             # TIME INCREMENT HAS PASSED ############################## #
             # ######################################################## #
 
-            # ***Change available and available_hired
+            # Loop cars and update their current status as well as the
+            # the list of available vehicles (change available and
+            # available_hired)
             amod.update_fleet_status(step + 1)
 
-            # Stats summary
-            # print(" - Pre-decision statuses:")
-            # amod.print_fleet_stats_summary()
+            # What each vehicle is doing after update?
+            la.log_fleet_activity(
+                config.label,
+                step + 1,
+                skip_steps,
+                step_log,
+                filter_status=[],
+                msg="post update",
+            )
+
             if enable_hiring:
 
                 hired_cars = []
+
                 if trips:
 
                     hired_cars = hire_cars_trip_regions(
                         amod, trips, contract_duration_h, step
                     )
-                    # print("Hired:", len(hired_cars))
+
+                    logger.debug(
+                        f"**** Hiring {len(hired_cars)} in the trip regions."
+                    )
+
                 else:
 
                     hired_cars = hire_cars_centers(
-                        amod, contract_duration_h, step
+                        amod,
+                        contract_duration_h,
+                        step,
+                        rc_level=config.level_rc,
                     )
 
-                hired_cars = hire_cars_centers(amod, contract_duration_h, step)
+                    logger.debug(
+                        f"**** Hiring {len(hired_cars)} in region centers."
+                    )
 
                 # Add hired fleet to model
                 amod.hired_cars.extend(hired_cars)
                 amod.available_hired.extend(hired_cars)
-
-            # Adding hired caras
-            # print(f"Hiring {len(hired_cars)} cars.")
 
             # Optimize
             revenue, serviced, rejected = service_trips(
@@ -444,46 +498,76 @@ def alg_adp(
                 penalize_rebalance=True,
             )
 
+            # What each vehicle is doing?
+            la.log_fleet_activity(
+                config.label,
+                step,
+                skip_steps,
+                step_log,
+                filter_status=[],
+                msg="after decision",
+            )
+
             # Virtual hired cars are discarded
             if enable_hiring:
 
-                discarded = amod.discard_excess_hired()
-                # print(f"{discarded} cars discarded.")
+                logger.debug(
+                    f"Total hired: {len(amod.hired_cars):4} "
+                    f"(available={len(amod.available_hired)})"
+                )
+
+                amod.discard_excess_hired()
+
+                logger.debug(
+                    f"Total hired: {len(amod.hired_cars):4} "
+                    f"(available={len(amod.available_hired)})"
+                    " AFTER DISCARDING"
+                )
+
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #
             step_log.add_record(revenue, serviced, rejected)
 
-            # Stats summary
-            # print(" - Post-decision statuses")
-            # amod.print_fleet_stats_summary()
-
             # -------------------------------------------------------- #
             # Plotting fleet activity ################################ #
             # -------------------------------------------------------- #
-            # print("Computing movements...")
+
             if plot_track:
+
+                logger.info("Computing movements...")
+
                 plot_track.compute_movements(step + 1)
-                # print("Finished computing...")
+
+                logger.info("Finished computing...")
 
                 time.sleep(step_delay)
 
         amod.update_fleet_status(step + 1)
 
-        episode_log.compute_episode(
-            step_log, time.time() - start_time, weights=amod.adp.get_weights()
-        )
-
         # -------------------------------------------------------------#
         # Compute episode info #########################################
         # -------------------------------------------------------------#
-        print(
+
+        logger.debug("  - Computing iteration...")
+        episode_log.compute_episode(
+            step_log,
+            time.time() - start_time,
+            weights=amod.adp.get_weights(),
+            save_df=save_df,
+            plots=plots,
+            save_learning=save_learning,
+            save_overall_stats=save_overall_stats,
+        )
+
+        logger.info(
             f"####### "
             f"[Episode {n:>5}] "
             f"- {episode_log.last_episode_stats()} "
             f"#######"
         )
 
+    # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()
 
     return amod.adp.reward
@@ -494,7 +578,8 @@ if __name__ == "__main__":
     try:
         test_label = sys.argv[1]
     except:
-        test_label = "ADO"
+        test_label = "500DISA"
+
     print("###### STARTING EXPERIMENTS")
     start_config = get_sim_config(
         {
@@ -504,12 +589,13 @@ if __name__ == "__main__":
         }
     )
 
+    hire = False
     alg_adp(
         None,
         start_config,
-        episodes=200,
-        enable_hiring=False,
+        episodes=1000,
         contract_duration_h=2,
-        sq_guarantee=False,
-        universal_service=False,
+        sq_guarantee=hire,
+        enable_hiring=hire,
+        universal_service=hire,
     )

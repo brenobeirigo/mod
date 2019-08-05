@@ -89,7 +89,6 @@ class EpisodeLog:
                     f"\n - {self.output_folder_service}"
                 )
 
-
     def __init__(self, config=None, n=0, reward=list(), service_rate=list(), weights=list(), adp=None):
         self.config = config
         self.adp = adp
@@ -114,7 +113,7 @@ class EpisodeLog:
     def save_ods(self, origin_ids, destination_ids):
         """Save trip ods in .npy file. When method is restarted, same
         ods can be used to guarantee consistency.
-        
+
         Parameters
         ----------
         origin_ids : list of ints
@@ -173,8 +172,14 @@ class EpisodeLog:
         )
 
     def compute_episode(
-        self, step_log, processing_time,
-        weights=None, plots=True, save_df=True
+        self,
+        step_log,
+        processing_time,
+        weights=None,
+        plots=True,
+        save_df=True,
+        save_learning=True,
+        save_overall_stats=True
     ):
 
         # Increment number of episodes
@@ -218,19 +223,21 @@ class EpisodeLog:
                 + f"e_demand_status_{self.adp.n:04}.csv"
             )
 
+            
+
+        if save_overall_stats:
             df_stats = step_log.get_step_stats()
             df_stats["time"] = pd.Series([processing_time])
-
             stats_file = self.output_path + "/overall_stats.csv"
             df_stats.to_csv(
                 stats_file,
                 mode="a",
                 index=False,
-                header= not os.path.exists(stats_file)
+                header=not os.path.exists(stats_file)
             )
 
         # Save what was learned so far
-        if self.adp:
+        if save_learning and self.adp:
 
             path = self.output_path + "/progress.npy"
 
@@ -344,6 +351,7 @@ class StepLog:
         self.n = 0
 
     def compute_fleet_status(self, step):
+        """Save the status of each car in step (fleet snapshot)"""
         
         # Fleet step happens after trip step
         self.n = step
@@ -380,7 +388,7 @@ class StepLog:
         except ZeroDivisionError:
             return 0
 
-    def show_info(self):
+    def info(self):
         """Print last time step statistics
         """
 
@@ -394,8 +402,8 @@ class StepLog:
             total = 0
 
         status, battery = self.env.get_fleet_status()
-        print(
-            f"### Time step: {self.n:>3}"
+        return (
+            f"### Time step (trip={self.n:>4}, fleet={self.n+1:>4})"
             f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>7.2%}"
             f" ### Trips: {total:>4}"
@@ -579,6 +587,28 @@ class StepLog:
 
 # BOKEH ################################################################
 def compute_trips(trips):
+    """Return dictionary of trip coordinates indexed by origin and
+    destination point ids.
+    
+    Parameters
+    ----------
+    trips : List of Trip objects
+        Trips placed in a certain time step
+    
+    Returns
+    -------
+    dict of coordinates
+        Dictionary of trip od points and correspondent coordinates.
+    
+    Example
+    -------
+    >>> o = Point(40.4, 72.4, 1) # origin point
+    >>> d = Point(40.5, 71.3, 2) # destination point
+    >>> t = 5 # current time
+    >>> trips = [Trip(o, d, 5)] # list of trips
+    >>> compute_trips(trips)
+    >>> {"o":{"x":[40.4], "y":[72.4]}, "d":{"x":[40.5], "y":[71.3]}}
+    """
 
     xy_trips = defaultdict(lambda: defaultdict(list))
     xy_trips["o"]["x"] = []

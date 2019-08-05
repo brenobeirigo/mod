@@ -219,7 +219,7 @@ def extract_duals(m, flow_cars, ignore_zeros=False):
         # Should zero value functions be updated?
         if shadow_price == 0 and ignore_zeros:
             continue
-        
+
         duals[(pos, battery, contract_duration, car_type)] = shadow_price
 
     return duals
@@ -402,15 +402,7 @@ def service_trips(
 
     # Cost of current decision
     present_contribution = quicksum(
-        env.cost_func(
-            d[CAR_TYPE],
-            d[ACTION],
-            d[POSITION],
-            d[ORIGIN],
-            d[DESTINATION],
-            d[SQ_CLASS],
-        )
-        * x_var[d]
+        env.cost_func(d) * x_var[d]
         for d in x_var
     )
 
@@ -452,7 +444,20 @@ def service_trips(
 
     elif m.status == GRB.Status.OPTIMAL:
 
+        # Decision tuple + (n. of times decision was taken)
         best_decisions = extract_decisions(x_var)
+
+        # Logging cost calculus
+        la.log_costs(
+            env.config.label,
+            best_decisions,
+            env.cost_func,
+            env.post_cost,
+            time_step,
+            env.config.discount_factor,
+            agg_level,
+            penalize_rebalance,
+        )
 
         # Number of customers rejected per origin id
         denied_count_dict = get_denied_ids(
@@ -472,9 +477,7 @@ def service_trips(
 
                 # Extracting shadow prices from car flow constraints
                 duals = extract_duals(
-                    relaxed_model,
-                    flow_cars_dict,
-                    ignore_zeros=True,
+                    relaxed_model, flow_cars_dict, ignore_zeros=True
                 )
 
                 # Log duals

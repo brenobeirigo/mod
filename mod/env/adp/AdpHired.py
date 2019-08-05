@@ -13,27 +13,36 @@ class AdpHired(adp.Adp):
         points,
         agregation_levels,
         temporal_levels,
+        car_type_levels,
+        contract_levels,
         stepsize,
         stepsize_rule=adp.STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
         stepsize_harmonic=1,
+        logger_name=None,
     ):
 
         super().__init__(
             points,
             agregation_levels,
             temporal_levels,
+            car_type_levels,
+            contract_levels,
             stepsize,
             stepsize_rule=stepsize_rule,
             stepsize_constant=stepsize_constant,
             stepsize_harmonic=stepsize_harmonic,
         )
 
+        self.logger_name = logger_name
+
     ####################################################################
     # Smoothed #########################################################
     ####################################################################
 
     def get_weighted_value(self, t, pos, battery, contract_duration, car_type):
+
+        state = (t, pos, battery, contract_duration, car_type)
 
         # Get point object associated to position
         point = self.points[pos]
@@ -44,16 +53,22 @@ class AdpHired(adp.Adp):
         weight_vector = np.zeros(len(self.aggregation_levels))
         value_vector = np.zeros(len(self.aggregation_levels))
 
-        for i, (g_time, g) in enumerate(self.aggregation_levels):
+        for i, (g_time, g, g_contract, g_cartype) in enumerate(
+            self.aggregation_levels
+        ):
 
             # Time in level g (g_time, g_time(t))
             t_g = self.time_step_level(t, level=g_time)
+            contract_duration_g = self.contract_level(
+                car_type, contract_duration, level=g_contract
+            )
+            car_type_g = self.car_type_level(car_type, level=g_cartype)
 
             # Position in level g
             pos_g = point.id_level(g)
 
             # Find attribute at level g
-            a_g = (pos_g, battery, contract_duration, car_type)
+            a_g = (pos_g, battery, contract_duration_g, car_type_g)
 
             # Current value function of attribute at level g
             value_vector[i] = (
@@ -79,12 +94,11 @@ class AdpHired(adp.Adp):
             )
 
             # Update weight vector
-            self.agg_weight_vectors[
-                (t, pos, battery, contract_duration, car_type)
-            ] = weight_vector
+            self.agg_weight_vectors[state] = weight_vector
 
             la.log_weights(
-                "__main__." + __name__,
+                self.logger_name,
+                state,
                 weight_vector,
                 value_vector,
                 value_estimation,
@@ -107,13 +121,22 @@ class AdpHired(adp.Adp):
             point = self.points[pos]
 
             # Append duals to all superior hierachical states
-            for g_time, g in self.aggregation_levels:
+            for g_time, g, g_contract, g_cartype in self.aggregation_levels:
 
                 # Tuple t_g = (g_time, g_time(t))
                 t_g = self.time_step_level(t, level=g_time)
+                contract_duration_g = self.contract_level(
+                    car_type, contract_duration, level=g_contract
+                )
+                car_type_g = self.car_type_level(car_type, level=g_cartype)
 
                 # Find attribute at level g
-                a_g = (point.id_level(g), battery, contract_duration, car_type)
+                a_g = (
+                    point.id_level(g),
+                    battery,
+                    contract_duration_g,
+                    car_type_g,
+                )
 
                 # Value is later used to update a_g
                 level_update_list[(t_g, g, a_g)].append(v_ta_sampled)
@@ -165,8 +188,9 @@ class AdpHired(adp.Adp):
                 self.step_size_func[t_g][g][a_g]
             )
 
+        # Log how duals are updated
         la.log_update_values_smoothed(
-            "__main__." + __name__, t, level_update_list, self.values
+            self.logger_name, t, level_update_list, self.values
         )
 
     ####################################################################

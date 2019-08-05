@@ -10,7 +10,10 @@ STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
 
 TIME_INCREMENT = 5
 
-AggLevel = namedtuple("AggregationLevel", "temporal, spatial")
+DISCARD = 1
+DISAGGREGATE = 0
+
+AggLevel = namedtuple("AggregationLevel", "temporal, spatial, contract, car_type")
 
 
 class Adp:
@@ -19,6 +22,8 @@ class Adp:
         points,
         agregation_levels,
         temporal_levels,
+        car_type_levels_dict,
+        contract_levels_dict,
         stepsize,
         stepsize_rule=STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
@@ -26,6 +31,8 @@ class Adp:
     ):
         self.aggregation_levels = agregation_levels
         self.temporal_levels = temporal_levels
+        self.car_type_levels_dict =car_type_levels_dict
+        self.contract_levels_dict = contract_levels_dict
         self.stepsize = stepsize
         self.points = points
         self.stepsize_rule = stepsize_rule
@@ -472,8 +479,30 @@ class Adp:
                     self.values[t_g][g][a] = value
 
     @functools.lru_cache(maxsize=None)
-    def time_step_level(self, t, level=0):
+    def time_step_level(self, t, level=DISAGGREGATE):
         """Time steps in minutes"""
         # Since t start from 1, t-1 guarantee first slice is of size 2
         g_t = (t - 1) // self.temporal_levels[level]
         return (level, g_t)
+
+
+    @functools.lru_cache(maxsize=None)
+    def car_type_level(self, car_type, level=DISAGGREGATE):
+
+        if level == DISAGGREGATE:
+            return (level, car_type)
+
+        # TODO Calculate for different levels
+
+        return (level, self.car_type_levels_dict[car_type][DISCARD])
+
+
+    @functools.lru_cache(maxsize=None)
+    def contract_level(self, car_type, contract_duration, level=DISAGGREGATE):
+
+        if level == DISAGGREGATE:
+            return (level, contract_duration)
+
+        # TODO Calculate for different levels
+
+        return (level, self.contract_levels_dict[car_type][DISCARD])

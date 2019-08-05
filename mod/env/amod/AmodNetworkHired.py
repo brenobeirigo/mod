@@ -42,7 +42,7 @@ class AmodNetworkHired(AmodNetwork):
         self.expired_contract_cars = []
 
     @functools.lru_cache(maxsize=None)
-    def cost_func(self, car_type, action, pos, o, d, sq_class):
+    def cost_func(self, decision):
         """Return decision cost.
 
         Parameters
@@ -63,6 +63,8 @@ class AmodNetworkHired(AmodNetwork):
         float
             Decision cost
         """
+
+        action, pos, battery, contract_duration, car_type, o, d, sq_class = decision
 
         # Platform's profit margin is lower when using hired cars
         PROFIT_MARGIN = 1
@@ -198,9 +200,7 @@ class AmodNetworkHired(AmodNetwork):
                     # Some decision was already applied to this car
                     continue
 
-                contribution_car = self.cost_func(
-                    car_type, action, point, o, d, sq_class
-                )
+                contribution_car = self.cost_func(decision[:-1])
 
                 # print(decision, contribution_car)
 

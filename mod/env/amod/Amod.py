@@ -500,7 +500,7 @@ class Amod:
 
         # pprint(dict(count_status))
 
-    def print_fleet_stats_summary(self):
+    def get_fleet_stats_summary(self):
         count_status = dict()
 
         # Start all car statuses with 0
@@ -511,7 +511,7 @@ class Amod:
         for c in self.cars:
             count_status[c.status] += 1
 
-        pprint(dict(count_status))
+        return dict(count_status)
 
     def print_car_traces(self):
         for c in self.cars:

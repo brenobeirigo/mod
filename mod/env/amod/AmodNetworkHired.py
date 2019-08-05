@@ -161,9 +161,17 @@ class AmodNetworkHired(AmodNetwork):
 
         for decision in decisions:
 
-            action, point, battery, contract_duration, car_type, o, d, sq_class, times = (
-                decision
-            )
+            (
+                action,
+                point,
+                battery,
+                contract_duration,
+                car_type,
+                o,
+                d,
+                sq_class,
+                times
+            ) = decision
 
             # Track how many times a decision was taken
             decision_dict_count[action] += times
@@ -327,18 +335,15 @@ class AmodNetworkHired(AmodNetwork):
             self.expired_contract_cars.extend(expired_contract)
 
     def discard_excess_hired(self):
+
         # Car was not used in last iteration
         active_fleet = []
-        discard = 0
+
         for car in self.hired_cars:
             if car.started_contract:
                 active_fleet.append(car)
-            else:
-                discard += 1
 
         self.hired_cars = active_fleet
-
-        return discard
 
     def preview_decision(self, time_step, decision):
         """Apply decision to attributes
@@ -561,8 +566,11 @@ class AmodNetworkHired(AmodNetwork):
 
         return estimate
 
-    def print_fleet_stats(self, filter_status=[]):
+    def get_car_status_list(self, filter_status=[]):
+
         count_status = dict()
+
+        car_status_list = list()
 
         # Start all car statuses with 0
         for s in Car.status_list:
@@ -573,5 +581,8 @@ class AmodNetworkHired(AmodNetwork):
             if filter_status and c.status not in filter_status:
                 continue
 
-            print(c.status_log())
+            car_status_list.append(c.status_log())
+
             count_status[c.status] += 1
+
+        return car_status_list

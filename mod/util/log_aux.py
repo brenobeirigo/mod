@@ -4,6 +4,8 @@ import numpy as np
 
 np.set_printoptions(precision=3)
 
+FORMATTER_TERSE = logging.Formatter("%(message)s")
+
 FORMATTER = logging.Formatter("%(asctime)s — %(levelname)s — %(message)s")
 
 FORMATTER_VERBOSE = logging.Formatter(
@@ -12,15 +14,40 @@ FORMATTER_VERBOSE = logging.Formatter(
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
+WARNING = logging.WARNING
 
-LOG_WEIGHTS = True
-LOG_VALUE_UPDATE = True
-LOG_DUALS = True
-LOG_FLEET_ACTIVITY = True
+LOG_WEIGHTS = False
+LOG_VALUE_UPDATE = False
+LOG_DUALS = False
+LOG_FLEET_ACTIVITY = False
 
 
-def log_fleet_activity(name, step, skip_steps, step_log, filter_status=[]):
+def log_costs(name, decision_costs_dict, discount_factor, msg=""):
 
+    overall_total = 0
+
+    logger = logging.getLogger(name)
+
+    logger.debug(f"######## LOG COSTS {msg} #########################")
+
+    for d, cost_post in decision_costs_dict.items():
+
+        cost_func, post_cost = cost_post
+
+        total = cost_func + discount_factor * post_cost
+
+        logger.debug(
+            f"{d} {cost_func:6.2f} + {discount_factor:.2f}*{post_cost:6.2f} = {total:6.2f}"
+        )
+
+        overall_total += cost_func + env.config.discount_factor * post_cost
+
+    logger.debug(f"Overall total = {overall_total}")
+
+
+def log_fleet_activity(
+    name, step, skip_steps, step_log, filter_status=[], msg=""
+):
     if LOG_FLEET_ACTIVITY:
 
         logger = logging.getLogger(name)
@@ -28,16 +55,25 @@ def log_fleet_activity(name, step, skip_steps, step_log, filter_status=[]):
         if skip_steps > 0 and step % skip_steps == 0:
 
             logger.debug("")
+            logger.debug(
+                "----------------------------------------"
+                f" Fleet status ({msg})"
+                "----------------------------------------"
+            )
+
             logger.debug(step_log.info())
 
-            car_status_list = step_log.env.print_fleet_stats(filter_status=filter_status)
+            car_status_list = step_log.env.get_car_status_list(
+                filter_status=filter_status
+            )
+
             for c in car_status_list:
                 logger.debug(c)
 
 
 def get_console_handler():
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(FORMATTER)
+    console_handler.setFormatter(FORMATTER_TERSE)
     return console_handler
 
 
@@ -47,14 +83,16 @@ def get_file_handler(log_file, mode="w"):
     return file_handler
 
 
-def log_weights(name, weights, value_vector, value_estimation):
+def log_weights(name, state, weights, value_vector, value_estimation):
 
     if LOG_WEIGHTS:
 
         logger = logging.getLogger(name)
 
         logger.debug(
-            f"weights={weights}, values={value_vector}, "
+            f"State={tuple([f'{str(e):4}' for e in state])}, "
+            f"weights={[f'{w:7.3f}' for w in weights]}, "
+            f"values={[f'{w:7.3f}' for w in value_vector]}, "
             f"estimation={value_estimation:6.2f}"
         )
 
@@ -65,7 +103,11 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
         logger = logging.getLogger(name)
 
-        logger.debug(f"  ############ Time step = {t:>4} ################")
+        logger.debug(
+            "  ############ Updating value functions "
+            f"(method=smoothed, time={t:>4}) ################"
+        )
+
         keys = sorted(level_update_list.keys(), key=lambda x: (x[0], x[1]))
 
         previous_g = 0
@@ -88,7 +130,10 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
             g_time, t_level = t_g
 
-            pos, battery, contract_duration, car_type = a_g
+            pos, battery, (g_contract, contract_duration), (
+                g_cartype,
+                car_type,
+            ) = a_g
 
             if g_time != previous_g_time or g != previous_g:
 
@@ -98,11 +143,11 @@ def log_update_values_smoothed(name, t, level_update_list, values):
                 logger.debug("")
                 logger.debug(
                     f"  ## Value count={count_values:>4}, "
-                    f"Agg. locations={count_locations}"
+                    f"Agg. locations={count_locations:>4}"
                 )
 
                 logger.debug(
-                    f"  *************************************** "
+                    f"*************************************** "
                     f"Time({previous_g_time}) Location({previous_g}) "
                     f"***************************************"
                 )
@@ -118,8 +163,8 @@ def log_update_values_smoothed(name, t, level_update_list, values):
                 f"g({g_time})={t_level}, "
                 f"location({g})={pos:>4}, "
                 f"battery={battery}, "
-                f"contract={contract_duration}, "
-                f"car={car_type}, "
+                f"contract({g_contract})={contract_duration}, "
+                f"car({g_cartype})={car_type}, "
                 f"values={list_two_floating}"
             )
 

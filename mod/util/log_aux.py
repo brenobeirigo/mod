@@ -16,33 +16,50 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 
-LOG_WEIGHTS = False
-LOG_VALUE_UPDATE = False
-LOG_DUALS = False
-LOG_FLEET_ACTIVITY = False
+LOG_WEIGHTS = True
+LOG_VALUE_UPDATE = True
+LOG_DUALS = True
+LOG_FLEET_ACTIVITY = True
+LOG_COSTS = True
 
 
-def log_costs(name, decision_costs_dict, discount_factor, msg=""):
+def log_costs(name, best_decisions, cost_func, post_cost_func, time_step, discount_factor, agg_level, penalize_rebalance, msg=""):
+    
+    # TODO this log is mixing up with the previous log
+    if LOG_COSTS:
+        overall_total = 0
+        overall_post = 0
+        overall_cost = 0
+        
+        logger = logging.getLogger(name)
 
-    overall_total = 0
+        logger.debug(f"######## LOG COSTS {msg} (decisions={len(best_decisions)}, time={time_step}) #########################")
 
-    logger = logging.getLogger(name)
+        for d in best_decisions:
 
-    logger.debug(f"######## LOG COSTS {msg} #########################")
+            decision = d[:-1]
 
-    for d, cost_post in decision_costs_dict.items():
+            cost = cost_func(decision)
+            overall_cost += cost
 
-        cost_func, post_cost = cost_post
+            post_cost = post_cost_func(
+                time_step,
+                decision,
+                level=agg_level,
+                penalize_rebalance=penalize_rebalance,
+            )
 
-        total = cost_func + discount_factor * post_cost
+            overall_post += post_cost
 
-        logger.debug(
-            f"{d} {cost_func:6.2f} + {discount_factor:.2f}*{post_cost:6.2f} = {total:6.2f}"
-        )
+            total = cost + discount_factor * post_cost
 
-        overall_total += cost_func + env.config.discount_factor * post_cost
+            logger.debug(
+                f"{d} {cost:6.2f} + {discount_factor:.2f}*{post_cost:6.2f} = {total:6.2f}"
+            )
 
-    logger.debug(f"Overall total = {overall_total}")
+            overall_total += total
+
+        logger.debug(f"Overall total = {overall_total} ({overall_cost} + {discount_factor}*{overall_post}[{discount_factor*overall_post}])")
 
 
 def log_fleet_activity(

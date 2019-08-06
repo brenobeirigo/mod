@@ -19,10 +19,11 @@ POSITION = 1
 BATTERY = 2
 CONTRACT_DURATION = 3
 CAR_TYPE = 4
-ORIGIN = 5
-DESTINATION = 6
-SQ_CLASS = 7
-N_DECISIONS = 8
+CAR_ORIGIN = 5
+ORIGIN = 6
+DESTINATION = 7
+SQ_CLASS = 8
+N_DECISIONS = 9
 
 # #################################################################### #
 # CONSTRAINTS ######################################################## #
@@ -48,7 +49,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
     if universal_service:
         flow_trips = m.addConstrs(
             (
-                x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", o, d, "*")
+                x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, "*")
                 == len(attribute_trips_dict[(o, d)])
                 for o, d in attribute_trips_dict
             ),
@@ -58,7 +59,7 @@ def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
     else:
         flow_trips = m.addConstrs(
             (
-                x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", o, d, "*")
+                x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, "*")
                 <= len(attribute_trips_dict[(o, d)])
                 for o, d in attribute_trips_dict
             ),
@@ -77,9 +78,9 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
 
         car_recharge_dict[car_type] = m.addConstrs(
             (
-                x_var[(action, pos, level, o, d, car_type)]
+                x_var[(action, pos, level, o, d, car_type, car_origin)]
                 == len(attribute_cars[(pos, level)])
-                for action, pos, level, o, d, car_type in x_var
+                for action, pos, level, o, d, car_type, car_origin in x_var
                 if level <= battery_levels and action == du.RECHARGE_DECISION
             ),
             f"RECHARGE_{car_type}",
@@ -202,11 +203,11 @@ def extract_duals(m, flow_cars, ignore_zeros=False):
     # Shadow prices associated to car attributes
     duals = dict()
 
-    for pos, battery, contract_duration, car_type in flow_cars:
+    for pos, battery, contract_duration, car_type, car_origin in flow_cars:
 
         try:
             constr = m.getConstrByName(
-                f"CAR_FLOW[{pos},{battery},{contract_duration},{car_type}]"
+                f"CAR_FLOW[{pos},{battery},{contract_duration},{car_type},{car_origin}]"
             )
 
             # pi = The constraint dual value in the current solution
@@ -220,7 +221,9 @@ def extract_duals(m, flow_cars, ignore_zeros=False):
         if shadow_price == 0 and ignore_zeros:
             continue
 
-        duals[(pos, battery, contract_duration, car_type)] = shadow_price
+        duals[
+            (pos, battery, contract_duration, car_type, car_origin)
+        ] = shadow_price
 
     return duals
 
@@ -401,10 +404,7 @@ def service_trips(
         )
 
     # Cost of current decision
-    present_contribution = quicksum(
-        env.cost_func(d) * x_var[d]
-        for d in x_var
-    )
+    present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
 
     # Maximize present and future outcome
     m.setObjective(

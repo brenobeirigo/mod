@@ -15,6 +15,7 @@ class AdpHired(adp.Adp):
         temporal_levels,
         car_type_levels,
         contract_levels,
+        car_origin_levels,
         stepsize,
         stepsize_rule=adp.STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
@@ -28,6 +29,7 @@ class AdpHired(adp.Adp):
             temporal_levels,
             car_type_levels,
             contract_levels,
+            car_origin_levels,
             stepsize,
             stepsize_rule=stepsize_rule,
             stepsize_constant=stepsize_constant,
@@ -40,9 +42,11 @@ class AdpHired(adp.Adp):
     # Smoothed #########################################################
     ####################################################################
 
-    def get_weighted_value(self, t, pos, battery, contract_duration, car_type):
+    def get_weighted_value(
+        self, t, pos, battery, contract_duration, car_type, car_origin
+    ):
 
-        state = (t, pos, battery, contract_duration, car_type)
+        state = (t, pos, battery, contract_duration, car_type, car_origin)
 
         # Get point object associated to position
         point = self.points[pos]
@@ -53,7 +57,7 @@ class AdpHired(adp.Adp):
         weight_vector = np.zeros(len(self.aggregation_levels))
         value_vector = np.zeros(len(self.aggregation_levels))
 
-        for i, (g_time, g, g_contract, g_cartype) in enumerate(
+        for i, (g_time, g, g_contract, g_cartype, g_carorigin) in enumerate(
             self.aggregation_levels
         ):
 
@@ -62,13 +66,26 @@ class AdpHired(adp.Adp):
             contract_duration_g = self.contract_level(
                 car_type, contract_duration, level=g_contract
             )
+
+            # Get car type at current level
             car_type_g = self.car_type_level(car_type, level=g_cartype)
+
+            # Get car origin at current level
+            car_origin_g = self.car_origin_level(
+                car_type, car_origin, level=g_carorigin
+            )
 
             # Position in level g
             pos_g = point.id_level(g)
 
             # Find attribute at level g
-            a_g = (pos_g, battery, contract_duration_g, car_type_g)
+            a_g = (
+                pos_g,
+                battery,
+                contract_duration_g,
+                car_type_g,
+                car_origin_g,
+            )
 
             # Current value function of attribute at level g
             value_vector[i] = (
@@ -115,20 +132,31 @@ class AdpHired(adp.Adp):
 
         for a, v_ta_sampled in duals.items():
 
-            pos, battery, contract_duration, car_type = a
+            pos, battery, contract_duration, car_type, car_origin = a
 
             # Get point object associated to position
             point = self.points[pos]
 
             # Append duals to all superior hierachical states
-            for g_time, g, g_contract, g_cartype in self.aggregation_levels:
+            for (
+                g_time,
+                g,
+                g_contract,
+                g_cartype,
+                g_carorigin,
+            ) in self.aggregation_levels:
 
                 # Tuple t_g = (g_time, g_time(t))
                 t_g = self.time_step_level(t, level=g_time)
+
                 contract_duration_g = self.contract_level(
                     car_type, contract_duration, level=g_contract
                 )
                 car_type_g = self.car_type_level(car_type, level=g_cartype)
+
+                car_origin_g = self.car_origin_level(
+                    car_type, car_origin, level=g_carorigin
+                )
 
                 # Find attribute at level g
                 a_g = (
@@ -136,6 +164,7 @@ class AdpHired(adp.Adp):
                     battery,
                     contract_duration_g,
                     car_type_g,
+                    car_origin_g,
                 )
 
                 # Value is later used to update a_g
@@ -272,7 +301,7 @@ class AdpHired(adp.Adp):
 
         try:
             for attribute, weight_vectors in self.agg_weight_vectors.items():
-                _, _, _, _, car_type = attribute
+                _, _, _, _, car_type, _ = attribute
                 fleet_weights_dict[car_type].append(weight_vectors)
 
             for fleet_type, weight_vectors_list in fleet_weights_dict.items():

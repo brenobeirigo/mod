@@ -64,7 +64,9 @@ class AmodNetworkHired(AmodNetwork):
             Decision cost
         """
 
-        action, pos, battery, contract_duration, car_type, o, d, sq_class = decision
+        action, pos, battery, contract_duration, car_type, car_origin, o, d, sq_class = (
+            decision
+        )
 
         # Platform's profit margin is lower when using hired cars
         PROFIT_MARGIN = 1
@@ -169,17 +171,18 @@ class AmodNetworkHired(AmodNetwork):
                 battery,
                 contract_duration,
                 car_type,
+                car_origin,
                 o,
                 d,
                 sq_class,
-                times
+                times,
             ) = decision
 
             # Track how many times a decision was taken
             decision_dict_count[action] += times
 
             cars_with_attribute = a_cars_dict[
-                (point, battery, contract_duration, car_type)
+                (point, battery, contract_duration, car_type, car_origin)
             ]
 
             n = 0
@@ -200,6 +203,7 @@ class AmodNetworkHired(AmodNetwork):
                     # Some decision was already applied to this car
                     continue
 
+                # Ignores last element (n. times decision was applied)
                 contribution_car = self.cost_func(decision[:-1])
 
                 # print(decision, contribution_car)
@@ -362,7 +366,9 @@ class AmodNetworkHired(AmodNetwork):
             tuple -- time_step, point, battery
         """
 
-        action, point, battery, contract_duration, car_type, o, d, _ = decision
+        action, point, battery, contract_duration, car_type, car_origin, o, d, _ = (
+            decision
+        )
 
         battery_post = battery
         type_post = car_type
@@ -408,7 +414,14 @@ class AmodNetworkHired(AmodNetwork):
                 duration / self.config.contract_duration_level
             )
 
-        return time_step, point, battery_post, contract_duration, type_post
+        return (
+            time_step,
+            point,
+            battery_post,
+            contract_duration,
+            type_post,
+            car_origin,
+        )
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -486,6 +499,7 @@ class AmodNetworkHired(AmodNetwork):
             post_battery,
             post_contract_duration,
             post_type_car,
+            post_car_origin,
         ) = self.preview_decision(t, decision)
 
         # Get the value estimation considering a single level
@@ -508,6 +522,7 @@ class AmodNetworkHired(AmodNetwork):
                 post_battery,
                 post_contract_duration,
                 post_type_car,
+                post_car_origin,
             )
 
             if penalize_rebalance:
@@ -522,9 +537,10 @@ class AmodNetworkHired(AmodNetwork):
                             battery,
                             contract_duration,
                             car_type,
+                            car_origin,
                             o,
                             d,
-                            d_count,
+                            sq_class
                         ) = decision
 
                         stay = (
@@ -533,9 +549,10 @@ class AmodNetworkHired(AmodNetwork):
                             battery,
                             contract_duration,
                             car_type,
+                            car_origin,
                             point,
                             point,
-                            d_count,
+                            sq_class,
                         )
 
                         # Target attribute if decision was taken
@@ -545,6 +562,7 @@ class AmodNetworkHired(AmodNetwork):
                             stay_post_battery,
                             stay_post_contract_duration,
                             stay_post_type_car,
+                            stay_post_origin_car,
                         ) = self.preview_decision(busy_reb_t, stay)
 
                         estimate_stay = self.adp.get_weighted_value(
@@ -553,11 +571,13 @@ class AmodNetworkHired(AmodNetwork):
                             stay_post_battery,
                             stay_post_contract_duration,
                             stay_post_type_car,
+                            stay_post_origin_car,
                         )
 
                         avg_busy_stay.append(estimate_stay)
 
                     if avg_busy_stay:
+
                         avg_stay = sum(avg_busy_stay) / len(avg_busy_stay)
                         # print(
                         #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"

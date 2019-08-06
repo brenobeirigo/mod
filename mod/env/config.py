@@ -102,6 +102,7 @@ class Config:
     LEVEL_TIME_LIST = "LEVEL_TIME_LIST"
     LEVEL_CONTRACT_DURATION = "LEVEL_CONTRACT_DURATION"
     LEVEL_CAR_TYPE = "LEVEL_CAR_TYPE"
+    LEVEL_CAR_ORIGIN = "LEVEL_CAR_ORIGIN"
     INCUMBENT_AGGREGATION_LEVEL = "INCUMBENT_AGGREGATION_LEVEL"
 
     ZONE_WIDTH = "ZONE_WIDTH"
@@ -908,6 +909,11 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.LEVEL_TIME_LIST]
 
     @property
+    def level_car_origin_dict(self):
+        """Car origin for each aggregated level"""
+        return self.config[Config.LEVEL_CAR_ORIGIN]
+
+    @property
     def level_car_type_dict(self):
         """Car type for each aggregated level"""
         return self.config[Config.LEVEL_CAR_TYPE]
@@ -1077,7 +1083,7 @@ class ConfigNetwork(ConfigStandard):
         )
         levels = ", ".join([
             f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
-            for temporal, spatial, contract, car_type in self.config[Config.AGGREGATION_LEVELS]])
+            for temporal, spatial, contract, car_type, car_origin in self.config[Config.AGGREGATION_LEVELS]])
 
         # Is the demand sampled or fixed?
         sample = ("S" if self.config[Config.DEMAND_SAMPLING] else "F")

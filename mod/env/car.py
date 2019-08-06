@@ -15,6 +15,8 @@ class Car:
     TYPE_HIRED = "FV"
     TYPE_TO_HIRE = "HIRE"
 
+    DISCARD = "-"
+
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
 
@@ -62,6 +64,7 @@ class Car:
             1,
             self.contract_duration,
             self.type,
+            Car.DISCARD,
         )
 
     def attribute_level(self, level):
@@ -215,7 +218,6 @@ class Car:
 
         self.waypoint = trip.o
 
-        
         self.distance_traveled += distance_traveled
 
         self.revenue += revenue
@@ -237,7 +239,6 @@ class Car:
 
         self.trip = trip
 
-
     def reset(self):
         self.point = self.origin
         self.waypoint = None
@@ -257,14 +258,10 @@ class Car:
         return f"V{self.id} - {self.point}"
 
     def __repr__(self):
-        return (
-            f"Car{{id={self.id:02}, "
-            f"point={self.point}}}"
-        )
+        return f"Car{{id={self.id:02}, " f"point={self.point}}}"
 
 
 class ElectricCar(Car):
-
     def __init__(self, o, battery_level_max, battery_level_miles_max=200):
 
         super().__init__(o)
@@ -332,7 +329,6 @@ class ElectricCar(Car):
         """
         return self.battery_level_miles - distance > 0
 
-
     def get_full_recharging_miles(self):
 
         # Amount to recharge (miles)
@@ -384,8 +380,9 @@ class ElectricCar(Car):
             self.battery_level,
             self.contract_duration,
             self.type,
+            # Origin is irrelevant for company vehicles
+            Car.DISCARD,
         )
-
 
     def update_recharge(self, duration, cost, extra_dist, time_increment=15):
         """Recharge car.
@@ -508,11 +505,18 @@ class HiredCar(Car):
         self.total_time = max(0, self.total_time - time_increment)
         self.contract_duration = int(self.total_time / self.duration_level)
 
-    def __repr__(self):
+    @property
+    def attribute(self, level=0):
         return (
-            f"HiredCar{{id={self.id:02}, "
-            f"point={self.point}}}"
+            self.point.id_level(level),
+            1,
+            self.contract_duration,
+            self.type,
+            self.origin.id_level(level),
         )
+
+    def __repr__(self):
+        return f"HiredCar{{id={self.id:02}, " f"point={self.point}}}"
 
     @property
     def label(self):

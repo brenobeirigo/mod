@@ -69,7 +69,7 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "SIM",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 500,
+            ConfigNetwork.FLEET_SIZE: 50,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
@@ -103,51 +103,64 @@ def get_sim_config(update_dict):
                     spatial=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=1,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=1,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=2,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=2,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=3,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=3,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=4,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=4,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=5,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=5,
                 ),
                 adp.AggLevel(
                     temporal=1,
                     spatial=6,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
+                    car_origin=6,
                 ),
             ],
             ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3],
+            ConfigNetwork.LEVEL_CAR_ORIGIN: {
+                Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
+                Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
+                Car.TYPE_TO_HIRE: {adp.DISCARD: adp.DISCARD},
+            },
             ConfigNetwork.LEVEL_CAR_TYPE: {
                 Car.TYPE_FLEET: {adp.DISCARD: Car.TYPE_FLEET},
                 Car.TYPE_HIRED: {adp.DISCARD: Car.TYPE_FLEET},
@@ -155,7 +168,10 @@ def get_sim_config(update_dict):
             },
             ConfigNetwork.LEVEL_CONTRACT_DURATION: {
                 Car.TYPE_FLEET: {adp.DISCARD: Car.INFINITE_CONTRACT_DURATION},
-                Car.TYPE_HIRED: {adp.DISCARD: Car.INFINITE_CONTRACT_DURATION},
+                Car.TYPE_HIRED: {
+                    adp.DISAGGREGATE: adp.DISAGGREGATE,
+                    adp.DISCARD: Car.INFINITE_CONTRACT_DURATION,
+                },
                 Car.TYPE_TO_HIRE: {
                     adp.DISCARD: Car.INFINITE_CONTRACT_DURATION
                 },
@@ -298,7 +314,7 @@ def alg_adp(
     # Logging events
     logger = la.get_logger(
         config.label,
-        level_file=la.INFO,
+        level_file=la.DEBUG,
         level_console=la.INFO,
         log_file=config.log_path,
     )
@@ -575,10 +591,19 @@ def alg_adp(
 
 if __name__ == "__main__":
 
+    args = sys.argv[1:]
+    print(args)
     try:
-        test_label = sys.argv[1]
+        test_label = args[0]
     except:
         test_label = "500DISA"
+
+    try:
+        hire = "-hire" in args
+        print("Hiring!!!")
+    except:
+        print("Not hiring")
+        hire = False
 
     print("###### STARTING EXPERIMENTS")
     start_config = get_sim_config(
@@ -589,7 +614,6 @@ if __name__ == "__main__":
         }
     )
 
-    hire = False
     alg_adp(
         None,
         start_config,

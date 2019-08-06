@@ -16,27 +16,59 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 
-LOG_WEIGHTS = True
-LOG_VALUE_UPDATE = True
-LOG_DUALS = True
-LOG_FLEET_ACTIVITY = True
-LOG_COSTS = True
+log_all = True
+LOG_WEIGHTS = False
+LOG_VALUE_UPDATE = log_all
+LOG_DUALS = log_all
+LOG_FLEET_ACTIVITY = False
+LOG_COSTS = log_all
 
 
-def log_costs(name, best_decisions, cost_func, post_cost_func, time_step, discount_factor, agg_level, penalize_rebalance, msg=""):
-    
+def log_costs(
+    name,
+    best_decisions,
+    cost_func,
+    post_cost_func,
+    time_step,
+    discount_factor,
+    agg_level,
+    penalize_rebalance,
+    msg="",
+):
+
     # TODO this log is mixing up with the previous log
     if LOG_COSTS:
         overall_total = 0
         overall_post = 0
         overall_cost = 0
-        
+
         logger = logging.getLogger(name)
 
-        logger.debug(f"######## LOG COSTS {msg} (decisions={len(best_decisions)}, time={time_step}) #########################")
+        logger.debug(
+            f"######## LOG COSTS {msg} (decisions={len(best_decisions)}, time={time_step}) #########################"
+        )
+
+        decision_labels = [
+            "ACTI",
+            "POSI",
+            "BATT",
+            "CONT",
+            "CART",
+            "DEPO",
+            "ORIG",
+            "DEST",
+            "USER",
+            "COUN",
+        ]
+
+        logger.debug(
+            f"{[f'{e:>4}' for e in decision_labels]} "
+            f"{'COST':>7} + {'DISC':>6}*{'POST':>7} = {'TOTAL':>7}"
+        )
 
         for d in best_decisions:
 
+            # Remove decision count
             decision = d[:-1]
 
             cost = cost_func(decision)
@@ -54,12 +86,14 @@ def log_costs(name, best_decisions, cost_func, post_cost_func, time_step, discou
             total = cost + discount_factor * post_cost
 
             logger.debug(
-                f"{d} {cost:6.2f} + {discount_factor:.2f}*{post_cost:6.2f} = {total:6.2f}"
+                f"{[f'{e:>4}' for e in d]} {cost:>7.2f} + {discount_factor:>6.2f}*{post_cost:>7.2f} = {total:>7.2f}"
             )
 
             overall_total += total
 
-        logger.debug(f"Overall total = {overall_total} ({overall_cost} + {discount_factor}*{overall_post}[{discount_factor*overall_post}])")
+        logger.debug(
+            f"Overall total = {overall_total:>6.2f} ({overall_cost:>6.2f} + {discount_factor:>6.2f}*{overall_post:>6.2f}[{discount_factor*overall_post:>6.2f}])"
+        )
 
 
 def log_fleet_activity(
@@ -147,9 +181,12 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
             g_time, t_level = t_g
 
-            pos, battery, (g_contract, contract_duration), (
-                g_cartype,
-                car_type,
+            (
+                pos,
+                battery,
+                (g_contract, contract_duration),
+                (g_cartype, car_type),
+                (g_carorigin, car_origin),
             ) = a_g
 
             if g_time != previous_g_time or g != previous_g:
@@ -177,11 +214,12 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
             logger.debug(
                 f"    - vf={values[t_g][g][a_g]:6.2f}, "
-                f"g({g_time})={t_level}, "
+                f"time({g_time})={t_level}, "
                 f"location({g})={pos:>4}, "
                 f"battery={battery}, "
                 f"contract({g_contract})={contract_duration}, "
                 f"car({g_cartype})={car_type}, "
+                f"origin({g_carorigin})={car_origin}, "
                 f"values={list_two_floating}"
             )
 
@@ -197,14 +235,17 @@ def log_duals(name, duals):
 
         logger = logging.getLogger(name)
 
+        dual_labels = ["POSI", "BATT", "CONT", "CART", "DEPO"]
+
         logger.debug("")
         logger.debug("  # DUALS ################################")
+        logger.debug(f"    - {[f'{e:>4}' for e in dual_labels]} = {'DUAL':>7}")
         equal_zero = 0
         for k, v in duals.items():
             if int(v) == 0:
                 equal_zero += 1
             else:
-                logger.debug(f"    - {k} = {v:6.2f}")
+                logger.debug(f"    - {[f'{e:>4}' for e in k]} = {v:7.2f}")
         logger.debug(
             f"  * {len(duals):>4} duals extracted ({equal_zero:>4} are zero)."
         )

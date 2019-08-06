@@ -10,10 +10,12 @@ STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
 
 TIME_INCREMENT = 5
 
-DISCARD = 1
+DISCARD = "-"
 DISAGGREGATE = 0
 
-AggLevel = namedtuple("AggregationLevel", "temporal, spatial, contract, car_type")
+AggLevel = namedtuple(
+    "AggregationLevel", "temporal, spatial, contract, car_type, car_origin"
+)
 
 
 class Adp:
@@ -24,6 +26,7 @@ class Adp:
         temporal_levels,
         car_type_levels_dict,
         contract_levels_dict,
+        car_origin_levels_dict,
         stepsize,
         stepsize_rule=STEPSIZE_CONSTANT,
         stepsize_constant=0.1,
@@ -31,8 +34,9 @@ class Adp:
     ):
         self.aggregation_levels = agregation_levels
         self.temporal_levels = temporal_levels
-        self.car_type_levels_dict =car_type_levels_dict
+        self.car_type_levels_dict = car_type_levels_dict
         self.contract_levels_dict = contract_levels_dict
+        self.car_origin_levels_dict = car_origin_levels_dict
         self.stepsize = stepsize
         self.points = points
         self.stepsize_rule = stepsize_rule
@@ -485,6 +489,20 @@ class Adp:
         g_t = (t - 1) // self.temporal_levels[level]
         return (level, g_t)
 
+    @functools.lru_cache(maxsize=None)
+    def car_origin_level(self, car_type, car_origin, level=DISAGGREGATE):
+
+        try:
+            spatial_level = self.car_origin_levels_dict[car_type][level]
+            point = self.points[car_origin]
+
+            # Find attribute at level g
+            origin_g = point.id_level(spatial_level)
+
+            return (spatial_level, origin_g)
+
+        except:
+            return (DISCARD, DISCARD)
 
     @functools.lru_cache(maxsize=None)
     def car_type_level(self, car_type, level=DISAGGREGATE):
@@ -496,13 +514,10 @@ class Adp:
 
         return (level, self.car_type_levels_dict[car_type][DISCARD])
 
-
     @functools.lru_cache(maxsize=None)
     def contract_level(self, car_type, contract_duration, level=DISAGGREGATE):
 
-        if level == DISAGGREGATE:
-            return (level, contract_duration)
+        if DISAGGREGATE in self.contract_levels_dict[car_type]:
+            return (DISAGGREGATE, contract_duration)
 
-        # TODO Calculate for different levels
-
-        return (level, self.contract_levels_dict[car_type][DISCARD])
+        return (DISCARD, self.contract_levels_dict[car_type][DISCARD])

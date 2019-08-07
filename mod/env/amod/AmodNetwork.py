@@ -60,19 +60,7 @@ class AmodNetwork(Amod):
 
         self.init_fleet(self.points, car_positions)
 
-        self.adp = AdpHired(
-            self.points,
-            self.config.aggregation_levels,
-            self.config.level_time_list,
-            self.config.level_car_type_dict,
-            self.config.level_contract_duration_dict,
-            self.config.level_car_origin_dict,
-            self.config.stepsize,
-            stepsize_rule=self.config.stepsize_rule,
-            stepsize_harmonic=self.config.stepsize_harmonic,
-            stepsize_constant=self.config.stepsize_constant,
-            logger_name=self.config.label,
-        )
+        self.adp = AdpHired(self.points, self.config)
 
         self.adp.init_learning()
         self.adp.init_weighting_settings()

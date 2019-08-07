@@ -1,27 +1,26 @@
 import numpy as np
 from collections import defaultdict
 import mod.env.adp.adp as adp
-import mod.util.log_aux as la
+import mod.util.log_util as la
 from pprint import pprint
 
 np.set_printoptions(precision=4)
 
 
 class AdpHired(adp.Adp):
-    def __init__(
-        self,
-        points,
-        agregation_levels,
-        temporal_levels,
-        car_type_levels,
-        contract_levels,
-        car_origin_levels,
-        stepsize,
-        stepsize_rule=adp.STEPSIZE_CONSTANT,
-        stepsize_constant=0.1,
-        stepsize_harmonic=1,
-        logger_name=None,
-    ):
+    def __init__(self, points, config):
+
+        self.config = config
+
+        agregation_levels = self.config.aggregation_levels
+        temporal_levels = self.config.level_time_list
+        car_type_levels = self.config.level_car_type_dict
+        contract_levels = self.config.level_contract_duration_dict
+        car_origin_levels = self.config.level_car_origin_dict
+        stepsize = self.config.stepsize
+        stepsize_rule = self.config.stepsize_rule
+        stepsize_constant = self.config.stepsize_constant
+        stepsize_harmonic = self.config.stepsize_harmonic
 
         super().__init__(
             points,
@@ -35,8 +34,6 @@ class AdpHired(adp.Adp):
             stepsize_constant=stepsize_constant,
             stepsize_harmonic=stepsize_harmonic,
         )
-
-        self.logger_name = logger_name
 
     ####################################################################
     # Smoothed #########################################################
@@ -114,7 +111,7 @@ class AdpHired(adp.Adp):
             self.agg_weight_vectors[state] = weight_vector
 
             la.log_weights(
-                self.logger_name,
+                self.config.log_path(self.n),
                 state,
                 weight_vector,
                 value_vector,
@@ -219,7 +216,7 @@ class AdpHired(adp.Adp):
 
         # Log how duals are updated
         la.log_update_values_smoothed(
-            self.logger_name, t, level_update_list, self.values
+            self.config.log_path(self.n), t, level_update_list, self.values
         )
 
     ####################################################################

@@ -145,6 +145,7 @@ class Config:
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
+    PENALIZE_REBALANCE = "PENALIZE_REBALANCE"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
     MATCHING_LEVELS = "MATCHING_LEVELS"
@@ -194,13 +195,9 @@ class Config:
 
         self.config = config
 
-    ####################################################################
-    ### Area ###########################################################
-    ####################################################################
-
-    @property
-    def log_path(self):
-        return f"{FOLDER_OUTPUT + self.label}/adp_trace.log"
+    # ################################################################ #
+    # ## Area ######################################################## #
+    # ################################################################ #
 
     @property
     def origin_centers(self):
@@ -534,6 +531,7 @@ class Config:
         self.folder_mip = FOLDER_OUTPUT + self.label + "/mip/"
         self.folder_mip_log = self.folder_mip + "log/"
         self.folder_mip_lp = self.folder_mip + "lp/"
+        self.folder_adp_log = FOLDER_OUTPUT + self.label + "/logs/"
 
         self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
             minutes=self.config[Config.TIME_INCREMENT]
@@ -824,6 +822,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.REBALANCE_LEVEL] = (1,)
         self.config[Config.REBALANCE_REACH] = None
         self.config[Config.REBALANCE_MULTILEVEL] = False
+        self.config[Config.PENALIZE_REBALANCE] = True
 
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
@@ -863,6 +862,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCH_MAX_NEIGHBORS] = 8
         self.config[Config.MATCHING_LEVELS] = (3, 4)
         self.config[Config.LEVEL_RC] = 2
+
+
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -1000,6 +1001,11 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
+    
+    def penalize_rebalance(self):
+        # If True, rebalancing is further punished (discount value that
+        # could have been gained by staying still)
+        return self.config[Config.PENALIZE_REBALANCE]
 
     @property
     def test_label(self):
@@ -1118,10 +1124,16 @@ class ConfigNetwork(ConfigStandard):
             #f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             #f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
-    
+
+
+    def log_path(self, iteration=""):
+        return self.folder_adp_log + f"{iteration:04}.log"
+
+
     def save(self, file_path):
         with open(file_path, 'w') as outfile:
             json.dump(data, outfile, sort_keys=True, indent=4)
+
 
 def save_json(data, file_path=None, folder=None, file_name=None):
     if not file_path:

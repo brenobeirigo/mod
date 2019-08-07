@@ -65,6 +65,7 @@ class EpisodeLog:
             self.output_path = FOLDER_OUTPUT + self.config.label
             self.output_folder_fleet = self.output_path + "/fleet/"
             self.output_folder_service = self.output_path + "/service/"
+            self.output_folder_adp_logs = self.output_path + "/adp_logs/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
             self.folder_demand_status_data = self.output_folder_service + "data/"
 
@@ -80,6 +81,9 @@ class EpisodeLog:
             if not os.path.exists(self.config.folder_mip):
                 os.makedirs(self.config.folder_mip_log)
                 os.makedirs(self.config.folder_mip_lp)
+            
+            if not os.path.exists(self.config.folder_adp_log):
+                os.makedirs(self.config.folder_adp_log)
 
                 print(
                     f"\n### Saving episodes at:"

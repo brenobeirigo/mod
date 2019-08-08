@@ -264,7 +264,7 @@ class Config:
 
     def get_travel_cost(self, distance_km):
         """Return the cost of travelling 'distance' meters"""
-        return self.config["RECHARGE_COST_DISTANCE"] * distance_km
+        return self.config[Config.RECHARGE_COST_DISTANCE] * distance_km
 
     def calculate_dist_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0
@@ -452,11 +452,11 @@ class Config:
         return self.config.__str__()
 
     def calculate_fare(self, distance_trip, sq_class=None):
-
-        return (
-            self.config[Config.TRIP_BASE_FARE][sq_class]
-            + self.config[Config.TRIP_COST_DISTANCE] * distance_trip
-        )
+        base = self.config[Config.TRIP_BASE_FARE][sq_class]
+        distance_fare = self.config[Config.TRIP_COST_DISTANCE] * distance_trip
+        total = base + distance_fare
+        # print(f'{base:6.2f} + {distance_fare:6.2f} = {total:6.2f}')
+        return total
 
     def update(self, dict_update):
 
@@ -1001,7 +1001,8 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
-    
+
+    @property
     def penalize_rebalance(self):
         # If True, rebalancing is further punished (discount value that
         # could have been gained by staying still)

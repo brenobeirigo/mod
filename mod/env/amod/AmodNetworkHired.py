@@ -1,3 +1,4 @@
+import itertools
 from mod.env.car import Car, HiredCar
 from mod.env.trip import Trip
 from mod.env.network import Point
@@ -516,65 +517,70 @@ class AmodNetworkHired(AmodNetwork):
             post_car_origin,
         )
 
-        if self.config.penalize_rebalance:
+        # Penalize long rebalancing decisions
+        if (
+                decision[0] == du.REBALANCE_DECISION and
+                self.config.penalize_rebalance):
 
-            avg_busy_stay = list()
-            if decision[0] == du.REBALANCE_DECISION:
+            avg_busy_stay = 0
 
-                for busy_reb_t in range(t + 1, post_t):
+            for busy_reb_t in range(t + 1, post_t):
 
-                    (
-                        _,
-                        point,
-                        battery,
-                        contract_duration,
-                        car_type,
-                        car_origin,
-                        o,
-                        d,
-                        sq_class,
-                    ) = decision
+                (
+                    _,
+                    point,
+                    battery,
+                    contract_duration,
+                    car_type,
+                    car_origin,
+                    _,
+                    _,
+                    sq_class,
+                ) = decision
 
-                    stay = (
-                        du.STAY_DECISION,
-                        point,
-                        battery,
-                        contract_duration,
-                        car_type,
-                        car_origin,
-                        point,
-                        point,
-                        sq_class,
-                    )
+                stay = (
+                    du.STAY_DECISION,
+                    point,
+                    battery,
+                    contract_duration,
+                    car_type,
+                    car_origin,
+                    point,
+                    point,
+                    sq_class,
+                )
 
-                    # Target attribute if decision was taken
-                    (
-                        stay_post_t,
-                        stay_post_pos,
-                        stay_post_battery,
-                        stay_post_contract_duration,
-                        stay_post_type_car,
-                        stay_post_origin_car,
-                    ) = self.preview_decision(busy_reb_t, stay)
+                # Target attribute if decision was taken
+                (
+                    stay_post_t,
+                    stay_post_pos,
+                    stay_post_battery,
+                    stay_post_contract_duration,
+                    stay_post_type_car,
+                    stay_post_origin_car,
+                ) = self.preview_decision(busy_reb_t, stay)
 
-                    estimate_stay = self.adp.get_weighted_value(
-                        stay_post_t,
-                        stay_post_pos,
-                        stay_post_battery,
-                        stay_post_contract_duration,
-                        stay_post_type_car,
-                        stay_post_origin_car,
-                    )
+                estimate_stay = self.adp.get_weighted_value(
+                    stay_post_t,
+                    stay_post_pos,
+                    stay_post_battery,
+                    stay_post_contract_duration,
+                    stay_post_type_car,
+                    stay_post_origin_car,
+                )
 
-                    avg_busy_stay.append(estimate_stay)
+                avg_busy_stay += estimate_stay
 
-                if avg_busy_stay:
+            if avg_busy_stay > 0:
 
-                    avg_stay = sum(avg_busy_stay) / len(avg_busy_stay)
-                    # print(
-                    #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
-                    # )
-                    estimate = min(avg_stay, estimate - avg_stay)
+                avg_stay = avg_busy_stay / (post_t - t + 1)
+                # print(
+                #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
+                # )
+                # Discount the average contribution that would have
+                # been gained if the car stayed still instead of
+                # rebalancing
+                estimate = max(0, estimate - avg_stay)
 
         return estimate
 
@@ -589,7 +595,7 @@ class AmodNetworkHired(AmodNetwork):
             count_status[s] = 0
 
         # Count how many car per status
-        for c in self.cars + self.hired_cars:
+        for c in itertools.chain(self.cars, self.hired_cars):
             if filter_status and c.status not in filter_status:
                 continue
 

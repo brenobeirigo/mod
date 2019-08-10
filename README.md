@@ -11,3 +11,11 @@ Running the service rate and fleet status graphs:
 Activate environment `env_slevels`:
 
     C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels
+
+Execution (debug all):
+
+    python mod\ml\adp_network_server.py TEST_NAME -save_progress -log_adp -log_mip -save_plots -level DEBUG -n 300 -FLEET_SIZE 500
+
+Execution (only save progress):
+
+    python mod\ml\adp_network_server.py TEST_NAME -save_progress -level INFO -n 300 -FLEET_SIZE 500

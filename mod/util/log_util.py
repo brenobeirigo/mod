@@ -16,6 +16,9 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 
+# Dictionary of available levels
+levels = {"INFO": INFO, "DEBUG": DEBUG, "WARNING":WARNING}
+
 # Log options
 LOG_WEIGHTS = "LOG_WEIGHTS"
 LOG_VALUE_UPDATE = "LOG_VALUE_UPDATE"
@@ -53,14 +56,15 @@ def create_logger(name, log_level, level_file, level_console, log_file):
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
 
-    # ch = get_console_handler()
+    # The console handler is shared by all logs
     ch.setLevel(level_console)
     logger.addHandler(ch)
 
-    fh = get_file_handler(log_file)
-    fh.setLevel(level_file)
-
-    logger.addHandler(fh)
+    # Only add file handler if level == DEBUG
+    if log_level == DEBUG:
+        fh = get_file_handler(log_file)
+        fh.setLevel(level_file)
+        logger.addHandler(fh)
 
     logger.propagate = False
 
@@ -374,6 +378,17 @@ def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
 
 
 def log_duals(name, duals, msg=""):
+    """Log dictionary of car flow tuples associated to duals
+    
+    Parameters
+    ----------
+    name : str
+        Logger name saved in log_dict
+    duals : dict
+        Dictionary of duals (float) associated to car_flow tuples
+    msg : str, optional
+        Message to be shown in log header, by default ""
+    """
 
     try:
         logger_obj = log_dict[name]

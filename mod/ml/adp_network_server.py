@@ -271,7 +271,7 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-            ConfigNetwork.DEMAND_SAMPLING: True,
+            ConfigNetwork.DEMAND_SAMPLING: False,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -373,6 +373,8 @@ def alg_adp(
     save_progress=True,
     log_config_dict={},
     log_mip=False,
+    linearize_model=True,
+    use_artificial_duals=True,
 ):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -578,7 +580,8 @@ def alg_adp(
                 # # Save mip .lp and .log of iteration n
                 log_iteration=(n if log_mip else None),
                 # # Use hierarchical aggregation to update values
-                use_artificial_duals=True,
+                use_artificial_duals=use_artificial_duals,
+                linearize_model=linearize_model,
             )
 
             # What each vehicle is doing?
@@ -619,9 +622,7 @@ def alg_adp(
             if plot_track:
 
                 logger.info("Computing movements...")
-
                 plot_track.compute_movements(step + 1)
-
                 logger.info("Finished computing...")
 
                 time.sleep(step_delay)
@@ -651,10 +652,6 @@ def alg_adp(
             f"#######"
         )
 
-        # time.sleep(10)
-        # Clean logger to save .log for next iteration
-        # la.delete(config.log_path(n))
-
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()
 
@@ -666,9 +663,6 @@ if __name__ == "__main__":
     # Isolate arguments (first is filename)
     args = sys.argv[1:]
 
-    # 
-    dict_log_levels = {"INFO": la.INFO, "DEBUG": la.DEBUG}
-
     try:
         test_label = args[0]
     except:
@@ -679,7 +673,7 @@ if __name__ == "__main__":
     log_mip = "-log_mip" in args
     save_plots = "-save_plots" in args
     save_progress = "-save_progress" in args
-    
+
     try:
         iterations = args.index("-n")
         n_iterations = int(args[iterations + 1])
@@ -691,20 +685,17 @@ if __name__ == "__main__":
         fleet_size = int(args[fleet_size_i + 1])
     except:
         fleet_size = 500
+    
     try:
         log_level_i = args.index("-level")
         log_level_label = args[log_level_i + 1]
-        log_level = dict_log_levels[log_level_label]
-        print("Log level", log_level_label)
+        log_level = la.levels[log_level_label]
     except:
         log_level = la.INFO
-        print("Log level not found")
 
     print("###### STARTING EXPERIMENTS")
     start_config = get_sim_config(
         {
-            # ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 120, 300],
-            # ConfigNetwork.LEVEL_DIST_LIST: [0, 45, 60, 90, 150],
             ConfigNetwork.TEST_LABEL: test_label,
             ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.PENALIZE_REBALANCE: True,
@@ -721,7 +712,7 @@ if __name__ == "__main__":
         la.LOG_SOLUTIONS: True,
         la.LOG_WEIGHTS: False,
         la.LOG_ALL: log_adp,
-        la.LOG_LEVEL: log_level,
+        la.LOG_LEVEL: (log_level if not log_adp else la.DEBUG),
         la.LEVEL_FILE: la.DEBUG,
         la.LEVEL_CONSOLE: la.INFO,
     }
@@ -737,5 +728,7 @@ if __name__ == "__main__":
         log_config_dict=log_config,
         log_mip=log_mip,
         save_plots=save_plots,
-        save_progress=save_progress
+        save_progress=save_progress,
+        linearize_model=True,
+        use_artificial_duals=True,
     )

@@ -7,8 +7,9 @@ from gurobipy import tuplelist, GRB, Model, quicksum
 
 from mod.env.trip import ClassedTrip
 from mod.env.car import Car, HiredCar
-import mod.util.log_aux as la
+import mod.util.log_util as la
 import mod.env.decisions as du
+import itertools
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION, SQ_CLASS)
@@ -141,7 +142,7 @@ def get_denied_ids(decisions, attribute_trips_dict):
 
     # Number of denied trips per origin
     for trip_a, n_denied in denied_count_dict.items():
-        if n_denied >= 0:
+        if n_denied > 0:
             o, d = trip_a
             denied[o] += n_denied
     return denied
@@ -236,10 +237,110 @@ def extract_decisions(var_list):
     # Loop (decision tuple, var) pairs
     for decision, var in var_list.items():
 
-        if var.x > 0.9:
+        if var.x > 0.1:
             decisions.append(decision + (round(var.x),))
 
     return decisions
+
+
+def get_total_cost(env, decision, time_step):
+    return env.cost_func(
+        decision
+    ) + env.config.discount_factor * env.post_cost(time_step, decision)
+
+
+def get_artificial_duals(env, time_step, attribute_trips_dict):
+    """Use rejected trips to create artificial shadow prices from 
+    estimated lost profits.
+
+    Virtual cars are created in all region centers covering the trip
+    origin. To each car attribute, is associated a list of lost 
+    profits.
+
+    The average lost profits across car states belonging to all virtual
+    cars is an estimate of the value function.
+
+    Parameters
+    ----------
+    env : Amod
+        Amod environment
+    time_step : int
+        Current time step (used to calculate post decision costs)
+    attribute_trips_dict : dict(list)
+        List of trips per od pair
+    
+    Returns
+    -------
+    dict(float)
+        Lost profits per car_flow tuple:
+        (id, battery_level, contract_duration, car_type, car_origin)
+    """
+
+    duals_dict = defaultdict(list)
+    trip_decisions = list()
+
+    # Loop lists of rejected trips per od
+    for (o, _), trips in attribute_trips_dict.items():
+
+        for t in trips:
+            for g in range(0, len(env.config.level_dist_list)):
+
+                # Region center at level g
+                rc_g = env.points[o].id_level(g)
+                rc_point_g = env.points[rc_g]
+
+                # Create a virtual car in region center
+                virtual_car = Car(rc_point_g)
+
+                # Time to reach trip origin
+                travel_time = env.get_travel_time_od(virtual_car.point, t.o)
+
+                # Can the car reach the trip origin?
+                if travel_time > t.max_delay:
+                    continue
+
+                # Decision of car servicing
+                decision = du.trip_decision(virtual_car, t)
+
+                trip_decisions.append(decision)
+
+                cost_artificial_trip = get_total_cost(env, decision, time_step)
+
+                # Create artificial car flow tuple
+                car_flow_state = (
+                    rc_g,
+                    virtual_car.battery_level,
+                    Car.INFINITE_CONTRACT_DURATION,
+                    virtual_car.type,
+                    Car.DISCARD,
+                )
+
+                duals_dict[car_flow_state].append(cost_artificial_trip)
+
+    # Average all estimates associated to virtual states
+    duals_avg_dict = {
+        car_flow_state: np.average(duals_list)
+        for (car_flow_state, duals_list) in duals_dict.items()
+    }
+
+    logger_name = env.config.log_path(env.adp.n)
+
+    # Logging cost calculus
+    la.log_costs(
+        logger_name,
+        trip_decisions,
+        env.cost_func,
+        env.post_cost,
+        time_step,
+        env.config.discount_factor,
+        msg="ARTIFICIAL TRIPS",
+        post_opt=False,
+    )
+
+    # Log duals
+    la.log_duals(logger_name, duals_avg_dict, msg="(ARTIFICIAL)")
+
+    return duals_avg_dict
 
 
 # #################################################################### #
@@ -252,15 +353,16 @@ def service_trips(
     trips,
     time_step,
     charge=True,
-    agg_level=None,
     myopic=False,
     log_iteration=None,
     sq_guarantee=False,
     universal_service=False,
-    penalize_rebalance=True,
+    use_artificial_duals=True,
+    linearize_model=True,
 ):
 
-    logger = la.get_logger(env.config.label)
+    logger_name = env.config.log_path(env.adp.n)
+    logger = la.get_logger(logger_name)
 
     """Assign trips to available vehicles optimally at the current
         time step.
@@ -275,9 +377,6 @@ def service_trips(
         Time step after receiving trips
     charge : bool, optional
         Apply the charging constraint, by default True
-    agg_level : [type], optional
-        Attributes are queried according to an aggregation level,
-        by default None
     myopic : bool, optional
         If True, does not learn between iterations, by default False
     log_iteration : int, optional
@@ -286,9 +385,9 @@ def service_trips(
         If True, users are serviced accoring to their class
     universal_service : bool, optional
         If True, All users must be serviced 
-    penalize_rebalance : bool, optional
-        If True, rebalancing is further punished (discount value that
-        could have been gained by staying still)
+    use_artificial_duals : bool, optional
+        If True, insert arficial dual in all region centers associated
+        to the rejected trips. 
 
     Returns
     -------
@@ -328,13 +427,14 @@ def service_trips(
     # SORT CARS ########################################################
     # ##################################################################
 
-    # [TYPE_HIRED|TYPE_FLEET] -> (position, battery) -> list of cars
     attribute_cars_dict = defaultdict(list)
 
-    available_fleet = env.available + env.available_hired
-    for car in available_fleet:
-        # List of cars with the same attribute (pos, battery level)
+    for car in itertools.chain(env.available, env.available_hired):
+
+        # List of cars with the same attribute
         attribute_cars_dict[car.attribute].append(car)
+
+    la.log_attribute_cars_dict(logger_name, attribute_cars_dict)
 
     # ##################################################################
     # SORT TRIPS #######################################################
@@ -344,13 +444,13 @@ def service_trips(
     attribute_trips_dict = defaultdict(list)
 
     # Create a dictionary associate
-    for t in trips:
+    for trip in trips:
 
         # Trip count per class
-        class_count_dict[t.sq_class] += 1
+        class_count_dict[trip.sq_class] += 1
 
         # Group trips with the same ods
-        attribute_trips_dict[(t.o.id, t.d.id)].append(t)
+        attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
 
     # ##################################################################
     # VARIABLES ########################################################
@@ -361,7 +461,8 @@ def service_trips(
     # recharge decisions.
     logger.debug(
         f"  - Getting decisions  "
-        f"(trips={len(trips)}, cars={len(available_fleet)})"
+        f"(trips={len(trips)}, "
+        f"available cars={len(env.available)+len(env.available_hired)})"
     )
 
     decision_cars, decision_class = du.get_decisions(
@@ -369,12 +470,26 @@ def service_trips(
         trips,
         # max_battery_level=env.config.battery_levels,
     )
+
     logger.debug(f"  - Decision count: {len(decision_cars)}")
 
-    # Create variables
-    x_var = m.addVars(
-        tuplelist(decision_cars), name="x", vtype=GRB.INTEGER, lb=0
+    # Logging cost calculus
+    la.log_costs(
+        logger_name,
+        decision_cars,
+        env.cost_func,
+        env.post_cost,
+        time_step,
+        env.config.discount_factor,
+        msg="TRIP DECISIONS",
+        # filter_decisions=set([du.TRIP_DECISION]),
+        post_opt=False,
     )
+
+    var_type = GRB.INTEGER if linearize_model else GRB.CONTINUOUS
+
+    # Create variables
+    x_var = m.addVars(tuplelist(decision_cars), name="x", vtype=var_type, lb=0)
 
     # ##################################################################
     # MODEL ############################################################
@@ -391,25 +506,22 @@ def service_trips(
     # use them to determine post decision costs.
     else:
         post_decision_costs = quicksum(
-            (
-                env.post_cost(
-                    time_step,
-                    d,
-                    level=agg_level,
-                    penalize_rebalance=penalize_rebalance,
-                )
-                * x_var[d]
-            )
-            for d in x_var
+            (env.post_cost(time_step, d) * x_var[d]) for d in x_var
         )
 
     # Cost of current decision
     present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
 
+    # Privilege trip decisions
+    # trip_decisions = itertools.chain.from_iterable(decision_class.values())
+    # extra_trip_weight = quicksum(BIG_M * x_var[d] for d in trip_decisions)
+    extra_trip_weight = 0
+
     # Maximize present and future outcome
     m.setObjective(
         present_contribution
-        + env.config.discount_factor * post_decision_costs,
+        + env.config.discount_factor * post_decision_costs
+        + extra_trip_weight,
         GRB.MAXIMIZE,
     )
 
@@ -444,19 +556,20 @@ def service_trips(
 
     elif m.status == GRB.Status.OPTIMAL:
 
+        la.log_solution(logger_name, x_var)
+
         # Decision tuple + (n. of times decision was taken)
         best_decisions = extract_decisions(x_var)
 
         # Logging cost calculus
         la.log_costs(
-            env.config.label,
+            logger_name,
             best_decisions,
             env.cost_func,
             env.post_cost,
             time_step,
             env.config.discount_factor,
-            agg_level,
-            penalize_rebalance,
+            post_opt=True,
         )
 
         # Number of customers rejected per origin id
@@ -464,24 +577,27 @@ def service_trips(
             best_decisions, attribute_trips_dict
         )
 
+        logger.debug("Denied")
+        logger.debug(denied_count_dict)
+
         # Update shadow prices to be used in the next iterations
         if not myopic:
 
             try:
-                # Relax model (LP) to get duals
-                relaxed_model = linearize(m)
-                logger.debug(
-                    "### Difference original model and relaxed: "
-                    f"{m.objVal - relaxed_model.objVal:6.2f}"
-                )
+                # Relax MIP model to get duals
+                if linearize_model:
+                    m_old = m
+                    m = linearize(m)
+                    logger.debug(
+                        "### Difference original model and relaxed: "
+                        f"{m_old.objVal - m.objVal:6.2f}"
+                    )
 
                 # Extracting shadow prices from car flow constraints
-                duals = extract_duals(
-                    relaxed_model, flow_cars_dict, ignore_zeros=True
-                )
+                duals = extract_duals(m, flow_cars_dict, ignore_zeros=True)
 
                 # Log duals
-                la.log_duals(env.config.label, duals)
+                la.log_duals(logger_name, duals)
 
                 # Use dictionary of duals to update value functions
                 env.update_vf(duals, time_step)
@@ -497,12 +613,24 @@ def service_trips(
             attribute_trips_dict,
             attribute_cars_dict,
         )
+        
+        # Add artificial value functions to each lost demand
+        if use_artificial_duals:
 
-        logger.debug(
-            "### Objective Function - "
-            f"{m.objVal:6.2f} X {reward:6.2f}"
-            " - Decision reward"
-        )
+            # realize_decision modifies attribute_trips_dict leaving
+            # only the trips that were not fulfilled (per od)
+            artificial_duals = get_artificial_duals(
+                env, time_step, attribute_trips_dict
+            )
+
+            # Use dictionary of duals to update value functions
+            env.update_vf(artificial_duals, time_step)
+
+            logger.debug(
+                "### Objective Function - "
+                f"{m.objVal:6.2f} X {reward:6.2f}"
+                " - Decision reward"
+            )
 
         return reward, serviced, rejected
 

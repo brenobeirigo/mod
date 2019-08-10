@@ -106,8 +106,11 @@ class AmodNetworkHired(AmodNetwork):
             # Base fare + distance cost
             revenue = self.config.calculate_fare(dist_trip, sq_class=sq_class)
 
+            contribution = PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
+
+            # print(f"{car_type} -- total={contribution:6.2f}, cost={cost:6.2f}, profit_margin={PROFIT_MARGIN}, congestion={CONGESTION_PRICE}")
             # Profit to service trip
-            return PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
+            return contribution
 
         elif action == du.RECHARGE_DECISION:
 
@@ -490,7 +493,7 @@ class AmodNetworkHired(AmodNetwork):
             elif self.config.update_values_smoothed():
                 self.adp.update_values_smoothed(time_step, duals)
 
-    def post_cost(self, t, decision, level=None, penalize_rebalance=False):
+    def post_cost(self, t, decision):
 
         # Target attribute if decision was taken
         (
@@ -502,87 +505,76 @@ class AmodNetworkHired(AmodNetwork):
             post_car_origin,
         ) = self.preview_decision(t, decision)
 
-        # Get the value estimation considering a single level
-        if level is not None:
-            estimate = self.adp.get_value(
-                post_t,
-                post_pos,
-                post_battery,
-                post_contract_duration,
-                post_type_car,
-                level=level - 1,
-            )
+        # Get the post decision state estimate value based on
+        # hierarchical aggregation
+        estimate = self.adp.get_weighted_value(
+            post_t,
+            post_pos,
+            post_battery,
+            post_contract_duration,
+            post_type_car,
+            post_car_origin,
+        )
 
-        else:
-            # Get the post decision state estimate value based on
-            # hierarchical aggregation
-            estimate = self.adp.get_weighted_value(
-                post_t,
-                post_pos,
-                post_battery,
-                post_contract_duration,
-                post_type_car,
-                post_car_origin,
-            )
+        if self.config.penalize_rebalance:
 
-            if penalize_rebalance:
-                avg_busy_stay = list()
-                if decision[0] == du.REBALANCE_DECISION:
+            avg_busy_stay = list()
+            if decision[0] == du.REBALANCE_DECISION:
 
-                    for busy_reb_t in range(t + 1, post_t):
+                for busy_reb_t in range(t + 1, post_t):
 
-                        (
-                            _,
-                            point,
-                            battery,
-                            contract_duration,
-                            car_type,
-                            car_origin,
-                            o,
-                            d,
-                            sq_class
-                        ) = decision
+                    (
+                        _,
+                        point,
+                        battery,
+                        contract_duration,
+                        car_type,
+                        car_origin,
+                        o,
+                        d,
+                        sq_class,
+                    ) = decision
 
-                        stay = (
-                            du.STAY_DECISION,
-                            point,
-                            battery,
-                            contract_duration,
-                            car_type,
-                            car_origin,
-                            point,
-                            point,
-                            sq_class,
-                        )
+                    stay = (
+                        du.STAY_DECISION,
+                        point,
+                        battery,
+                        contract_duration,
+                        car_type,
+                        car_origin,
+                        point,
+                        point,
+                        sq_class,
+                    )
 
-                        # Target attribute if decision was taken
-                        (
-                            stay_post_t,
-                            stay_post_pos,
-                            stay_post_battery,
-                            stay_post_contract_duration,
-                            stay_post_type_car,
-                            stay_post_origin_car,
-                        ) = self.preview_decision(busy_reb_t, stay)
+                    # Target attribute if decision was taken
+                    (
+                        stay_post_t,
+                        stay_post_pos,
+                        stay_post_battery,
+                        stay_post_contract_duration,
+                        stay_post_type_car,
+                        stay_post_origin_car,
+                    ) = self.preview_decision(busy_reb_t, stay)
 
-                        estimate_stay = self.adp.get_weighted_value(
-                            stay_post_t,
-                            stay_post_pos,
-                            stay_post_battery,
-                            stay_post_contract_duration,
-                            stay_post_type_car,
-                            stay_post_origin_car,
-                        )
+                    estimate_stay = self.adp.get_weighted_value(
+                        stay_post_t,
+                        stay_post_pos,
+                        stay_post_battery,
+                        stay_post_contract_duration,
+                        stay_post_type_car,
+                        stay_post_origin_car,
+                    )
 
-                        avg_busy_stay.append(estimate_stay)
+                    avg_busy_stay.append(estimate_stay)
 
-                    if avg_busy_stay:
+                if avg_busy_stay:
 
-                        avg_stay = sum(avg_busy_stay) / len(avg_busy_stay)
-                        # print(
-                        #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
-                        # )
-                        estimate -= avg_stay
+                    avg_stay = sum(avg_busy_stay) / len(avg_busy_stay)
+                    # print(
+                    #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
+                    # )
+                    estimate = min(avg_stay, estimate - avg_stay)
 
         return estimate
 

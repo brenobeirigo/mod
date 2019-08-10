@@ -6,6 +6,7 @@ import pprint
 # Reproducibility of the experiments
 random.seed(1)
 
+
 class Point:
 
     point_dict = dict()
@@ -497,8 +498,9 @@ def query_info():
     node_count = info["node_count"]
     region = info["region"]
     label = info["label"]
+    region_type = info["region_type"]
 
-    return region, label, node_count, center_count, edge_count
+    return region, label, node_count, center_count, edge_count, region_type
 
 
 def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):

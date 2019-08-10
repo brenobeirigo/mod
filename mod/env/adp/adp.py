@@ -10,6 +10,13 @@ STEPSIZE_RULES = [STEPSIZE_HARMONIC, STEPSIZE_CONSTANT, STEPSIZE_MCCLAIN]
 
 TIME_INCREMENT = 5
 
+CONTRACT_DISAGGREGATE = 1
+CONTRACT_L1 = 5
+CONTRACT_L2 = 10
+CONTRACT_L3 = 20
+CONTRACT_L4 = 30
+CONTRACT_L5 = 60
+
 DISCARD = "-"
 DISAGGREGATE = 0
 
@@ -517,7 +524,9 @@ class Adp:
     @functools.lru_cache(maxsize=None)
     def contract_level(self, car_type, contract_duration, level=DISAGGREGATE):
 
-        if DISAGGREGATE in self.contract_levels_dict[car_type]:
-            return (DISAGGREGATE, contract_duration)
+        try:
+            time_slot = self.contract_levels_dict[car_type][level]
+            return (level, round(contract_duration / time_slot))
 
-        return (DISCARD, self.contract_levels_dict[car_type][DISCARD])
+        except:
+            return (DISCARD, self.contract_levels_dict[car_type][DISCARD])

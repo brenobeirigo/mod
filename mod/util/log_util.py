@@ -16,6 +16,18 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 
+# Log options
+LOG_WEIGHTS = "LOG_WEIGHTS"
+LOG_VALUE_UPDATE = "LOG_VALUE_UPDATE"
+LOG_DUALS = "LOG_DUALS"
+LOG_FLEET_ACTIVITY = "LOG_FLEET_ACTIVITY"
+LOG_COSTS = "LOG_COSTS"
+LOG_SOLUTIONS = "LOG_SOLUTIONS"
+LOG_ALL = "log_all"
+LEVEL_FILE = "level_file"
+LEVEL_CONSOLE = "level_console"
+LOG_LEVEL = "log_level"
+
 # Save all logs for all iterations
 log_dict = dict()
 
@@ -36,10 +48,10 @@ def get_file_handler(log_file, mode="w"):
     return file_handler
 
 
-def create_logger(name, level_file, level_console, log_file):
+def create_logger(name, log_level, level_file, level_console, log_file):
 
     logger = logging.getLogger(name)
-    logger.setLevel(level_file)
+    logger.setLevel(log_level)
 
     # ch = get_console_handler()
     ch.setLevel(level_console)
@@ -47,11 +59,47 @@ def create_logger(name, level_file, level_console, log_file):
 
     fh = get_file_handler(log_file)
     fh.setLevel(level_file)
+
     logger.addHandler(fh)
 
     logger.propagate = False
 
     return logger
+
+
+def log_solution(name, decision_vars):
+
+    try:
+
+        logger_obj = log_dict[name]
+
+        if logger_obj.LOG_SOLUTIONS:
+
+            logger = logger_obj.logger
+
+            logger.debug("")
+            logger.debug(
+                "##################################"
+                " SOLUTIONS "
+                "##################################"
+            )
+
+            decision_vars = sorted(
+                list(decision_vars.items()),
+                key=lambda d: (d[0][1], d[0][0], d[0][4], d[0][6]),
+            )
+
+            for d, var in decision_vars:
+                if var.x > 0.0:
+                    logger.debug(f"{format_tuple(d)} = {var.x:6.2f}")
+
+    except Exception as e:
+        print(f"Can't log solutions! Exception: {e}")
+
+
+def format_tuple(d, item_len=4):
+    fd = "|".join([f"{e:>4}" for e in d])
+    return f"[{fd}]"
 
 
 def log_costs(
@@ -98,12 +146,17 @@ def log_costs(
             if not post_opt:
                 decision_labels = decision_labels[:-1]
 
-            logger.debug(
-                f"{[f'{e:>4}' for e in decision_labels]} "
-                f"{'COST':>7} + {'DISC':>6}*{'POST':>7} = {'TOTAL':>7}"
+            cost_label = (
+                f"{'COST':>7} + {'DISC':>6}*{'POST':>12} = {'TOTAL':>12}"
             )
+            decision_label = format_tuple(decision_labels)
+            label = f"{decision_label} {cost_label}"
+            logger.debug(label)
+            logger.debug("-" * len(label))
 
-            sorted(best_decisions, key=lambda d: (d[0], d[4]))
+            best_decisions = sorted(
+                best_decisions, key=lambda d: (d[1], d[0], d[4], d[6])
+            )
 
             for d in best_decisions:
 
@@ -127,13 +180,13 @@ def log_costs(
                 total = cost + discount_factor * post_cost
 
                 logger.debug(
-                    f"{[f'{e:>4}' for e in d]} {cost:>7.2f} + {discount_factor:>6.2f}*{post_cost:>7.2f} = {total:>7.2f}"
+                    f"{format_tuple(d)} {cost:>7.2f} + {discount_factor:>6.2f}*{post_cost:>12.6f} = {total:>12.6f}"
                 )
 
                 overall_total += total
 
             logger.debug(
-                f"Overall total = {overall_total:>6.2f} ({overall_cost:>6.2f} + {discount_factor:>6.2f}*{overall_post:>6.2f}[{discount_factor*overall_post:>6.2f}])"
+                f"Overall total = {overall_total:>6.2f} ({overall_cost:>6.2f} + {discount_factor:>6.2f}*{overall_post:>12.6f}[{discount_factor*overall_post:>12.6f}])"
             )
 
     except Exception as e:
@@ -289,6 +342,37 @@ def log_update_values_smoothed(name, t, level_update_list, values):
         print(f"Can't log value function update! Exception: {e}")
 
 
+def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
+    try:
+        logger_obj = log_dict[name]
+
+        if logger_obj.LOG_ATTRIBUTE_CARS:
+
+            logger = logger_obj.logger
+
+            # Header
+            logger.debug("")
+            logger.debug(
+                f"  # ATTRIBUTE CAR COUNT {msg} ################################"
+            )
+            header = ["POSI", "BATT", "CONT", "CART", "DEPO"]
+            logger.debug(
+                f"    - {format_tuple(header)} = {'COUNT':>10}"
+            )
+
+            car_attributes = sorted(
+                list(attribute_cars_dict.items()), key=lambda d: (d[0][0])
+            )
+
+            # Car attribute list
+            for k, v in car_attributes:
+                car_count = len(v)
+                logger.debug(f"    - {format_tuple(k)} = {car_count}")
+
+    except Exception as e:
+        print(f"Can't log car attributes! Exception: {e}")
+
+
 def log_duals(name, duals, msg=""):
 
     try:
@@ -298,19 +382,20 @@ def log_duals(name, duals, msg=""):
 
             logger = logger_obj.logger
 
-            dual_labels = ["POSI", "BATT", "CONT", "CART", "DEPO"]
+            header = ["POSI", "BATT", "CONT", "CART", "DEPO"]
 
             logger.debug("")
             logger.debug(f"  # DUALS {msg} ################################")
-            logger.debug(
-                f"    - {[f'{e:>4}' for e in dual_labels]} = {'DUAL':>7}"
-            )
+            logger.debug(f"    - {format_tuple(header)} = {'DUAL':>10}")
             equal_zero = 0
-            for k, v in duals.items():
-                if int(v) == 0:
+
+            duals = sorted(list(duals.items()), key=lambda d: (d[0][0]))
+
+            for k, v in duals:
+                if v == 0:
                     equal_zero += 1
                 else:
-                    logger.debug(f"    - {[f'{e:>4}' for e in k]} = {v:7.2f}")
+                    logger.debug(f"    - {format_tuple(k)} = {v:10.5f}")
             logger.debug(
                 f"  * {len(duals):>4} duals extracted ({equal_zero:>4} are zero)."
             )
@@ -323,6 +408,7 @@ class LogAux:
     def __init__(
         self,
         logger_name,
+        log_level,
         level_file,
         level_console,
         log_file,
@@ -331,27 +417,56 @@ class LogAux:
         LOG_DUALS=True,
         LOG_FLEET_ACTIVITY=True,
         LOG_COSTS=True,
+        LOG_SOLUTIONS=True,
+        LOG_ATTRIBUTE_CARS=True,
         log_all=False,
     ):
-
-        self.LOG_WEIGHTS = LOG_WEIGHTS or log_all
-        self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE or log_all
-        self.LOG_DUALS = LOG_DUALS or log_all
-        self.LOG_FLEET_ACTIVITY = LOG_FLEET_ACTIVITY or log_all
-        self.LOG_COSTS = LOG_COSTS or log_all
+        self.LOG_SOLUTIONS = LOG_SOLUTIONS and log_all
+        self.LOG_WEIGHTS = LOG_WEIGHTS and log_all
+        self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE and log_all
+        self.LOG_DUALS = LOG_DUALS and log_all
+        self.LOG_FLEET_ACTIVITY = LOG_FLEET_ACTIVITY and log_all
+        self.LOG_COSTS = LOG_COSTS and log_all
+        self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS and log_all
         self.logger = create_logger(
-            logger_name, level_file, level_console, log_file
+            logger_name, log_level, level_file, level_console, log_file
         )
 
 
 def get_logger(
-    name, level_file=DEBUG, level_console=INFO, log_file="traces.log"
+    name,
+    log_level=DEBUG,
+    level_file=DEBUG,
+    level_console=INFO,
+    log_file="traces.log",
+    LOG_WEIGHTS=False,
+    LOG_VALUE_UPDATE=False,
+    LOG_DUALS=False,
+    LOG_FLEET_ACTIVITY=False,
+    LOG_COSTS=False,
+    LOG_SOLUTIONS=True,
+    LOG_ATTRIBUTE_CARS=True,
+    log_all=True,
 ):
     try:
         return log_dict[name].logger
 
     except:
-        logger = LogAux(name, level_file, level_console, log_file)
+        logger = LogAux(
+            name,
+            log_level,
+            level_file,
+            level_console,
+            log_file,
+            LOG_WEIGHTS=LOG_WEIGHTS,
+            LOG_VALUE_UPDATE=LOG_VALUE_UPDATE,
+            LOG_DUALS=LOG_DUALS,
+            LOG_FLEET_ACTIVITY=LOG_FLEET_ACTIVITY,
+            LOG_COSTS=LOG_COSTS,
+            LOG_SOLUTIONS=LOG_SOLUTIONS,
+            LOG_ATTRIBUTE_CARS=LOG_ATTRIBUTE_CARS,
+            log_all=log_all,
+        )
         log_dict[name] = logger
 
         return log_dict[name].logger

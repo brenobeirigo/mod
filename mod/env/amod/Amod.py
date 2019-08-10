@@ -359,7 +359,6 @@ class Amod:
 
                     # Get a trip to apply decision
                     trip = a_trips[(o, d)].pop(iclosest_pk)
-                    # trip = a_trips[(o, d)].pop()
 
                     duration, distance, reward = self.pickup(trip, car)
 

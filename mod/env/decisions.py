@@ -1,3 +1,4 @@
+import itertools
 from collections import defaultdict
 from mod.env.car import HiredCar
 
@@ -102,7 +103,7 @@ def get_decisions(env, trips, min_battery_level=None):
     # SORT CARS ########################################################
     # ##################################################################
 
-    for car in env.available + env.available_hired:
+    for car in itertools.chain(env.available, env.available_hired):
         # Stay ####################################################### #
         decisions.add(stay_decision(car))
 

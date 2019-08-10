@@ -39,10 +39,6 @@ smooth_sigma_fleet = 1
 
 doc = curdoc()
 
-# exp_name = "network_manhattan-island-new-york-city-new-york-usa_1500_0020_7_01_0030_02_02"
-# exp_name = "0.5_FUTURE_HARMONIC_100_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_100_10"
-
-# exp_name = "HBEGIN_manhattan-island-new-york-city-new-york-usa_NYC_0250_0001_5_01_0030_02_04_1=8_00_24_0.1_0.5_01_10"
 exp_name = "SHORT_CLASSED_cars=0400_levels[6]=(  0,  60,  90, 120, 180, 270)_rebal=[0, 1]_[05h,+04h]_resize=0.10_discount=0.05_stepsize=0.10"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"

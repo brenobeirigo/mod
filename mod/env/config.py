@@ -392,7 +392,7 @@ class Config:
     def aggregation_levels(self):
         """Number of aggregation levels"""
         return self.config["AGGREGATION_LEVELS"]
-    
+
     @property
     def n_aggregation_levels(self):
         """Number of aggregation levels"""
@@ -1080,12 +1080,7 @@ class ConfigNetwork(ConfigStandard):
         reb_neigh = ", ".join(
             [
                 f"{level}-{n_neighbors}"
-                for level, n_neighbors in list(
-                    zip(
-                        self.config[Config.REBALANCE_LEVEL],
-                        self.config[Config.N_CLOSEST_NEIGHBORS],
-                    )
-                )
+                for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
         levels = ", ".join([

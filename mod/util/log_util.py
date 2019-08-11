@@ -450,7 +450,7 @@ class LogAux:
 
 def get_logger(
     name,
-    log_level=DEBUG,
+    log_level=INFO,
     level_file=DEBUG,
     level_console=INFO,
     log_file="traces.log",
@@ -461,7 +461,7 @@ def get_logger(
     LOG_COSTS=False,
     LOG_SOLUTIONS=True,
     LOG_ATTRIBUTE_CARS=True,
-    log_all=True,
+    log_all=False,
 ):
     try:
         return log_dict[name].logger

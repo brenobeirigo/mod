@@ -15,13 +15,42 @@ import pandas as pd
 from copy import deepcopy
 import multiprocessing
 from collections import defaultdict
+import mod.util.log_util as la
+from pprint import pprint
 
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 100
+ITERATIONS = 500
 
-from pprint import pprint
+
+log_config = {
+    la.LOG_DUALS: True,
+    la.LOG_FLEET_ACTIVITY: True,
+    la.LOG_VALUE_UPDATE: True,
+    la.LOG_COSTS: True,
+    la.LOG_SOLUTIONS: True,
+    la.LOG_WEIGHTS: False,
+    la.LOG_ALL: False,
+    la.LOG_LEVEL: la.INFO,
+    la.LEVEL_FILE: la.DEBUG,
+    la.LEVEL_CONSOLE: la.INFO,
+}
+
+config_adp = {
+    "episodes": ITERATIONS,
+    "classed_trips": True,
+    # enable_hiring=True,
+    # contract_duration_h=2,
+    # sq_guarantee=True,
+    # universal_service=True,
+    "log_config_dict": log_config,
+    "log_mip": False,
+    "save_plots": False,
+    "save_progress": True,
+    "linearize_model": True,
+    "use_artificial_duals": True,
+}
 
 
 def test_all(
@@ -63,16 +92,7 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
-    reward_list = alg.alg_adp(
-        None,
-        exp_setup,
-        episodes=ITERATIONS,
-        classed_trips=True,
-        # enable_hiring=True,
-        # contract_duration_h=2,
-        # sq_guarantee=True,
-        # universal_service=True,
-    )
+    reward_list = alg.alg_adp(None, exp_setup, **config_adp)
 
     return (exp_name, label, reward_list)
 
@@ -110,13 +130,10 @@ if __name__ == "__main__":
 
     tuning_params = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        Config.DISCOUNT_FACTOR: [0.05],
+        Config.DISCOUNT_FACTOR: [1],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [
-            # 300,
-            400
-        ],
+        Config.FLEET_SIZE: [100],
         Config.FLEET_START: [
             conf.FLEET_START_LAST,
             # conf.FLEET_START_SAME,
@@ -134,30 +151,32 @@ if __name__ == "__main__":
             # False
         ],
         Config.DEMAND_RESIZE_FACTOR: [0.1],
-        "REBAL_LEVELS_NEIGHBORS": [
-            {
-                Config.REBALANCE_LEVEL: (0, 1, 2, 3, 4, 5, 6),
-                Config.N_CLOSEST_NEIGHBORS: (4, 4, 4, 2, 2, 1, 1),
-            },
-            # {
-            #     Config.REBALANCE_LEVEL: (0, 1),
-            #     Config.N_CLOSEST_NEIGHBORS: (8, 8),
-            # },
+        # Cars rebalance to up to #region centers at each level
+        Config.N_CLOSEST_NEIGHBORS: [
+            ((0, 4), (1, 4), (2, 4), (3, 2), (4, 2), (5, 1), (6, 1))
         ],
         Config.AGGREGATION_LEVELS: [
             [
-                (0, 0),
-                (1, 0),
-                (2, 0),
-                (2, 1),
-                (2, 2),
-                (2, 3),
-                (2, 4),
-                (2, 5),
-                (2, 6),
+                (0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0),
+                (0, 2, 0, 0, 0),
+                (0, 3, 0, 0, 0),
+                (0, 4, 0, 0, 0),
+                (0, 5, 0, 0, 0),
+                (0, 6, 0, 0, 0),
             ],
-            # [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6)],
-            [(0, 0), (1, 0), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6)],
+            [
+                (0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0),
+                (0, 2, 0, 0, 0),
+                (0, 3, 0, 0, 0),
+                # (0, 4, 0, 0, 0),
+                # (0, 5, 0, 0, 0),
+                # (0, 6, 0, 0, 0),
+                # (1, 6, 0, 0, 0),
+                # (2, 6, 0, 0, 0),
+                # (3, 6, 0, 0, 0),
+            ],
         ],
     }
 
@@ -167,7 +186,9 @@ if __name__ == "__main__":
         Config.OFFSET_TERMINATION: 30,
         Config.CONTRACT_DURATION_LEVEL: 10,
         Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
-        Config.LEVEL_TIME_LIST: [1, 2, 4, 8],
+        Config.LEVEL_TIME_LIST: [1, 3, 5],
+        Config.PENALIZE_REBALANCE: True,
+        Config.DEMAND_TOTAL_HOURS: 1,
     }
 
     conf.save_json(

@@ -119,49 +119,56 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
-                    spatial=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=1,
+                    temporal=adp.DISAGGREGATE,
                     spatial=1,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=adp.DISAGGREGATE,
                     spatial=2,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=adp.DISAGGREGATE,
                     spatial=3,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=adp.DISAGGREGATE,
                     spatial=4,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=adp.DISAGGREGATE,
                     spatial=5,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
+                    temporal=adp.DISAGGREGATE,
+                    spatial=6,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
                     temporal=1,
+                    spatial=6,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=2,
                     spatial=6,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
@@ -231,7 +238,7 @@ def get_sim_config(update_dict):
                 #     car_origin=6,
                 # ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 5, 10],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
@@ -492,7 +499,11 @@ def alg_adp(
 
             logger.debug(
                 "###########################################"
+                "###########################################"
+                "\n###########################################"
                 f" (step={step}, trips={len(trips)}) "
+                "###########################################"
+                "\n###########################################"
                 "###########################################"
             )
 
@@ -685,7 +696,7 @@ if __name__ == "__main__":
         fleet_size = int(args[fleet_size_i + 1])
     except:
         fleet_size = 5
-    
+
     try:
         log_level_i = args.index("-level")
         log_level_label = args[log_level_i + 1]
@@ -707,7 +718,7 @@ if __name__ == "__main__":
 
     log_config = {
         la.LOG_DUALS: True,
-        la.LOG_FLEET_ACTIVITY: False,
+        la.LOG_FLEET_ACTIVITY: True,
         la.LOG_VALUE_UPDATE: True,
         la.LOG_COSTS: True,
         la.LOG_SOLUTIONS: True,
@@ -730,6 +741,6 @@ if __name__ == "__main__":
         log_mip=log_mip,
         save_plots=save_plots,
         save_progress=save_progress,
-        linearize_model=False,
+        linearize_model=True,
         use_artificial_duals=True,
     )

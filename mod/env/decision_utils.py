@@ -302,7 +302,7 @@ def get_decisions(
                 continue
 
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(car.point, trip.o)
+            travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
             # Can the car reach the trip origin?
             if travel_time <= trip.max_delay:
@@ -413,7 +413,7 @@ def get_decision_set_classed4(
                 continue
 
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(car.point, trip.o)
+            travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
             # Can the car reach the trip origin?
             if travel_time <= trip.max_delay:
@@ -525,7 +525,7 @@ def get_decision_set_classed3(
                 continue
 
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(car.point, trip.o)
+            travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
             # Can the car reach the trip origin?
             if travel_time <= trip.max_delay:
@@ -633,7 +633,7 @@ def get_decision_set_classed6(
                     set_matched.add(car)
 
                     # Time to reach trip origin
-                    travel_time = env.get_travel_time_od(car.point, trip.o)
+                    travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
                     # Can the car reach the trip origin?
                     if travel_time <= trip.max_delay:

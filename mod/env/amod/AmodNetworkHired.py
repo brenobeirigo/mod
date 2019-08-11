@@ -145,7 +145,7 @@ class AmodNetworkHired(AmodNetwork):
         total_dist = dist_to_origin + dist_od + dist_d_start
 
         # Next arrival
-        duration_movement = self.get_travel_time(total_dist)
+        duration_movement = self.get_travel_time(total_dist, unit="min")
 
         remaining_hiring_time = (
             remaining_hiring_slots * self.config.contract_duration_level
@@ -230,16 +230,16 @@ class AmodNetworkHired(AmodNetwork):
 
                 elif action == du.REBALANCE_DECISION:
                     # Rebalancing #################################### #
-                    total_duration, total_distance, reward = self.rebalance(
+                    total_duration, total_duration_steps, total_distance, reward = self.rebalance(
                         car, self.points[d]
                     )
 
                     car.move(
                         total_duration,
+                        total_duration_steps,
                         total_distance,
                         contribution_car,
                         self.points[d],
-                        time_increment=self.config.time_increment,
                     )
 
                 elif action == du.STAY_DECISION:
@@ -262,16 +262,7 @@ class AmodNetworkHired(AmodNetwork):
                     trip = a_trips_dict[(o, d)].pop(iclosest_pk)
                     # trip = a_trips[(o, d)].pop()
 
-                    pk_duration, total_duration, total_distance, revenue = self.pickup(trip, car)
-
-                    car.update_trip(
-                        pk_duration,
-                        total_duration,
-                        total_distance,
-                        revenue,
-                        trip,
-                        time_increment=self.config.time_increment,
-                    )
+                    self.pickup(trip, car)
 
                     serviced.append(trip)
 
@@ -520,12 +511,13 @@ class AmodNetworkHired(AmodNetwork):
 
         # Penalize long rebalancing decisions
         if (
-                decision[0] == du.REBALANCE_DECISION and
-                self.config.penalize_rebalance):
+            decision[0] == du.REBALANCE_DECISION
+            and self.config.penalize_rebalance
+        ):
 
             avg_busy_stay = 0
 
-            for busy_reb_t in range(t + 1, post_t + 1):
+            for busy_reb_t in range(t, post_t):
 
                 (
                     _,

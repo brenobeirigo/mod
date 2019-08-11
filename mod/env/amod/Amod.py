@@ -11,6 +11,7 @@ from pprint import pprint
 from mod.env.config import FOLDER_EPISODE_TRACK
 import requests
 import functools
+import math
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -253,14 +254,14 @@ class Amod:
 
     def rebalance(self, car, target):
         """Return
-        
+
         Parameters
         ----------
         car : Car
             Car to rebalance
         target : Point
             Where car rebalance to
-        
+
         Returns
         -------
         3-element tuple
@@ -270,13 +271,13 @@ class Amod:
         # Distance car has to travel to rebalance
         distance = self.get_distance(car.point, target)
 
-        # Next arrival
-        duration_min = int(round(self.get_travel_time(distance)))
+        # Duration of rebalancing trip
+        duration_min, duration_step = self.get_travel_time_tuple(distance)
 
         # No reward for rebalancing
         reward = 0
 
-        return duration_min, distance, reward
+        return duration_min, duration_step, distance, reward
 
     def pickup(self, trip, car):
         """Insert trip into car and update car status.
@@ -301,11 +302,25 @@ class Amod:
             distance_trip, sq_class=trip.sq_class
         )
 
-        duration_pickup_min = int(round(self.get_travel_time(distance_pickup)))
+        duration_pickup_min, duration_pickup_step = self.get_travel_time_tuple(
+            distance_pickup
+        )
 
-        duration_trip_min = int(round(self.get_travel_time(distance_trip)))
+        duration_trip_min, duration_trip_step = self.get_travel_time_tuple(
+            distance_trip
+        )
 
         total_duration_min = duration_pickup_min + duration_trip_min
+
+        car.update_trip(
+            duration_pickup_min,
+            total_duration_min,
+            total_distance,
+            revenue,
+            trip,
+            duration_pickup_step=duration_pickup_step,
+            duration_trip_step=duration_trip_step,
+        )
 
         return duration_pickup_min, total_duration_min, total_distance, revenue
 
@@ -356,7 +371,6 @@ class Amod:
                         distance,
                         reward,
                         self.points[d],
-                        time_increment=self.config.time_increment,
                     )
 
                 elif action == du.STAY_DECISION:
@@ -383,7 +397,6 @@ class Amod:
                         distance,
                         reward,
                         trip,
-                        time_increment=self.config.time_increment,
                     )
 
                     serviced.append(trip)
@@ -464,6 +477,16 @@ class Amod:
         return duration, dropped_levels
 
     @functools.lru_cache(maxsize=None)
+    def get_travel_time_tuple(self, distance):
+        """Travel time in minutes and steps given distance in meters"""
+
+        travel_time_h = distance / self.config.speed
+        travel_time_min = travel_time_h * 60
+        travel_time_min
+        steps = math.ceil(travel_time_min / self.config.time_increment)
+        return travel_time_min, steps
+
+    @functools.lru_cache(maxsize=None)
     def get_travel_time(self, distance, unit="min"):
         """Travel time in minutes given distance in miles"""
 
@@ -473,7 +496,7 @@ class Amod:
         if unit == "min":
             return travel_time_min
         else:
-            steps = int(round(travel_time_min / self.config.time_increment))
+            steps = math.ceil(travel_time_min / self.config.time_increment)
             return steps
 
     @functools.lru_cache(maxsize=None)

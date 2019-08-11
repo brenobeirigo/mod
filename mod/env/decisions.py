@@ -143,7 +143,7 @@ def get_decisions(env, trips, min_battery_level=None):
                 continue
 
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(car.point, trip.o)
+            travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
             # Can the car reach the trip origin?
             if travel_time <= trip.max_delay:

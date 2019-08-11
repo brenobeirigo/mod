@@ -129,7 +129,6 @@ class Adp:
         # Set up weight track to initial conditions
         self.reset_weight_track()
 
-
     def reset_weight_track(self):
         self.counts = 0
         self.weight_track = defaultdict(

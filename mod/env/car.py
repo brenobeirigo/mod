@@ -26,7 +26,7 @@ class Car:
         # RECHARGING,
         ASSIGN,
         REBALANCE,
-        CRUISING
+        CRUISING,
     ]
 
     INFINITE_CONTRACT_DURATION = "Inf"
@@ -90,7 +90,7 @@ class Car:
             trip = (
                 (
                     f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
-                    f"(dropoff={self.trip.dropoff_time:04})"
+                    f"(pk_step={self.trip.pk_step:>5}, dropoff={self.trip.dropoff_time:>6.2f})"
                 )
                 if self.trip is not None
                 else ""
@@ -100,8 +100,8 @@ class Car:
 
         status = (
             f"{self.label}[{self.status:>15}]"
-            f" - Previous arrival: {self.previous_arrival:>5}"
-            f" - Arrival: {self.arrival_time:>5}"
+            f" - Previous arrival: {self.previous_arrival:>6.2f}"
+            f" - Arrival: {self.arrival_time:>6.2f}"
             f"(step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             # f" - Revenue: {self.revenue:>6.2f}"
@@ -154,10 +154,10 @@ class Car:
     def move(
         self,
         duration_service,
+        duration_service_steps,
         distance_traveled,
         cost,
         destination,
-        time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -185,9 +185,9 @@ class Car:
 
         self.previous_arrival = self.arrival_time
 
-        self.arrival_time += max(duration_service, time_increment)
+        self.arrival_time += duration_service
 
-        self.step += max(int(duration_service / time_increment), 1)
+        self.step += max(duration_service_steps, 1)
 
         self.status = Car.REBALANCE
 
@@ -198,6 +198,8 @@ class Car:
         distance_traveled,
         revenue,
         trip,
+        duration_pickup_step=0,
+        duration_trip_step=0,
         time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
@@ -239,31 +241,20 @@ class Car:
 
         self.n_trips += 1
 
-        pk_step = max(0, int(pk_duration / time_increment))
+        pk_step = max(0, duration_pickup_step)
 
         if pk_step == 0:
-            # Example:
-            # t1->t2 - Picking up (pk_duration)
-            # t2->t3 - Servicing
-            #
-            # ------------[t1]-----[t2]------[t3]--------  (min)
-            # 1----[s1]----2-----[s2]-----3-----[s3]----4  (steps)
-            # pk_step = 0, therefore, in s2 car is servicing
-
-            # ------------[t1]------------[t2]------[t3]-  (min)
-            # 1----[s1]----2-----[s2]-----3-----[s3]----4  (steps)
-            # pk_step = 1, therefore, in s2 car is cruising
+            # If pk_step is zero, car is already carrying customer
+            # in the subsequent time step
             self.status = Car.ASSIGN
         else:
             self.status = Car.CRUISING
-            
 
         self.trip.pk_step = self.step + pk_step
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step
-        self.step += max(int(total_duration / time_increment), 1)
-
+        self.step += max(duration_trip_step, 1)
 
     def reset(self):
         self.point = self.origin
@@ -311,6 +302,8 @@ class ElectricCar(Car):
         revenue,
         trip,
         time_increment=15,
+        duration_pickup_step=0,
+        duration_trip_step=0,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -323,10 +316,13 @@ class ElectricCar(Car):
 
         super().update_trip(
             total_duration,
+            pk_duration,
             distance_traveled,
             revenue,
             trip,
             time_increment=time_increment,
+            duration_pickup_step=duration_pickup_step,
+            duration_trip_step=duration_trip_step,
         )
 
         self.battery_level_miles -= distance_traveled
@@ -370,7 +366,6 @@ class ElectricCar(Car):
         revenue,
         destination,
         trip=None,
-        time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -391,13 +386,7 @@ class ElectricCar(Car):
             )
         )
 
-        super().move(
-            duration_service,
-            distance_traveled,
-            revenue,
-            destination,
-            time_increment=time_increment,
-        )
+        super().move(duration_service, distance_traveled, revenue, destination)
 
     @property
     def attribute(self, level=0):
@@ -476,7 +465,7 @@ class ElectricCar(Car):
             trip = (
                 (
                     f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
-                    f"(dropoff={self.trip.dropoff_time:04})"
+                    f"(pk_step={self.trip.pk_step:>5}, dropoff={self.trip.dropoff_time:>6.2f})"
                 )
                 if self.trip is not None
                 else ""
@@ -484,8 +473,8 @@ class ElectricCar(Car):
 
         status = (
             f"{self.label}[{self.status:>15}]"
-            f" - Previous arrival: {self.previous_arrival:>5}"
-            f" - Arrival: {self.arrival_time:>5}"
+            f" - Previous arrival: {self.previous_arrival:>6.2f}"
+            f" - Arrival: {self.arrival_time:>6.2f}"
             f"(step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             f" - Battery: {self.battery_level:2}/{self.battery_level_max}"

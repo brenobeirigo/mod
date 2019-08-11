@@ -100,15 +100,7 @@ def get_sim_config(update_dict):
             ),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
-            ConfigNetwork.LEVEL_DIST_LIST: [
-                0,
-                30,
-                60,
-                120,
-                150,
-                240,
-                600,
-            ],  # , 300],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
             # Aggregation (temporal, spatial, contract, car type)
             ConfigNetwork.AGGREGATION_LEVELS: [
                 adp.AggLevel(
@@ -119,56 +111,49 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=1,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=2,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=3,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=4,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=5,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
-                    spatial=6,
+                    temporal=1,
+                    spatial=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
                     temporal=1,
-                    spatial=6,
+                    spatial=1,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=2,
+                    temporal=1,
+                    spatial=2,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=3,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=4,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
+                    spatial=5,
+                    contract=adp.DISAGGREGATE,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISAGGREGATE,
+                ),
+                adp.AggLevel(
+                    temporal=1,
                     spatial=6,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
@@ -238,7 +223,7 @@ def get_sim_config(update_dict):
                 #     car_origin=6,
                 # ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 5, 10],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
@@ -501,7 +486,7 @@ def alg_adp(
                 "###########################################"
                 "###########################################"
                 "\n###########################################"
-                f" (step={step}, trips={len(trips)}) "
+                f" (step={step+1}, trips={len(trips)}) "
                 "###########################################"
                 "\n###########################################"
                 "###########################################"
@@ -695,7 +680,7 @@ if __name__ == "__main__":
         fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
         fleet_size = int(args[fleet_size_i + 1])
     except:
-        fleet_size = 5
+        fleet_size = 1
 
     try:
         log_level_i = args.index("-level")
@@ -741,6 +726,6 @@ if __name__ == "__main__":
         log_mip=log_mip,
         save_plots=save_plots,
         save_progress=save_progress,
-        linearize_model=True,
+        linearize_model=False,
         use_artificial_duals=True,
     )

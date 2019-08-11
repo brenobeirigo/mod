@@ -48,7 +48,7 @@ config_adp = {
     "log_mip": False,
     "save_plots": False,
     "save_progress": True,
-    "linearize_model": True,
+    "linearize_model": False,
     "use_artificial_duals": True,
 }
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     try:
         test_label = sys.argv[1]
     except:
-        test_label = "TUNE"
+        test_label = "AGG"
 
     try:
         N_PROCESSES = int(sys.argv[2])
@@ -167,15 +167,33 @@ if __name__ == "__main__":
             ],
             [
                 (0, 0, 0, 0, 0),
-                (0, 1, 0, 0, 0),
-                (0, 2, 0, 0, 0),
-                (0, 3, 0, 0, 0),
-                # (0, 4, 0, 0, 0),
-                # (0, 5, 0, 0, 0),
-                # (0, 6, 0, 0, 0),
-                # (1, 6, 0, 0, 0),
-                # (2, 6, 0, 0, 0),
-                # (3, 6, 0, 0, 0),
+                (2, 0, 0, 0, 0),
+                (2, 1, 0, 0, 0),
+                (2, 2, 0, 0, 0),
+                (2, 3, 0, 0, 0),
+                (2, 4, 0, 0, 0),
+                (2, 5, 0, 0, 0),
+                (2, 6, 0, 0, 0),
+            ],
+            [
+                (0, 0, 0, 0, 0),
+                (2, 0, 0, 0, 0),
+                (2, 1, 0, 0, 0),
+                (2, 2, 0, 0, 0),
+                (2, 3, 0, 0, 0),
+                (2, 4, 0, 0, 0),
+                (2, 5, 0, 0, 0),
+                (2, 6, 0, 0, 0),
+            ],
+            [
+                (0, 0, 0, 0, 0),
+                (3, 0, 0, 0, 0),
+                (3, 1, 0, 0, 0),
+                (3, 2, 0, 0, 0),
+                (3, 3, 0, 0, 0),
+                (3, 4, 0, 0, 0),
+                (3, 5, 0, 0, 0),
+                (3, 6, 0, 0, 0),
             ],
         ],
     }
@@ -184,11 +202,10 @@ if __name__ == "__main__":
         Config.TEST_LABEL: test_label,
         Config.OFFSET_REPOSIONING: 15,
         Config.OFFSET_TERMINATION: 30,
-        Config.CONTRACT_DURATION_LEVEL: 10,
+        Config.CONTRACT_DURATION_LEVEL: 2,
         Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
-        Config.LEVEL_TIME_LIST: [1, 3, 5],
+        Config.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
         Config.PENALIZE_REBALANCE: True,
-        Config.DEMAND_TOTAL_HOURS: 1,
     }
 
     conf.save_json(

@@ -271,7 +271,7 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
             ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-            ConfigNetwork.DEMAND_SAMPLING: False,
+            ConfigNetwork.DEMAND_SAMPLING: True,
             # Demand spawn from how many centers?
             ConfigNetwork.ORIGIN_CENTERS: 3,
             # Demand arrives in how many centers?
@@ -449,8 +449,6 @@ def alg_adp(
             # Load a random .csv file with trips from NYC
             trips_file_path = random.choice(conf.TRIP_FILES)
 
-            # print(f"Processing demand file '{trips_file_path}'...")
-
             step_trip_list, step_trip_count = tp.get_ny_demand(
                 config, trips_file_path, amod.points
             )
@@ -587,7 +585,7 @@ def alg_adp(
             # What each vehicle is doing?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
-                step,
+                step + 1,
                 skip_steps,
                 step_log,
                 filter_status=[],
@@ -638,12 +636,14 @@ def alg_adp(
         episode_log.compute_episode(
             step_log,
             time.time() - start_time,
-            weights=amod.adp.get_weights(),
             save_df=save_df,
             plots=save_plots,
             save_learning=save_progress,
             save_overall_stats=save_overall_stats,
         )
+
+        # Clean weight track
+        amod.adp.reset_weight_track()
 
         logger.info(
             f"####### "
@@ -684,7 +684,7 @@ if __name__ == "__main__":
         fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
         fleet_size = int(args[fleet_size_i + 1])
     except:
-        fleet_size = 500
+        fleet_size = 5
     
     try:
         log_level_i = args.index("-level")
@@ -701,6 +701,7 @@ if __name__ == "__main__":
             ConfigNetwork.PENALIZE_REBALANCE: True,
             ConfigNetwork.FLEET_SIZE: fleet_size,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_SAMPLING: True,
         }
     )
 
@@ -729,6 +730,6 @@ if __name__ == "__main__":
         log_mip=log_mip,
         save_plots=save_plots,
         save_progress=save_progress,
-        linearize_model=True,
+        linearize_model=False,
         use_artificial_duals=True,
     )

@@ -1099,8 +1099,11 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
         levels = ", ".join([
-            f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
-            for temporal, spatial, contract, car_type, car_origin in self.config[Config.AGGREGATION_LEVELS]])
+            (
+                f"{self.config[Config.LEVEL_TIME_LIST][temporal]}-"
+                f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
+            )
+            for (temporal, spatial, contract, car_type, car_origin) in self.config[Config.AGGREGATION_LEVELS]])
 
         # Is the demand sampled or fixed?
         sample = ("S" if self.config[Config.DEMAND_SAMPLING] else "F")

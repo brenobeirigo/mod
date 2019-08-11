@@ -44,7 +44,7 @@ path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mo
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
 # Color per vehicle status
-color_dict_fleet = {
+color_fleet_status = {
     "Idle": "#24aafe",
     "With passenger": "#53bc53",
     "Rebalancing": "firebrick",
@@ -158,7 +158,7 @@ def configure_plot_fleet(p, status_list):
         line = p.line(
             "x",
             "y",
-            color=color_dict_fleet[status],
+            color=color_fleet_status[status],
             line_width=2,
             line_alpha=1,
             muted_alpha=0.1,

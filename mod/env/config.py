@@ -25,6 +25,12 @@ TRIP_FILES = [
     ]
 ]
 
+# Car statuses
+IDLE = "Idle"
+RECHARGING = "Recharging"
+ASSIGN = "With passenger"
+CRUISING = "Cruising"
+REBALANCE = "Rebalancing"
 
 # Output folder
 FOLDER_OUTPUT = root + "/data/output/"
@@ -65,6 +71,7 @@ SCENARIO_NYC = "NYC"
 # ADP update methods
 AVERAGED_UPDATE = "AVERAGED_UPDATE"
 WEIGHTED_UPDATE = "WEIGHTED_UPDATE"
+
 
 class Config:
 
@@ -138,7 +145,7 @@ class Config:
     HARMONIC_STEPSIZE = "HARMONIC_STEPSIZE"
     STEPSIZE_RULE = "STEPSIZE_RULE"
     STEPSIZE_CONSTANT = "STEPSIZE_FIXED"
-    UPDATE_METHOD = "UPDATE_METHOD" # AVERAGED, WEIGTHED
+    UPDATE_METHOD = "UPDATE_METHOD"  # AVERAGED, WEIGTHED
 
     # Network
     STEP_SECONDS = "STEP_SECONDS"  # In km/h
@@ -250,8 +257,7 @@ class Config:
 
     @property
     def recharge_threshold(self):
-        """Minimum battery charge percentage 
-        (float in [0,1] interval) """
+        """Minimum battery charge percentage (float in [0,1] interval) """
         return self.config["RECHARGE_THRESHOLD"]
 
     def calculate_cost_recharge(self, recharging_time_min):
@@ -786,6 +792,15 @@ class ConfigNetwork(ConfigStandard):
 
         super().__init__(config)
 
+        self.color_fleet_status = {
+            IDLE: "#24aafe",
+            ASSIGN: "#53bc53",
+            REBALANCE: "firebrick",
+            RECHARGING: "#e55215",
+            CRUISING: "#e55215",
+            "Total": "black",
+        }
+
         self.config[Config.TEST_LABEL] = ""
         self.config[Config.TUNE_LABEL] = None
 
@@ -1117,8 +1132,8 @@ class ConfigNetwork(ConfigStandard):
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
             f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
-            #f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
-            #f"{self.config[Config.CONGESTION_PRICE]:2}"
+            # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
+            # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
 
 

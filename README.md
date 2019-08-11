@@ -2,7 +2,7 @@
 
 ## Running the simulator
 
-    bokeh serve --show --port 5002 mod\env\simulator.py
+    bokeh serve --show --port 5002 tests\ml\live_simulation.py
 
 ## Running the service rate and fleet status graphs
 

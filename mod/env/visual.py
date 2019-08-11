@@ -1,31 +1,24 @@
+import os
 from collections import defaultdict
+import matplotlib.pyplot as plt
+import numpy as np
+from pprint import pprint
+import pandas as pd
+import itertools as it
+
+import mod.env.config as conf
 from mod.env.car import Car
 from mod.env.network import Point
 import mod.env.network as nw
-import matplotlib.pyplot as plt
-import numpy as np
 import seaborn as sns
-from mod.env.config import FOLDER_OUTPUT
-import os
-from pprint import pprint
 
-import pandas as pd
-import itertools as it
 sns.set(style="ticks")
 sns.set_context("paper")
 np.set_printoptions(precision=3)
 
-# Color per vehicle status
-color_dict_fleet = {
-    Car.IDLE: "#24aafe",
-    Car.ASSIGN: "#53bc53",
-    Car.REBALANCE: "firebrick",
-    Car.RECHARGING: "#e55215",
-    Car.CRUISING: "#e55215",
-    "Total": "black",
-}
 
 class EpisodeLog:
+
 
     def get_od_lists(self, amod):
 
@@ -72,7 +65,7 @@ class EpisodeLog:
     def create_folders(self):
         # If config is not None, then the experiments should be saved
         if self.config:
-            self.output_path = FOLDER_OUTPUT + self.config.label
+            self.output_path = conf.FOLDER_OUTPUT + self.config.label
             self.output_folder_fleet = self.output_path + "/fleet/"
             self.output_folder_service = self.output_path + "/service/"
             self.output_folder_adp_logs = self.output_path + "/adp_logs/"
@@ -87,11 +80,11 @@ class EpisodeLog:
             if not os.path.exists(self.output_folder_service):
                 os.makedirs(self.output_folder_service)
                 os.makedirs(self.folder_demand_status_data)
-            
+
             if not os.path.exists(self.config.folder_mip):
                 os.makedirs(self.config.folder_mip_log)
                 os.makedirs(self.config.folder_mip_lp)
-            
+
             if not os.path.exists(self.config.folder_adp_log):
                 os.makedirs(self.config.folder_adp_log)
 
@@ -453,23 +446,33 @@ class StepLog:
         steps = np.arange(self.n+1)
 
         for status_label, status_count_step in self.car_statuses.items():
-            plt.plot(steps, status_count_step, label=status_label, color=color_dict_fleet[status_label])
+            plt.plot(
+                steps,
+                status_count_step,
+                label=status_label,
+                color=self.env.config.color_fleet_status[status_label]
+            )
 
         matrix_status_count = np.array(list(self.car_statuses.values()))
         total_count = np.sum(matrix_status_count, axis=0)
         plt.plot(steps, total_count, color="#000000", label="Total")
 
-        # Configure x axis
-        x_ticks = 6
-        x_stride = 60*3
-        max_x = np.math.ceil(self.n / x_stride) * x_stride
-        xticks = np.arange(0, max_x + x_stride, x_stride)
-        plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
-        plt.xlabel("Time")
+        
 
+        
+        # x_ticks = 6
+        # x_stride = 60*3
+        # max_x = np.math.ceil(self.n / x_stride) * x_stride
+        # xticks = np.arange(0, max_x + x_stride, x_stride)
+        # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
+
+        # Configure x axis
+        plt.xlim([0, self.env.config.time_steps])
+        plt.ylim([0, self.env.config.fleet_size])
+        plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
+        
         # Configure y axis
         plt.ylabel("# Cars")
-
         ax = plt.gca()
         box = ax.get_position()
         ax.set_position(
@@ -574,11 +577,16 @@ class StepLog:
             pass
 
         # Configure ticks x axis
-        x_ticks = 6
-        x_stride = 60*3
-        max_x = np.math.ceil(self.n / x_stride) * x_stride
-        xticks = np.arange(0, max_x + x_stride, x_stride)
-        plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
+        # x_ticks = 6
+        # x_stride = 60*3
+        # max_x = np.math.ceil(self.n / x_stride) * x_stride
+        # xticks = np.arange(0, max_x + x_stride, x_stride)
+        # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
+
+         # Configure x axis
+        plt.xlim([0, self.env.config.time_steps])
+        plt.ylim([0, self.env.config.fleet_size])
+        plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
 
 
         # Shrink current axis's height by 10% on the bottom
@@ -778,8 +786,12 @@ def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
                 # If straight lines from centers
                 if direct_lines:
 
-                    lines[STRAIGHT_LINE][level]["xs"].append([center_point.x, p.x])
-                    lines[STRAIGHT_LINE][level]["ys"].append([center_point.y, p.y])
+                    lines[STRAIGHT_LINE][level]["xs"].append(
+                        [center_point.x, p.x]
+                    )
+                    lines[STRAIGHT_LINE][level]["ys"].append(
+                        [center_point.y, p.y]
+                    )
 
     return centers, lines
 

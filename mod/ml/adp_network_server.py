@@ -619,9 +619,9 @@ def alg_adp(
 
             if plot_track:
 
-                logger.info("Computing movements...")
+                logger.debug("Computing movements...")
                 plot_track.compute_movements(step + 1)
-                logger.info("Finished computing...")
+                logger.debug("Finished computing...")
 
                 time.sleep(step_delay)
 

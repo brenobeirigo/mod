@@ -293,29 +293,30 @@ def get_artificial_duals(env, time_step, attribute_trips_dict):
                 virtual_car = Car(rc_point_g)
 
                 # Time to reach trip origin
-                travel_time = env.get_travel_time_od(virtual_car.point, t.o)
+                travel_time = env.get_travel_time_od(virtual_car.point, t.o, unit="min")
 
                 # Can the car reach the trip origin?
-                if travel_time > t.max_delay:
-                    continue
+                if travel_time <= t.max_delay:
 
-                # Decision of car servicing
-                decision = du.trip_decision(virtual_car, t)
+                    # Decision of car servicing
+                    decision = du.trip_decision(virtual_car, t)
 
-                trip_decisions.append(decision)
+                    trip_decisions.append(decision)
 
-                cost_artificial_trip = get_total_cost(env, decision, time_step)
+                    cost_artificial_trip = get_total_cost(
+                        env, decision, time_step
+                    )
 
-                # Create artificial car flow tuple
-                car_flow_state = (
-                    rc_g,
-                    virtual_car.battery_level,
-                    Car.INFINITE_CONTRACT_DURATION,
-                    virtual_car.type,
-                    Car.DISCARD,
-                )
+                    # Create artificial car flow tuple
+                    car_flow_state = (
+                        rc_g,
+                        virtual_car.battery_level,
+                        Car.INFINITE_CONTRACT_DURATION,
+                        virtual_car.type,
+                        Car.DISCARD,
+                    )
 
-                duals_dict[car_flow_state].append(cost_artificial_trip)
+                    duals_dict[car_flow_state].append(cost_artificial_trip)
 
     # Average all estimates associated to virtual states
     duals_avg_dict = {

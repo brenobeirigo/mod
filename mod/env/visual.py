@@ -413,7 +413,7 @@ class StepLog:
 
         status, battery = self.env.get_fleet_status()
         return (
-            f"### Time step (trip={self.n:>4}, fleet={self.n+1:>4})"
+            f"### Time step: {self.n:>4})"
             f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>7.2%}"
             f" ### Trips: {total:>4}"

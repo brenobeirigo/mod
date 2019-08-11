@@ -6,6 +6,7 @@ class Car:
     IDLE = "Idle"
     RECHARGING = "Recharging"
     ASSIGN = "With passenger"
+    CRUISING = "Cruising"
     REBALANCE = "Rebalancing"
 
     COMPANY_OWNED_ORIGIN = "FREE"
@@ -20,7 +21,13 @@ class Car:
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
 
-    status_list = [IDLE, RECHARGING, ASSIGN, REBALANCE]
+    status_list = [
+        IDLE,
+        # RECHARGING,
+        ASSIGN,
+        REBALANCE,
+        CRUISING
+    ]
 
     INFINITE_CONTRACT_DURATION = "Inf"
 
@@ -107,27 +114,23 @@ class Car:
         return status
 
     def update(self, step, time_increment=15):
-        """Run every time_step to free vehicles that
-        finished their task and update arrival times of
-        idle vehicles
+        """Run every time_step to free vehicles that finished their task
+        and update arrival times of idle vehicles.
 
-        Arguments:
-            t {int} -- current time steps
-
-        Keyword Arguments:
-            time_increment {int} -- duration of time steps (default: {15})
+        Parameters
+        ----------
+        step : int
+            Current time step
+        time_increment : int, optional
+            Duration of time steps, by default 15
         """
-
-        # print("updating according to current time ", t)
-        # If vehicle is idle, update current arrival time
-        # if self.status == Car.IDLE:
-        #     # print(f'car {self} is idle!')
-        #     self.arrival_time = step * time_increment
-        #     self.step = step
+        # TODO check consistency of steps
+        if self.trip:
+            if step >= self.trip.pk_step:
+                self.status = Car.ASSIGN
 
         # If car finished its task, it is currently idle
         if self.arrival_time <= step * time_increment:
-            # print(f'car {self} is NO LONGER idle!')
             self.status = Car.IDLE
             self.trip = None
             self.previous = self.point
@@ -152,18 +155,24 @@ class Car:
         self,
         duration_service,
         distance_traveled,
-        revenue,
+        cost,
         destination,
-        trip=None,
         time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
 
-        Arguments:
-            duration_service {int} -- How long to pick up and deliver
-            distance_traveled {float} -- Total distance to pickup and deliver
-            revenue {float} -- Revenue accrued by doing task
-            trip {Trip} -- Trip car is servicing
+        Parameters
+        ----------
+        duration_service : int
+            Total duration to rebalance (in minutes)
+        distance_traveled : float
+            Distance travelede during rebalancing (in meters)
+        cost : float
+            Rebalancing cost
+        destination : Point
+            Rebalancing target location
+        time_increment : int, optional
+            Duration (in minutes) of each time increment, by default 15
         """
 
         self.previous = self.point
@@ -172,7 +181,7 @@ class Car:
 
         self.distance_traveled += distance_traveled
 
-        self.revenue += revenue
+        self.revenue += cost
 
         self.previous_arrival = self.arrival_time
 
@@ -180,34 +189,31 @@ class Car:
 
         self.step += max(int(duration_service / time_increment), 1)
 
-        # Cars that are busy fulfilling trips or recharging
-        # are not considered to be reassigned for a decision
-
-        if self.trip:
-
-            self.status = Car.ASSIGN
-
-            self.n_trips += 1
-
-            self.trip = trip
-        else:
-            self.status = Car.REBALANCE
+        self.status = Car.REBALANCE
 
     def update_trip(
         self,
-        duration_service,
+        pk_duration,
+        total_duration,
         distance_traveled,
         revenue,
         trip,
         time_increment=15,
     ):
         """Update car settings after being matched with a passenger.
-
-        Arguments:
-            duration_service {int} -- How long to pick up and deliver
-            distance_traveled {float} -- Total distance to pickup and deliver
-            revenue {float} -- Revenue accrued by doing task
-            trip {Trip} -- Trip car is servicing
+        
+        Parameters
+        ----------
+        duration_service : int
+            Cruising time + servicing time (in minutes)
+        distance_traveled : float
+            Cruising distance + serviciing distance (in meters)
+        revenue : float
+            Revenue accrued by doing task
+        trip : Trip
+            Trip assigned to car
+        time_increment : int, optional
+            Duration (in minutes) of each time increment, by default 15
         """
 
         self.previous = self.point
@@ -222,22 +228,42 @@ class Car:
 
         self.revenue += revenue
 
-        self.arrival_time += max(duration_service, time_increment)
+        # Guarantee arrival time consistency
+        self.arrival_time += max(total_duration, time_increment)
 
         trip.dropoff_time = self.arrival_time
+
         trip.picked_by = self
 
-        # If service duration is lower than time increment, car have
-        # to be free in the next time step
-        self.step += max(int(duration_service / time_increment), 1)
-
-        # Cars that are busy fulfilling trips or recharging
-        # are not considered to be reassigned for a decision
-        self.status = Car.ASSIGN
+        self.trip = trip
 
         self.n_trips += 1
 
-        self.trip = trip
+        pk_step = max(0, int(pk_duration / time_increment))
+
+        if pk_step == 0:
+            # Example:
+            # t1->t2 - Picking up (pk_duration)
+            # t2->t3 - Servicing
+            #
+            # ------------[t1]-----[t2]------[t3]--------  (min)
+            # 1----[s1]----2-----[s2]-----3-----[s3]----4  (steps)
+            # pk_step = 0, therefore, in s2 car is servicing
+
+            # ------------[t1]------------[t2]------[t3]-  (min)
+            # 1----[s1]----2-----[s2]-----3-----[s3]----4  (steps)
+            # pk_step = 1, therefore, in s2 car is cruising
+            self.status = Car.ASSIGN
+        else:
+            self.status = Car.CRUISING
+            
+
+        self.trip.pk_step = self.step + pk_step
+
+        # If service duration is lower than time increment, car have
+        # to be free in the next time step
+        self.step += max(int(total_duration / time_increment), 1)
+
 
     def reset(self):
         self.point = self.origin
@@ -279,7 +305,8 @@ class ElectricCar(Car):
 
     def update_trip(
         self,
-        duration_service,
+        pk_duration,
+        total_duration,
         distance_traveled,
         revenue,
         trip,
@@ -295,7 +322,7 @@ class ElectricCar(Car):
         """
 
         super().update_trip(
-            duration_service,
+            total_duration,
             distance_traveled,
             revenue,
             trip,
@@ -369,7 +396,6 @@ class ElectricCar(Car):
             distance_traveled,
             revenue,
             destination,
-            trip=trip,
             time_increment=time_increment,
         )
 

@@ -16,7 +16,8 @@ class Trip:
     def __init__(self, o, d, time):
         self.o = o
         self.d = d
-        self.time = time
+        self.time = time  # step
+        self.pk_step = None  # step
         self.id = Trip.trip_count
         Trip.trip_count += 1
         self.picked_by = None
@@ -406,7 +407,7 @@ def get_trips(
                 ClassedTrip(
                     points[o],
                     points[d],
-                    step,
+                    offset_start + step,
                     (
                         ClassedTrip.SQ_CLASS_1
                         if random.random() <= ClassedTrip.class_proportion["A"]

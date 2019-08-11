@@ -252,6 +252,20 @@ class Amod:
         return cost
 
     def rebalance(self, car, target):
+        """Return
+        
+        Parameters
+        ----------
+        car : Car
+            Car to rebalance
+        target : Point
+            Where car rebalance to
+        
+        Returns
+        -------
+        3-element tuple
+            (duration, distance, reward)
+        """
 
         # Distance car has to travel to rebalance
         distance = self.get_distance(car.point, target)
@@ -283,15 +297,17 @@ class Amod:
         # Total distance
         total_distance = distance_pickup + distance_trip
 
-        # Reward
-        reward = self.config.calculate_fare(
+        revenue = self.config.calculate_fare(
             distance_trip, sq_class=trip.sq_class
         )
 
-        # Next arrival
-        duration_min = int(round(self.get_travel_time(total_distance)))
+        duration_pickup_min = int(round(self.get_travel_time(distance_pickup)))
 
-        return duration_min, total_distance, reward
+        duration_trip_min = int(round(self.get_travel_time(distance_trip)))
+
+        total_duration_min = duration_pickup_min + duration_trip_min
+
+        return duration_pickup_min, total_duration_min, total_distance, revenue
 
     # ################################################################ #
     # Decision ####################################################### #

@@ -230,13 +230,13 @@ class AmodNetworkHired(AmodNetwork):
 
                 elif action == du.REBALANCE_DECISION:
                     # Rebalancing #################################### #
-                    duration, distance, reward = self.rebalance(
+                    total_duration, total_distance, reward = self.rebalance(
                         car, self.points[d]
                     )
 
                     car.move(
-                        duration,
-                        distance,
+                        total_duration,
+                        total_distance,
                         contribution_car,
                         self.points[d],
                         time_increment=self.config.time_increment,
@@ -262,12 +262,13 @@ class AmodNetworkHired(AmodNetwork):
                     trip = a_trips_dict[(o, d)].pop(iclosest_pk)
                     # trip = a_trips[(o, d)].pop()
 
-                    duration, distance, reward = self.pickup(trip, car)
+                    pk_duration, total_duration, total_distance, revenue = self.pickup(trip, car)
 
                     car.update_trip(
-                        duration,
-                        distance,
-                        contribution_car,
+                        pk_duration,
+                        total_duration,
+                        total_distance,
+                        revenue,
                         trip,
                         time_increment=self.config.time_increment,
                     )
@@ -524,7 +525,7 @@ class AmodNetworkHired(AmodNetwork):
 
             avg_busy_stay = 0
 
-            for busy_reb_t in range(t + 1, post_t):
+            for busy_reb_t in range(t + 1, post_t + 1):
 
                 (
                     _,
@@ -573,14 +574,15 @@ class AmodNetworkHired(AmodNetwork):
 
             if avg_busy_stay > 0:
 
-                avg_stay = avg_busy_stay / (post_t - t + 1)
+                # avg_stay = avg_busy_stay / (post_t - t + 1)
+                # avg_stay = avg_busy_stay
                 # print(
-                #     f"Stay: {np.arange(t + 1, post_t)+1} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
+                #     f"t:{t} - post_t={post_t} - Stay: {np.arange(t + 1, post_t+1)} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
                 # )
                 # Discount the average contribution that would have
                 # been gained if the car stayed still instead of
                 # rebalancing
-                estimate = max(0, estimate - avg_stay)
+                estimate = max(0, estimate - avg_busy_stay)
 
         return estimate
 

@@ -306,11 +306,11 @@ class Amod:
             distance_pickup
         )
 
-        duration_trip_min, duration_trip_step = self.get_travel_time_tuple(
-            distance_trip
-        )
+        duration_trip_min = self.get_travel_time(distance_trip, unit="min")
 
         total_duration_min = duration_pickup_min + duration_trip_min
+
+        duration_total_step = self.get_travel_time(total_distance, unit="step")
 
         car.update_trip(
             duration_pickup_min,
@@ -319,7 +319,7 @@ class Amod:
             revenue,
             trip,
             duration_pickup_step=duration_pickup_step,
-            duration_trip_step=duration_trip_step,
+            duration_total_step=duration_total_step,
         )
 
         return duration_pickup_min, total_duration_min, total_distance, revenue
@@ -366,12 +366,7 @@ class Amod:
                         car, self.points[d]
                     )
 
-                    car.move(
-                        duration,
-                        distance,
-                        reward,
-                        self.points[d],
-                    )
+                    car.move(duration, distance, reward, self.points[d])
 
                 elif action == du.STAY_DECISION:
                     # car.step += 1
@@ -392,12 +387,7 @@ class Amod:
 
                     duration, distance, reward = self.pickup(trip, car)
 
-                    car.update_trip(
-                        duration,
-                        distance,
-                        reward,
-                        trip,
-                    )
+                    car.update_trip(duration, distance, reward, trip)
 
                     serviced.append(trip)
                     total_reward += reward
@@ -482,7 +472,6 @@ class Amod:
 
         travel_time_h = distance / self.config.speed
         travel_time_min = travel_time_h * 60
-        travel_time_min
         steps = math.ceil(travel_time_min / self.config.time_increment)
         return travel_time_min, steps
 

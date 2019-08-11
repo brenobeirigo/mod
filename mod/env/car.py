@@ -199,8 +199,7 @@ class Car:
         revenue,
         trip,
         duration_pickup_step=0,
-        duration_trip_step=0,
-        time_increment=15,
+        duration_total_step=0,
     ):
         """Update car settings after being matched with a passenger.
         
@@ -231,7 +230,7 @@ class Car:
         self.revenue += revenue
 
         # Guarantee arrival time consistency
-        self.arrival_time += max(total_duration, time_increment)
+        self.arrival_time += total_duration
 
         trip.dropoff_time = self.arrival_time
 
@@ -254,7 +253,10 @@ class Car:
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step
-        self.step += max(duration_trip_step, 1)
+        self.step += max(duration_total_step, 1)
+
+        if self.arrival_time > self.step:
+            print("What!")
 
     def reset(self):
         self.point = self.origin
@@ -301,9 +303,8 @@ class ElectricCar(Car):
         distance_traveled,
         revenue,
         trip,
-        time_increment=15,
         duration_pickup_step=0,
-        duration_trip_step=0,
+        duration_total_step=0,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -320,9 +321,8 @@ class ElectricCar(Car):
             distance_traveled,
             revenue,
             trip,
-            time_increment=time_increment,
             duration_pickup_step=duration_pickup_step,
-            duration_trip_step=duration_trip_step,
+            duration_total_step=duration_total_step,
         )
 
         self.battery_level_miles -= distance_traveled

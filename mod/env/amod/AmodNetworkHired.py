@@ -260,7 +260,6 @@ class AmodNetworkHired(AmodNetwork):
 
                     # Get a trip to apply decision
                     trip = a_trips_dict[(o, d)].pop(iclosest_pk)
-                    # trip = a_trips[(o, d)].pop()
 
                     self.pickup(trip, car)
 

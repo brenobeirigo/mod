@@ -15,6 +15,16 @@ sns.set(style="ticks")
 sns.set_context("paper")
 np.set_printoptions(precision=3)
 
+# Color per vehicle status
+color_dict_fleet = {
+    Car.IDLE: "#24aafe",
+    Car.ASSIGN: "#53bc53",
+    Car.REBALANCE: "firebrick",
+    Car.RECHARGING: "#e55215",
+    Car.CRUISING: "#e55215",
+    "Total": "black",
+}
+
 class EpisodeLog:
 
     def get_od_lists(self, amod):
@@ -179,7 +189,6 @@ class EpisodeLog:
         self,
         step_log,
         processing_time,
-        weights=None,
         plots=True,
         save_df=True,
         save_learning=True,
@@ -193,9 +202,11 @@ class EpisodeLog:
         self.adp.reward.append(step_log.total_reward)
         self.adp.service_rate.append(step_log.service_rate)
 
-        if weights is not None:
+        if self.adp.weight_track is not None:
             for car_type in Car.car_types:
-                self.adp.weights[car_type].append(weights[car_type])
+                self.adp.weights[car_type].append(
+                    self.adp.weight_track[car_type]
+                )
 
         # Save intermediate plots
         if plots:
@@ -213,7 +224,7 @@ class EpisodeLog:
                 file_format="png",
                 dpi=150,
             )
-        
+
         if save_df:
             df_fleet = step_log.get_step_status_count()
             df_fleet.to_csv(
@@ -227,7 +238,6 @@ class EpisodeLog:
                 + f"e_demand_status_{self.adp.n:04}.csv"
             )
 
-            
 
         if save_overall_stats:
             df_stats = step_log.get_step_stats()
@@ -248,9 +258,12 @@ class EpisodeLog:
             # For each:
             # - Time step t,
             # - Aggregation level g,
-            #  -Attribute a
-            #  Save (value, count) tuple
-
+            # - Attribute a
+            # - Save (value, count) tuple
+            # print("BEFORE TRANSFORMATION")
+            # pprint(self.adp.values)
+            # print("CURRENT DATA")
+            # pprint(self.adp.current_data)
             np.save(
                 path,
                 {
@@ -261,9 +274,6 @@ class EpisodeLog:
                     "weights": self.adp.weights,
                 },
             )
-
-            # Clean weight track
-            self.adp.agg_weight_vectors = dict()
 
     def load_progress(self):
         """Load episodes learned so farD
@@ -281,6 +291,9 @@ class EpisodeLog:
             self.adp.service_rate,
             self.adp.weights
         ) = self.adp.read_progress(path)
+        
+        # print("After reading")
+        # pprint(self.adp.values)
 
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
@@ -436,11 +449,11 @@ class StepLog:
             f"        Total profit: {self.total_reward:.2f}"
         )
 
-    def plot_fleet_status(self, file_path=None, file_format="png", dpi=150):
+    def plot_fleet_status(self, file_path=None, file_format="png", dpi=150, earliest_hour=0):
         steps = np.arange(self.n+1)
 
         for status_label, status_count_step in self.car_statuses.items():
-            plt.plot(steps, status_count_step, label=status_label)
+            plt.plot(steps, status_count_step, label=status_label, color=color_dict_fleet[status_label])
 
         matrix_status_count = np.array(list(self.car_statuses.values()))
         total_count = np.sum(matrix_status_count, axis=0)

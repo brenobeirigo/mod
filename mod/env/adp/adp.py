@@ -80,10 +80,6 @@ class Adp:
         # a certain region, aggregation level, and time
         self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
-        # Averaging weights each round
-        self.counts = np.zeros(len(self.aggregation_levels))
-        self.weight_track = np.zeros(len(self.aggregation_levels))
-
         self.current_weights = np.array([])
 
     def init_weighting_settings(self):
@@ -113,7 +109,6 @@ class Adp:
             lambda: defaultdict(lambda: defaultdict(float))
         )
 
-        self.agg_weight_vectors = dict()
         # Estimate of the variance of observations made of state
         # s, using data from aggregation level g, after n
         # observations.
@@ -130,6 +125,24 @@ class Adp:
         self.total_variation = defaultdict(
             lambda: defaultdict(lambda: defaultdict(float))
         )
+
+        # Set up weight track to initial conditions
+        self.reset_weight_track()
+
+
+    def reset_weight_track(self):
+        self.counts = 0
+        self.weight_track = defaultdict(
+            lambda: np.zeros(len(self.aggregation_levels))
+        )
+
+    def update_weight_track(self, weight_vector, key="V"):
+        # Update weight vector
+        self.weight_track[key] = (
+            self.counts * self.weight_track[key] + weight_vector
+        ) / (self.counts + 1)
+
+        self.counts += 1
 
     ####################################################################
     # Smoothed #########################################################

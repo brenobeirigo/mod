@@ -43,8 +43,6 @@ class AdpHired(adp.Adp):
         self, t, pos, battery, contract_duration, car_type, car_origin
     ):
 
-        state = (t, pos, battery, contract_duration, car_type, car_origin)
-
         # Get point object associated to position
         point = self.points[pos]
 
@@ -84,14 +82,7 @@ class AdpHired(adp.Adp):
                 car_origin_g,
             )
 
-            # Current value function of attribute at level g
-            value_vector[i] = (
-                self.values[t_g][g][a_g]
-                if t_g in self.values
-                and g in self.values[t_g]
-                and a_g in self.values[t_g][g]
-                else 0
-            )
+            value_vector[i] = self.values[t_g][g][a_g]
 
             weight_vector[i] = self.get_weight(t_g, g, a_g)
 
@@ -107,16 +98,15 @@ class AdpHired(adp.Adp):
                 np.prod([weight_vector, value_vector], axis=0)
             )
 
-            # Update weight vector
-            self.agg_weight_vectors[state] = weight_vector
+            self.update_weight_track(weight_vector, key=car_type)
 
-            la.log_weights(
-                self.config.log_path(self.n),
-                state,
-                weight_vector,
-                value_vector,
-                value_estimation,
-            )
+            # la.log_weights(
+            #     self.config.log_path(self.n),
+            #     (t, pos, battery, contract_duration, car_type, car_origin),
+            #     weight_vector,
+            #     value_vector,
+            #     value_estimation,
+            # )
 
         return value_estimation
 
@@ -284,31 +274,3 @@ class AdpHired(adp.Adp):
 
         # Update weights using new value function estimate
         # self.update_weights(t, g, a_g, new_vf_0, 1)
-
-    # ################################################################ #
-    # Tracking ####################################################### #
-    # ################################################################ #
-
-    def get_weights(self):
-
-        fleet_weights_dict = defaultdict(list)
-        fleet_weights_avg_dict = defaultdict(
-            lambda: np.zeros(len(self.aggregation_levels))
-        )
-
-        try:
-            for attribute, weight_vectors in self.agg_weight_vectors.items():
-                _, _, _, _, car_type, _ = attribute
-                fleet_weights_dict[car_type].append(weight_vectors)
-
-            for fleet_type, weight_vectors_list in fleet_weights_dict.items():
-
-                weight_vector_sum = sum(weight_vectors_list)
-                fleet_weights_avg_dict[fleet_type] = weight_vector_sum / sum(
-                    weight_vector_sum
-                )
-
-        except:
-            pass
-
-        return fleet_weights_avg_dict

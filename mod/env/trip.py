@@ -5,6 +5,7 @@ from collections import defaultdict
 import mod.env.network as nw
 from datetime import timedelta, datetime
 import math
+import time
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -184,7 +185,7 @@ def get_trip_count_step(
 
     if max_steps:
         trip_count_step = trip_count_step[
-            earliest_step : earliest_step + max_steps
+            earliest_step: earliest_step + max_steps
         ]
 
     return trip_count_step
@@ -194,11 +195,13 @@ def get_step_trip_list(
     path, step=15, earliest_step=0, max_steps=None, resize_factor=1
 ):
     """Read trip csv file and return list of trips for each time step.
+    The list of trips is saved in a .npy file in the same directory
+    of the .csv for fast processing.
 
     Parameters
     ----------
     path : str
-        Trip list file
+        Trip list .csv file
     step : int, optional
         Time step (min) to aggregate trips, by default 15
     earliest_step : int, optional
@@ -216,63 +219,93 @@ def get_step_trip_list(
         step. 
     """
 
-    df = pd.read_csv(path, index_col="pickup_datetime", parse_dates=True)
+    # Processed trip data (list of trips) is saved in a .npy file
+    # for faster reading
+    path_npy = (
+        f"{path.split('.')[0]}_"
+        f"increment={step:03}min_"
+        f"earlieststep={earliest_step:04}_"
+        f"maxsteps={(f'{max_steps:04}' if max_steps else '--')}_"
+        f"resize={resize_factor:.2f}.npy"
+    )
 
-    # List of list of trip info (time, passenger count, o_id, d_id)
-    step_trip_list = []
+    try:
+        print(f"Trying to load processed trip data from '{path_npy}'")
+        t1 = time.time()
+        step_trip_list = np.load(path_npy)
+        print(f"Trip list loaded (took {time.time() - t1:10.6f} seconds)")
 
-    # Time increment
-    step_timedelta = timedelta(minutes=step)
+    except:
+        print(f"Loading .npy failed. Processing trip data...")
+        t1 = time.time()
+        df = pd.read_csv(path, index_col="pickup_datetime", parse_dates=True)
 
-    # Earliest time window
-    from_datetime = df.index[0]
+        # List of list of trip info (time, passenger count, o_id, d_id)
+        step_trip_list = []
 
-    # Earliest time
-    from_datetime = from_datetime + earliest_step * step_timedelta
-    limit_datetime = df.index[-1]
+        # Time increment
+        step_timedelta = timedelta(minutes=step)
 
-    if max_steps:
-        limit_datetime = from_datetime + max_steps * step_timedelta
+        # Earliest time window
+        from_datetime = df.index[0]
 
-    while True:
-        # Right time window
-        to_datetime = from_datetime + step_timedelta
-        df_slice = df[from_datetime:to_datetime]
+        # Earliest time
+        from_datetime = from_datetime + earliest_step * step_timedelta
+        limit_datetime = df.index[-1]
 
-        # Trips associated to timestep
-        trip_list = []
+        if max_steps:
+            limit_datetime = from_datetime + max_steps * step_timedelta
 
-        for i in range(0, len(df_slice) - 1):
-            # What time trip has arrived into the system
-            placement_time = df_slice.index[i]
+        while True:
+            # Right time window
+            to_datetime = from_datetime + step_timedelta
+            df_slice = df[from_datetime:to_datetime]
 
-            # How many passengers
-            passenger_count = df_slice.iloc[i]["passenger_count"]
+            # Trips associated to timestep
+            trip_list = []
 
-            # Origin id
-            pk_id = df_slice.iloc[i]["pk_id"]
+            placement_first = df_slice.index[0]
+            for i in range(0, len(df_slice) - 1):
+                # What time trip has arrived into the system
+                placement_time = df_slice.index[i]
 
-            # Destination id
-            dp_id = df_slice.iloc[i]["dp_id"]
+                # How many passengers
+                passenger_count = df_slice.iloc[i]["passenger_count"]
 
-            # Trip info tuple is added to step
-            trip_list.append(
-                (placement_time, int(passenger_count), int(pk_id), int(dp_id))
-            )
+                # Origin id
+                pk_id = df_slice.iloc[i]["pk_id"]
 
-        # Update time windows
-        from_datetime = to_datetime
+                # Destination id
+                dp_id = df_slice.iloc[i]["dp_id"]
 
-        # Sample trips in step
-        if resize_factor < 1:
-            sample_size = math.ceil(resize_factor * len(trip_list))
-            trip_list = random.sample(trip_list, k=sample_size)
+                # Trip info tuple is added to step
+                trip_list.append(
+                    (
+                        placement_time,
+                        int(passenger_count),
+                        int(pk_id),
+                        int(dp_id),
+                    )
+                )
 
-        step_trip_list.append(trip_list)
+            # Update time windows
+            from_datetime = to_datetime
 
-        # Finished processing trips
-        if from_datetime >= limit_datetime:
-            break
+            # Sample trips in step
+            if resize_factor < 1:
+                sample_size = math.ceil(resize_factor * len(trip_list))
+                trip_list = random.sample(trip_list, k=sample_size)
+
+            step_trip_list.append(trip_list)
+
+            # Finished processing trips
+            if from_datetime >= limit_datetime:
+                break
+
+        print(f"Processed finished {time.time()-t1:10.6f} seconds. Saving...")
+        t2 = time.time()
+        np.save(path_npy, step_trip_list)
+        print(f"Saved in {time.time()-t2:10.6f} seconds.")
 
     return step_trip_list
 

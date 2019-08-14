@@ -2,6 +2,7 @@ import itertools
 from mod.env.car import Car, HiredCar
 from mod.env.trip import Trip
 from mod.env.network import Point
+import mod.env.adp.AdpHired as adp
 import mod.env.network as nw
 import itertools as it
 from collections import defaultdict
@@ -12,7 +13,7 @@ from mod.env.config import FOLDER_EPISODE_TRACK
 import requests
 import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
-import mod.env.decision_utils as du
+import mod.env.decisions as du
 from copy import deepcopy
 
 np.set_printoptions(precision=2)
@@ -65,10 +66,6 @@ class AmodNetworkHired(AmodNetwork):
             Decision cost
         """
 
-        action, pos, battery, contract_duration, car_type, car_origin, o, d, sq_class = (
-            decision
-        )
-
         # Platform's profit margin is lower when using hired cars
         PROFIT_MARGIN = 1
 
@@ -78,57 +75,65 @@ class AmodNetworkHired(AmodNetwork):
 
         CONGESTION_PRICE = 0
 
-        if car_type == Car.TYPE_HIRED or car_type == Car.TYPE_TO_HIRE:
+        if (
+            decision[du.CAR_TYPE] == Car.TYPE_HIRED
+            or decision[du.CAR_TYPE] == Car.TYPE_TO_HIRE
+        ):
             PROFIT_MARGIN = self.config.profit_margin
-            RETURN_FACTOR = 2
 
-        if car_type == Car.TYPE_TO_HIRE:
+        if decision[du.CAR_TYPE] == Car.TYPE_TO_HIRE:
             CONGESTION_PRICE = self.config.congestion_price
 
-        if action == du.STAY_DECISION:
+        if decision[du.ACTION] == du.STAY_DECISION:
             # Stay
             return 0
 
-        elif action == du.TRIP_DECISION:
+        elif decision[du.ACTION] == du.TRIP_DECISION:
 
             # From car's position to trip's origin
             distance_pickup = self.get_distance(
-                self.points[pos], self.points[o]
+                self.points[decision[du.POSITION]],
+                self.points[decision[du.ORIGIN]],
             )
 
             # From trip's origin to trip's destination
-            dist_trip = self.get_distance(self.points[o], self.points[d])
-
-            # Travel cost
-            cost = self.config.get_travel_cost(
-                distance_pickup + RETURN_FACTOR * dist_trip
+            dist_trip = self.get_distance(
+                self.points[decision[du.ORIGIN]],
+                self.points[decision[du.DESTINATION]],
             )
 
+            # Travel cost
+            cost = self.config.get_travel_cost(distance_pickup + dist_trip)
+
             # Base fare + distance cost
-            revenue = self.config.calculate_fare(dist_trip, sq_class=sq_class)
+            revenue = self.config.calculate_fare(
+                dist_trip, sq_class=decision[du.SQ_CLASS]
+            )
 
             contribution = PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
 
-            # print(f"{car_type} -- total={contribution:6.2f}, cost={cost:6.2f}, profit_margin={PROFIT_MARGIN}, congestion={CONGESTION_PRICE}")
             # Profit to service trip
             return contribution
 
-        elif action == du.RECHARGE_DECISION:
+        elif decision[du.ACTION] == du.RECHARGE_DECISION:
 
             # Recharge
             cost = self.config.cost_recharge_single_increment
             return -cost
 
-        elif action == du.REBALANCE_DECISION:
+        elif decision[du.ACTION] == du.REBALANCE_DECISION:
 
             # From trip's origin to trip'scar_type
-            dist_trip = self.get_distance(self.points[o], self.points[d])
+            dist_trip = self.get_distance(
+                self.points[decision[du.ORIGIN]],
+                self.points[decision[du.DESTINATION]],
+            )
 
             # Travel cost
             cost = self.config.get_travel_cost(dist_trip)
 
             reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
-            # print(action, pos, o, d, car_type, sq_class, reb_cost)
+            # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
             return reb_cost
 
     def can_move(self, pos, waypoint, target, start, remaining_hiring_slots):
@@ -358,7 +363,14 @@ class AmodNetworkHired(AmodNetwork):
             )
 
         Returns:
-            tuple -- time_step, point, battery
+            tuple: 
+                time_step,
+                point,
+                battery_post,
+                contract_duration,
+                type_post,
+                car_origin,
+        )
         """
 
         action, point, battery, contract_duration, car_type, car_origin, o, d, _ = (
@@ -488,25 +500,14 @@ class AmodNetworkHired(AmodNetwork):
     def post_cost(self, t, decision):
 
         # Target attribute if decision was taken
-        (
-            post_t,
-            post_pos,
-            post_battery,
-            post_contract_duration,
-            post_type_car,
-            post_car_origin,
-        ) = self.preview_decision(t, decision)
+        post_state = self.preview_decision(t, decision)
+
+        if post_state[adp.adp.TIME] >= self.config.time_steps:
+            return 0
 
         # Get the post decision state estimate value based on
         # hierarchical aggregation
-        estimate = self.adp.get_weighted_value(
-            post_t,
-            post_pos,
-            post_battery,
-            post_contract_duration,
-            post_type_car,
-            post_car_origin,
-        )
+        estimate = self.adp.get_weighted_value(post_state)
 
         # Penalize long rebalancing decisions
         if (
@@ -516,50 +517,14 @@ class AmodNetworkHired(AmodNetwork):
 
             avg_busy_stay = 0
 
-            for busy_reb_t in range(t, post_t):
+            for busy_reb_t in range(t, post_state[adp.adp.TIME]):
 
-                (
-                    _,
-                    point,
-                    battery,
-                    contract_duration,
-                    car_type,
-                    car_origin,
-                    _,
-                    _,
-                    sq_class,
-                ) = decision
-
-                stay = (
-                    du.STAY_DECISION,
-                    point,
-                    battery,
-                    contract_duration,
-                    car_type,
-                    car_origin,
-                    point,
-                    point,
-                    sq_class,
-                )
+                stay = (du.STAY_DECISION,) + decision[1:]
 
                 # Target attribute if decision was taken
-                (
-                    stay_post_t,
-                    stay_post_pos,
-                    stay_post_battery,
-                    stay_post_contract_duration,
-                    stay_post_type_car,
-                    stay_post_origin_car,
-                ) = self.preview_decision(busy_reb_t, stay)
+                stay_post_state = self.preview_decision(busy_reb_t, stay)
 
-                estimate_stay = self.adp.get_weighted_value(
-                    stay_post_t,
-                    stay_post_pos,
-                    stay_post_battery,
-                    stay_post_contract_duration,
-                    stay_post_type_car,
-                    stay_post_origin_car,
-                )
+                estimate_stay = self.adp.get_weighted_value(stay_post_state)
 
                 avg_busy_stay += estimate_stay
 

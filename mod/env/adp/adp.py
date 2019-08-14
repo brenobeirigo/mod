@@ -29,12 +29,10 @@ CONTRACT_L5 = 60
 DISCARD = "-"
 DISAGGREGATE = 0
 
-adp_label_dict = {
-    DISCARD: "-",
-    DISAGGREGATE: "*",
-}
+adp_label_dict = {DISCARD: "-", DISAGGREGATE: "*"}
 AggLevel = namedtuple(
-    "AggregationLevel", "temporal, spatial, battery, contract, car_type, car_origin"
+    "AggregationLevel",
+    "temporal, spatial, battery, contract, car_type, car_origin",
 )
 
 
@@ -85,9 +83,11 @@ class Adp:
 
         # What is the value of a car attribute assuming aggregation
         # level and time steps
-        self.values = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+
+        self.values = [
+            [defaultdict(float) for g in range(len(self.aggregation_levels))]
+            for t in range(self.config.time_steps)
+        ]
 
         # How many times a cell was actually accessed by a vehicle in
         # a certain region, aggregation level, and time
@@ -609,7 +609,7 @@ class Adp:
         """Time steps in minutes"""
         # Since t start from 1, t-1 guarantee first slice is of size 2
         g_t = (t - 1) // self.temporal_levels[level]
-        return (level, g_t)
+        return g_t
 
     @functools.lru_cache(maxsize=None)
     def car_origin_level(self, car_type, car_origin, level=DISAGGREGATE):
@@ -621,27 +621,27 @@ class Adp:
             # Find attribute at level g
             origin_g = point.id_level(spatial_level)
 
-            return (spatial_level, origin_g)
+            return origin_g
 
         except:
-            return (DISCARD, DISCARD)
+            return DISCARD
 
     @functools.lru_cache(maxsize=None)
     def car_type_level(self, car_type, level=DISAGGREGATE):
 
         if level == DISAGGREGATE:
-            return (level, car_type)
+            return car_type
 
         # TODO Calculate for different levels
 
-        return (level, self.car_type_levels_dict[car_type][DISCARD])
+        return self.car_type_levels_dict[car_type][DISCARD]
 
     @functools.lru_cache(maxsize=None)
     def contract_level(self, car_type, contract_duration, level=DISAGGREGATE):
 
         try:
             time_slot = self.contract_levels_dict[car_type][level]
-            return (level, round(contract_duration / time_slot))
+            return round(contract_duration / time_slot)
 
         except:
-            return (DISCARD, self.contract_levels_dict[car_type][DISCARD])
+            return self.contract_levels_dict[car_type][DISCARD]

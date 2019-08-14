@@ -106,55 +106,63 @@ def get_sim_config(update_dict):
                 adp.AggLevel(
                     temporal=adp.DISAGGREGATE,
                     spatial=adp.DISAGGREGATE,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=adp.DISAGGREGATE,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=1,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=2,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=3,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=4,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=5,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=2,
                     spatial=6,
+                    battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
@@ -662,7 +670,7 @@ if __name__ == "__main__":
     try:
         test_label = args[0]
     except:
-        test_label = "TEST"
+        test_label = "TESTDE"
 
     hire = "-hire" in args
     log_adp = "-log_adp" in args

@@ -51,21 +51,21 @@ class AdpHired(adp.Adp):
 
         t = a_0[adp.TIME]
 
-        vf_0 = self.values[t][0].get(a_0, 0)
+        vf_0 = self.values[0].get(a_0, 0)
 
         for g in reversed(range(len(self.aggregation_levels))):
 
             a_g = self.get_state(g, disaggregate)
 
-            if a_g not in self.values[t][g]:
+            if a_g not in self.values[g]:
                 break
 
-            value_vector[g] = self.values[t][g][a_g]
+            value_vector[g] = self.values[g][a_g]
 
             # if value_vector[g] == 0:
             #     break
 
-            weight_vector[g] = self.get_weight(t, g, a_g, vf_0)
+            weight_vector[g] = self.get_weight(g, a_g, vf_0)
 
         # Normalize (weights have to sum up to one)
         weight_sum = sum(weight_vector)
@@ -98,14 +98,12 @@ class AdpHired(adp.Adp):
         # List of duals associated to tuples (level g, attribute[g])
         # The new value of an aggregate level correspond to the average
         # of these duals
-        level_update_list = defaultdict(list)
+        # level_update_list = defaultdict(list)
+        level_update = defaultdict(lambda: np.zeros(2))
 
         for a, v_ta_sampled in duals.items():
 
             disaggregate = (step,) + a
-
-            state_0 = self.get_state(0, disaggregate)
-            t = state_0[adp.TIME]
 
             # Append duals to all superior hierachical states
             for g in range(len(self.aggregation_levels)):
@@ -113,57 +111,60 @@ class AdpHired(adp.Adp):
                 a_g = self.get_state(g, disaggregate)
 
                 # Value is later used to update a_g
-                level_update_list[(t, g, a_g)].append(v_ta_sampled)
+                # level_update_list[(g, a_g)].append(v_ta_sampled)
+                g_a = (g, a_g)
+                level_update[g_a][0] += v_ta_sampled
+                level_update[g_a][1] += 1
 
                 # Update the number of times state was accessed
-                self.count[t][g][a_g] += 1
+                self.count[g][a_g] += 1
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
-                self.transient_bias[t][g][a_g] = self.get_transient_bias(
-                    self.transient_bias[t][g][a_g],
+                self.transient_bias[g][a_g] = self.get_transient_bias(
+                    self.transient_bias[g][a_g],
                     v_ta_sampled,
-                    self.values[t][g].get(a_g, 0),
+                    self.values[g].get(a_g, 0),
                     self.stepsize,
                 )
 
                 # Estimate of total squared variation,
-                self.variance_g[t][g][a_g] = self.get_variance_g(
+                self.variance_g[g][a_g] = self.get_variance_g(
                     v_ta_sampled,
-                    self.values[t][g].get(a_g, 0),
+                    self.values[g].get(a_g, 0),
                     self.stepsize,
-                    self.variance_g[t][g][a_g],
+                    self.variance_g[g][a_g],
                 )
 
         # Loop states (including disaggregate), average all values that
         # aggregate up to ta_g, and smooth average to previous value
-        for state_g, value_list_g in level_update_list.items():
+        for state_g, value_count_g in level_update.items():
 
-            t, g, a_g = state_g
+            g, a_g = state_g
 
             # Updating lambda stepsize using previous stepsizes
-            self.lambda_stepsize[t][g][a_g] = self.get_lambda_stepsize(
-                self.step_size_func[t][g][a_g], self.lambda_stepsize[t][g][a_g]
+            self.lambda_stepsize[g][a_g] = self.get_lambda_stepsize(
+                self.step_size_func[g][a_g], self.lambda_stepsize[g][a_g]
             )
 
             # Average value function considering all elements sharing
             # the same state at level g
-            v_ta_g = sum(value_list_g) / len(value_list_g)
+            v_ta_g = value_count_g[0] / value_count_g[1]
 
             # Updating value function at gth level with smoothing
-            old_v_ta_g = self.values[t][g].get(a_g, 0)
-            stepsize = self.step_size_func[t][g][a_g]
+            old_v_ta_g = self.values[g].get(a_g, 0)
+            stepsize = self.step_size_func[g][a_g]
             new_v_ta_g = (1 - stepsize) * old_v_ta_g + stepsize * v_ta_g
-            self.values[t][g][a_g] = new_v_ta_g
+            self.values[g][a_g] = new_v_ta_g
 
             # Updates ta_g stepsize
-            self.step_size_func[t][g][a_g] = self.get_stepsize(
-                self.step_size_func[t][g][a_g]
+            self.step_size_func[g][a_g] = self.get_stepsize(
+                self.step_size_func[g][a_g]
             )
 
         # Log how duals are updated
         la.log_update_values_smoothed(
-            self.config.log_path(self.n), t, level_update_list, self.values
+            self.config.log_path(self.n), step, [], self.values
         )
 
     ####################################################################
@@ -236,22 +237,19 @@ class AdpHired(adp.Adp):
     def current_data(self):
 
         adp_data = {
-            t: {
-                g: {
-                    a: (
-                        self.values[t][g][a],
-                        self.count[t][g][a],
-                        self.transient_bias[t][g][a],
-                        self.variance_g[t][g][a],
-                        self.step_size_func[t][g][a],
-                        self.lambda_stepsize[t][g][a],
-                        self.aggregation_bias[t][g][a],
-                    )
-                    for a in self.values[t][g]
-                }
-                for g in range(len(self.aggregation_levels))
+            g: {
+                a: (
+                    self.values[g][a],
+                    self.count[g][a],
+                    self.transient_bias[g][a],
+                    self.variance_g[g][a],
+                    self.step_size_func[g][a],
+                    self.lambda_stepsize[g][a],
+                    self.aggregation_bias[g][a],
+                )
+                for a in self.values[g]
             }
-            for t in range(self.config.time_steps)
+            for g in range(len(self.aggregation_levels))
         }
 
         return adp_data

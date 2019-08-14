@@ -85,13 +85,14 @@ class Adp:
         # level and time steps
 
         self.values = [
-            [defaultdict(float) for g in range(len(self.aggregation_levels))]
-            for t in range(self.config.time_steps)
+            defaultdict(float) for g in range(len(self.aggregation_levels))
         ]
 
         # How many times a cell was actually accessed by a vehicle in
         # a certain region, aggregation level, and time
-        self.count = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        self.count = [
+            defaultdict(int) for g in range(len(self.aggregation_levels))
+        ]
 
         self.current_weights = np.array([])
 
@@ -101,43 +102,45 @@ class Adp:
         # -------------------------------------------------------------#
 
         # Transient bias
-        self.transient_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.transient_bias = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
-        self.variance_g = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.variance_g = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
-        self.step_size_func = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: 1.0))
-        )
+        self.step_size_func = [
+            defaultdict(lambda: 1.0)
+            for g in range(len(self.aggregation_levels))
+        ]
 
-        self.lambda_stepsize = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: 1.0))
-        )
+        self.lambda_stepsize = [
+            defaultdict(lambda: 1.0)
+            for g in range(len(self.aggregation_levels))
+        ]
 
         # Aggregation bias
-        self.aggregation_bias = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.aggregation_bias = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
         # Estimate of the variance of observations made of state
         # s, using data from aggregation level g, after n
         # observations.
-        self.variance_error = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.variance_error = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
         # Variance of our estimate of the mean v[-,s,g,n]
-        self.variance = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.variance = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
         # Total variation (variance plus the square of the bias)
-        self.total_variation = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(float))
-        )
+        self.total_variation = [
+            defaultdict(float) for g in range(len(self.aggregation_levels))
+        ]
 
         # Set up weight track to initial conditions
         self.reset_weight_track()
@@ -160,21 +163,21 @@ class Adp:
     # Smoothed #########################################################
     ####################################################################
 
-    def get_weight(self, t, g, a, vf_0):
+    def get_weight(self, g, a, vf_0):
 
         # WEIGHTING ############################################
 
         # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-        aggregation_bias = self.values[t][g][a] - vf_0
+        aggregation_bias = self.values[g][a] - vf_0
 
         # Bias due to smoothing of transient data series (value
         # function change every iteration)
-        transient_bias = self.transient_bias[t][g][a]
+        transient_bias = self.transient_bias[g][a]
 
-        variance_g = self.variance_g[t][g][a]
+        variance_g = self.variance_g[g][a]
 
         # Lambda stepsize from iteration n-1
-        lambda_step_size = self.lambda_stepsize[t][g][a]
+        lambda_step_size = self.lambda_stepsize[g][a]
 
         # Estimate of the variance of observations made of state
         # s, using data from aggregation level g, after n
@@ -497,17 +500,16 @@ class Adp:
             f"(max={max(self.service_rate):15.2%})\n"
         )
 
-        for t_g, g_a in progress["progress"].items():
-            for g, a_saved in g_a.items():
-                for a, saved in a_saved.items():
-                    v, c, t_bias, variance, step, lam, agg_bias = saved
-                    self.values[t_g][g][a] = v
-                    self.count[t_g][g][a] = c
-                    self.transient_bias[t_g][g][a] = t_bias
-                    self.variance_g[t_g][g][a] = variance
-                    self.step_size_func[t_g][g][a] = step
-                    self.lambda_stepsize[t_g][g][a] = lam
-                    self.aggregation_bias[t_g][g][a] = agg_bias
+        for g in range(len(self.aggregation_levels)):
+            for a, saved in progress["progress"][g].items():
+                v, c, t_bias, variance, step, lam, agg_bias = saved
+                self.values[g][a] = v
+                self.count[g][a] = c
+                self.transient_bias[g][a] = t_bias
+                self.variance_g[g][a] = variance
+                self.step_size_func[g][a] = step
+                self.lambda_stepsize[g][a] = lam
+                self.aggregation_bias[g][a] = agg_bias
 
         return self.n, self.reward, self.service_rate, self.weights
 

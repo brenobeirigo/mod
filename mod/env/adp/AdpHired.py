@@ -39,12 +39,7 @@ class AdpHired(adp.Adp):
     # Smoothed #########################################################
     ####################################################################
 
-    def get_weighted_value(
-        self, t, pos, battery, contract_duration, car_type, car_origin
-    ):
-
-        # Get point object associated to position
-        point = self.points[pos]
+    def get_weighted_value(self, disaggregate):
 
         value_estimation = 0
 
@@ -52,39 +47,41 @@ class AdpHired(adp.Adp):
         weight_vector = np.zeros(len(self.aggregation_levels))
         value_vector = np.zeros(len(self.aggregation_levels))
 
-        for i, (g_time, g, g_contract, g_cartype, g_carorigin) in enumerate(
-            self.aggregation_levels
-        ):
+        state_0 = self.get_state(0, disaggregate)
+        pos_level0 = self.aggregation_levels[0][adp.LOCATION]
+        t0 = state_0[adp.TIME]
+        a0 = state_0[1:]
+        vf_0 = (
+            self.values[t0][pos_level0][a0]
+            if t0 in self.values
+            and pos_level0 in self.values[t0]
+            and a0 in self.values[t0][pos_level0]
+            else 0
+        )
 
-            # Time in level g (g_time, g_time(t))
-            t_g = self.time_step_level(t, level=g_time)
-            contract_duration_g = self.contract_level(
-                car_type, contract_duration, level=g_contract
-            )
+        for g in reversed(range(len(self.aggregation_levels))):
 
-            # Get car type at current level
-            car_type_g = self.car_type_level(car_type, level=g_cartype)
+            state_g = self.get_state(g, disaggregate)
 
-            # Get car origin at current level
-            car_origin_g = self.car_origin_level(
-                car_type, car_origin, level=g_carorigin
-            )
+            t = state_g[adp.TIME]
+            a = state_g[1:]
+            pos_level = self.aggregation_levels[g][adp.LOCATION]
 
-            # Position in level g
-            pos_g = point.id_level(g)
+            if t not in self.values:
+                break
 
-            # Find attribute at level g
-            a_g = (
-                pos_g,
-                battery,
-                contract_duration_g,
-                car_type_g,
-                car_origin_g,
-            )
+            if pos_level not in self.values[t]:
+                break
 
-            value_vector[i] = self.values[t_g][g][a_g]
+            if a not in self.values[t][pos_level]:
+                break
 
-            weight_vector[i] = self.get_weight(t_g, g, a_g)
+            value_vector[g] = self.values[t][pos_level][a]
+
+            # if value_vector[g] == 0:
+            #     break
+
+            weight_vector[g] = self.get_weight(t, pos_level, a, vf_0)
 
         # Normalize (weights have to sum up to one)
         weight_sum = sum(weight_vector)
@@ -98,7 +95,9 @@ class AdpHired(adp.Adp):
                 np.prod([weight_vector, value_vector], axis=0)
             )
 
-            self.update_weight_track(weight_vector, key=car_type)
+            self.update_weight_track(
+                weight_vector, key=disaggregate[adp.CARTYPE]
+            )
 
             # la.log_weights(
             #     self.config.log_path(self.n),
@@ -127,7 +126,8 @@ class AdpHired(adp.Adp):
             # Append duals to all superior hierachical states
             for (
                 g_time,
-                g,
+                g_location,
+                g_battery,
                 g_contract,
                 g_cartype,
                 g_carorigin,
@@ -147,7 +147,7 @@ class AdpHired(adp.Adp):
 
                 # Find attribute at level g
                 a_g = (
-                    point.id_level(g),
+                    point.id_level(g_location),
                     battery,
                     contract_duration_g,
                     car_type_g,
@@ -155,38 +155,42 @@ class AdpHired(adp.Adp):
                 )
 
                 # Value is later used to update a_g
-                level_update_list[(t_g, g, a_g)].append(v_ta_sampled)
+                level_update_list[(t_g, g_location, a_g)].append(v_ta_sampled)
 
                 # Update the number of times state was accessed
-                self.count[t_g][g][a_g] += 1
+                self.count[t_g][g_location][a_g] += 1
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
-                self.transient_bias[t_g][g][a_g] = self.get_transient_bias(
-                    self.transient_bias[t_g][g][a_g],
+                self.transient_bias[t_g][g_location][
+                    a_g
+                ] = self.get_transient_bias(
+                    self.transient_bias[t_g][g_location][a_g],
                     v_ta_sampled,
-                    self.values[t_g][g][a_g],
+                    self.values[t_g][g_location][a_g],
                     self.stepsize,
                 )
 
                 # Estimate of total squared variation,
-                self.variance_g[t_g][g][a_g] = self.get_variance_g(
+                self.variance_g[t_g][g_location][a_g] = self.get_variance_g(
                     v_ta_sampled,
-                    self.values[t_g][g][a_g],
+                    self.values[t_g][g_location][a_g],
                     self.stepsize,
-                    self.variance_g[t_g][g][a_g],
+                    self.variance_g[t_g][g_location][a_g],
                 )
 
         # Loop states (including disaggregate), average all values that
         # aggregate up to ta_g, and smooth average to previous value
         for state_g, value_list_g in level_update_list.items():
 
-            t_g, g, a_g = state_g
+            t_g, g_location, a_g = state_g
 
             # Updating lambda stepsize using previous stepsizes
-            self.lambda_stepsize[t_g][g][a_g] = self.get_lambda_stepsize(
-                self.step_size_func[t_g][g][a_g],
-                self.lambda_stepsize[t_g][g][a_g],
+            self.lambda_stepsize[t_g][g_location][
+                a_g
+            ] = self.get_lambda_stepsize(
+                self.step_size_func[t_g][g_location][a_g],
+                self.lambda_stepsize[t_g][g_location][a_g],
             )
 
             # Average value function considering all elements sharing
@@ -194,14 +198,14 @@ class AdpHired(adp.Adp):
             v_ta_g = sum(value_list_g) / len(value_list_g)
 
             # Updating value function at gth level with smoothing
-            old_v_ta_g = self.values[t_g][g][a_g]
-            stepsize = self.step_size_func[t_g][g][a_g]
+            old_v_ta_g = self.values[t_g][g_location][a_g]
+            stepsize = self.step_size_func[t_g][g_location][a_g]
             new_v_ta_g = (1 - stepsize) * old_v_ta_g + stepsize * v_ta_g
-            self.values[t_g][g][a_g] = new_v_ta_g
+            self.values[t_g][g_location][a_g] = new_v_ta_g
 
             # Updates ta_g stepsize
-            self.step_size_func[t_g][g][a_g] = self.get_stepsize(
-                self.step_size_func[t_g][g][a_g]
+            self.step_size_func[t_g][g_location][a_g] = self.get_stepsize(
+                self.step_size_func[t_g][g_location][a_g]
             )
 
         # Log how duals are updated

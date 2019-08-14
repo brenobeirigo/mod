@@ -2,6 +2,15 @@ import numpy as np
 from collections import defaultdict, namedtuple
 import functools
 
+# State indexes
+TIME = 0
+LOCATION = 1
+BATTERY = 2
+CONTRACT = 3
+CARTYPE = 4
+ORIGIN = 5
+
+attributes = [TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, ORIGIN]
 STEPSIZE_HARMONIC = "HARM"
 STEPSIZE_CONSTANT = "CONST"
 STEPSIZE_MCCLAIN = "MCCL"
@@ -20,8 +29,12 @@ CONTRACT_L5 = 60
 DISCARD = "-"
 DISAGGREGATE = 0
 
+adp_label_dict = {
+    DISCARD: "-",
+    DISAGGREGATE: "*",
+}
 AggLevel = namedtuple(
-    "AggregationLevel", "temporal, spatial, contract, car_type, car_origin"
+    "AggregationLevel", "temporal, spatial, battery, contract, car_type, car_origin"
 )
 
 
@@ -147,12 +160,12 @@ class Adp:
     # Smoothed #########################################################
     ####################################################################
 
-    def get_weight(self, t, g, a):
+    def get_weight(self, t, g, a, vf_0):
 
         # WEIGHTING ############################################
 
         # Bias due to aggregation error = v[-,a, g] - v[-, a, 0]
-        aggregation_bias = self.values[t][g][a] - self.values[t][0][a]
+        aggregation_bias = self.values[t][g][a] - vf_0
 
         # Bias due to smoothing of transient data series (value
         # function change every iteration)
@@ -306,6 +319,46 @@ class Adp:
             stepsize = 1 / self.n
 
         return stepsize
+
+    def get_state(self, g, disaggregate):
+
+        level = self.aggregation_levels[g]
+        # Get point object associated to position
+
+        # Time in level g (g_time, g_time(t))
+        t_g = self.time_step_level(disaggregate[TIME], level=level[TIME])
+
+        # Position in level g
+        point = self.points[disaggregate[LOCATION]]
+        pos_g = point.id_level(level[LOCATION])
+
+        contract_duration_g = self.contract_level(
+            disaggregate[CARTYPE],
+            disaggregate[CONTRACT],
+            level=level[CONTRACT],
+        )
+
+        # Get car type at current level
+        car_type_g = self.car_type_level(
+            disaggregate[CARTYPE], level=level[CARTYPE]
+        )
+
+        # Get car origin at current level
+        car_origin_g = self.car_origin_level(
+            disaggregate[CARTYPE], disaggregate[ORIGIN], level=level[ORIGIN]
+        )
+
+        # Find attribute at level g
+        state_g = (
+            t_g,
+            pos_g,
+            disaggregate[BATTERY],
+            contract_duration_g,
+            car_type_g,
+            car_origin_g,
+        )
+
+        return state_g
 
     def update_values_smoothed(self, t, duals):
 
@@ -474,11 +527,61 @@ class Adp:
                         self.aggregation_bias[t][g][a],
                     )
                     for a, value in a_value.items()
+                    if self.count[t][g][a] > 0
                 }
                 for g, a_value in g_a.items()
             }
             for t, g_a in self.values.items()
         }
+
+        return adp_data
+
+    @property
+    def current_data_np(self):
+
+        adp_data = {
+            tuple(t)
+            + (g,)
+            + tuple(a): np.array(
+                [
+                    value,
+                    self.count[t][g][a],
+                    self.transient_bias[t][g][a],
+                    self.variance_g[t][g][a],
+                    self.step_size_func[t][g][a],
+                    self.lambda_stepsize[t][g][a],
+                    self.aggregation_bias[t][g][a],
+                ]
+            )
+            for t, g_a in self.values.items()
+            for g, a_value in g_a.items()
+            for a, value in a_value.items()
+            if self.count[t][g][a] > 0
+        }
+
+        return adp_data
+
+    @property
+    def current_data_np2(self):
+
+        adp_data = np.array(
+            [
+                [
+                    *(t + (g,) + a),
+                    value,
+                    self.count[t][g][a],
+                    self.transient_bias[t][g][a],
+                    self.variance_g[t][g][a],
+                    self.step_size_func[t][g][a],
+                    self.lambda_stepsize[t][g][a],
+                    self.aggregation_bias[t][g][a],
+                ]
+                for t, g_a in self.values.items()
+                for g, a_value in g_a.items()
+                for a, value in a_value.items()
+                if self.count[t][g][a] > 0
+            ]
+        )
 
         return adp_data
 

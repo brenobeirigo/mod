@@ -11,6 +11,7 @@ from mod.env.car import Car
 from mod.env.network import Point
 import mod.env.network as nw
 import seaborn as sns
+import time
 
 sns.set(style="ticks")
 sns.set_context("paper")
@@ -248,6 +249,26 @@ class EpisodeLog:
 
             path = self.output_path + "/progress.npy"
 
+            # t1 = time.time()
+            # adp_data = self.adp.current_data
+            # np.save("dic.npy", adp_data)
+            # print(time.time() - t1)
+
+            # t2 = time.time()
+            # adp_data_np = self.adp.current_data_np
+            # np.save("tuple.npy", adp_data_np)
+            # print(time.time() - t2)
+
+            # t3 = time.time()
+            # adp_data_np = self.adp.data
+            # np.save("tuple_np.npy", dict(adp_data_np))
+            # print(time.time() - t3)
+
+            # t3 = time.time()
+            # adp_data_np = self.adp.current_data_np2
+            # np.save("tuple2.npy", adp_data_np)
+            # print(time.time() - t3)
+
             # For each:
             # - Time step t,
             # - Aggregation level g,
@@ -445,12 +466,13 @@ class StepLog:
     def plot_fleet_status(self, file_path=None, file_format="png", dpi=150, earliest_hour=0):
         steps = np.arange(self.n+1)
 
-        for status_label, status_count_step in self.car_statuses.items():
+        for status_code, status_count_step in self.car_statuses.items():
+            status_label = Car.status_label_dict[status_code]
             plt.plot(
                 steps,
                 status_count_step,
                 label=status_label,
-                color=self.env.config.color_fleet_status[status_label]
+                color=self.env.config.color_fleet_status[status_code]
             )
 
         matrix_status_count = np.array(list(self.car_statuses.values()))

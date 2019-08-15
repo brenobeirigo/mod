@@ -26,11 +26,19 @@ TRIP_FILES = [
 ]
 
 # Car statuses
-IDLE = "Idle"
-RECHARGING = "Recharging"
-ASSIGN = "With passenger"
-CRUISING = "Cruising"
-REBALANCE = "Rebalancing"
+IDLE = 0
+RECHARGING = 1
+ASSIGN = 2
+CRUISING = 3
+REBALANCE = 4
+
+status_label_dict = {
+    IDLE: "Idle",
+    RECHARGING: "Recharging",
+    ASSIGN: "With passenger",
+    CRUISING: "Cruising",
+    REBALANCE: "Rebalancing",
+}
 
 # Output folder
 FOLDER_OUTPUT = root + "/data/output/"
@@ -380,6 +388,11 @@ class Config:
         return self.config["TIME_PERIODS"]
 
     @property
+    def time_steps_until_termination(self):
+        """Time steps in minutes"""
+        return self.config["TIME_PERIODS_TERMINATION"]
+
+    @property
     def rows(self):
         """Number of rows in zone"""
         return self.config["ROWS"]
@@ -506,6 +519,13 @@ class Config:
             * 60
             / self.config["TIME_INCREMENT"]
             + self.config["OFFSET_TERMINATION"]
+        )
+
+        self.config["TIME_PERIODS_TERMINATION"] = int(
+            self.config["OFFSET_REPOSIONING"]
+            + self.config[Config.DEMAND_TOTAL_HOURS]
+            * 60
+            / self.config["TIME_INCREMENT"]
         )
 
         self.config[Config.BATTERY_DISTANCE_LEVEL] = (
@@ -667,6 +687,12 @@ class ConfigStandard(Config):
             self.config["OFFSET_REPOSIONING"]
             + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
             + self.config["OFFSET_TERMINATION"]
+        )
+
+        # Total number of time periods
+        self.config["TIME_PERIODS_TERMINATION"] = int(
+            self.config["OFFSET_REPOSIONING"]
+            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
         )
 
         # Step in seconds

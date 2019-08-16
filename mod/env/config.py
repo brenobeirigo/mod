@@ -287,10 +287,10 @@ class Config:
     def get_full_recharging_time(self, distance):
         """Get recharge time in relation to recharge distance
         according to recharge rate in miles/hour
-        
+
         Arguments:
             distance {float} -- miles
-        
+
         Returns:
             int, int --recharge time in minutes and time steps
         """
@@ -568,6 +568,11 @@ class Config:
             + timedelta(hours=self.config[Config.DEMAND_EARLIEST_HOUR])
             - timedelta(minutes=self.config[Config.OFFSET_REPOSIONING])
         )
+
+        # Convert levels to tuples to facilitate pickle
+        self.config[Config.AGGREGATION_LEVELS] = [
+            tuple(a) for a in self.config[Config.AGGREGATION_LEVELS]
+        ]
 
     @property
     def step_seconds(self):
@@ -1157,7 +1162,9 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
             # f"{reb_neigh}_"
             f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
-            f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h]_"
+            f"+{self.config[Config.OFFSET_REPOSIONING]}m"
+            f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h"
+            f"+{self.config[Config.OFFSET_TERMINATION]}m]_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
             f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
@@ -1178,5 +1185,5 @@ class ConfigNetwork(ConfigStandard):
 def save_json(data, file_path=None, folder=None, file_name=None):
     if not file_path:
         file_path = folder + file_name + ".json"
-    with open(file_path, 'w') as outfile:
+    with open(file_path, 'a+') as outfile:
         json.dump(data, outfile, sort_keys=True, indent=4)

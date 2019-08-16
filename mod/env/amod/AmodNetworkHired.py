@@ -458,6 +458,8 @@ class AmodNetworkHired(AmodNetwork):
         super().reset()
         self.hired_cars = []
         self.available_hired = []
+        # self.post_cost.cache_clear()
+        self.adp.weighted_values.clear()
 
     def get_fleet_stats(self):
 
@@ -497,6 +499,7 @@ class AmodNetworkHired(AmodNetwork):
             elif self.config.update_values_smoothed():
                 self.adp.update_values_smoothed(time_step, duals)
 
+    # @functools.lru_cache(maxsize=None)
     def post_cost(self, t, decision):
 
         # Target attribute if decision was taken

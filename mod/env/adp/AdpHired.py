@@ -3,6 +3,7 @@ from collections import defaultdict
 import mod.env.adp.adp as adp
 import mod.util.log_util as la
 from pprint import pprint
+import functools
 
 np.set_printoptions(precision=4)
 
@@ -35,21 +36,29 @@ class AdpHired(adp.Adp):
             stepsize_harmonic=stepsize_harmonic,
         )
 
+        self.weighted_values = dict()
+
     ####################################################################
     # Smoothed #########################################################
     ####################################################################
 
+    # @functools.lru_cache(maxsize=None)
     def get_weighted_value(self, disaggregate):
 
-        value_estimation = 0
+        value_estimation, weight_vector = self.weighted_values.get(
+            disaggregate, (0, np.zeros(len(self.aggregation_levels)))
+        )
+        if value_estimation > 0:
+            self.update_weight_track(
+                weight_vector, key=disaggregate[adp.CARTYPE]
+            )
+            return value_estimation
 
         # Calculate value estimation based on hierarchical aggregation
-        weight_vector = np.zeros(len(self.aggregation_levels))
+        # weight_vector = np.zeros(len(self.aggregation_levels))
         value_vector = np.zeros(len(self.aggregation_levels))
 
         a_0 = self.get_state(0, disaggregate)
-
-        t = a_0[adp.TIME]
 
         vf_0 = self.values[0].get(a_0, 0)
 
@@ -90,7 +99,7 @@ class AdpHired(adp.Adp):
             #     value_vector,
             #     value_estimation,
             # )
-
+        self.weighted_values[disaggregate] = (value_estimation, weight_vector)
         return value_estimation
 
     def update_values_smoothed(self, step, duals):

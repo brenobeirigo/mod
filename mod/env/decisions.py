@@ -35,6 +35,8 @@ DESTINATION = 7
 SQ_CLASS = 8
 N_DECISIONS = 9
 
+DISCARD = '-'
+
 
 def stay_decision(car):
     return (
@@ -42,7 +44,7 @@ def stay_decision(car):
         + car.attribute
         + (car.point.id,)
         + (car.point.id,)
-        + ("_",)
+        + (DISCARD,)
     )
 
 
@@ -52,7 +54,7 @@ def recharge_decision(car):
         + car.attribute
         + (car.point.id,)
         + (car.point.id,)
-        + ("_",)
+        + (DISCARD,)
     )
 
 
@@ -62,7 +64,7 @@ def rebalance_decision(car, neighbor):
         + car.attribute
         + (car.point.id,)
         + (neighbor,)
-        + ("_",)
+        + (DISCARD,)
     )
 
 

@@ -17,7 +17,7 @@ INFO = logging.INFO
 WARNING = logging.WARNING
 
 # Dictionary of available levels
-levels = {"INFO": INFO, "DEBUG": DEBUG, "WARNING":WARNING}
+levels = {"INFO": INFO, "DEBUG": DEBUG, "WARNING": WARNING}
 
 # Log options
 LOG_WEIGHTS = "LOG_WEIGHTS"
@@ -26,6 +26,7 @@ LOG_DUALS = "LOG_DUALS"
 LOG_FLEET_ACTIVITY = "LOG_FLEET_ACTIVITY"
 LOG_COSTS = "LOG_COSTS"
 LOG_SOLUTIONS = "LOG_SOLUTIONS"
+
 LOG_ALL = "log_all"
 LEVEL_FILE = "level_file"
 LEVEL_CONSOLE = "level_console"

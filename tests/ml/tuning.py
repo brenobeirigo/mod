@@ -53,6 +53,7 @@ config_adp = {
 }
 
 
+
 def test_all(
     tuning_labels, tuning_params, update_dict, all_settings, exp_list
 ):
@@ -157,59 +158,39 @@ if __name__ == "__main__":
         ],
         Config.AGGREGATION_LEVELS: [
             [
-                (0, 0, 0, 0, 0),
-                (0, 1, 0, 0, 0),
-                (0, 2, 0, 0, 0),
-                (0, 3, 0, 0, 0),
-                (0, 4, 0, 0, 0),
-                (0, 5, 0, 0, 0),
-                (0, 6, 0, 0, 0),
+                (0, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
             ],
             [
-                (0, 0, 0, 0, 0),
-                (2, 0, 0, 0, 0),
-                (2, 1, 0, 0, 0),
-                (2, 2, 0, 0, 0),
-                (2, 3, 0, 0, 0),
-                (2, 4, 0, 0, 0),
-                (2, 5, 0, 0, 0),
-                (2, 6, 0, 0, 0),
-            ],
-            [
-                (0, 0, 0, 0, 0),
-                (2, 0, 0, 0, 0),
-                (2, 1, 0, 0, 0),
-                (2, 2, 0, 0, 0),
-                (2, 3, 0, 0, 0),
-                (2, 4, 0, 0, 0),
-                (2, 5, 0, 0, 0),
-                (2, 6, 0, 0, 0),
-            ],
-            [
-                (0, 0, 0, 0, 0),
-                (3, 0, 0, 0, 0),
-                (3, 1, 0, 0, 0),
-                (3, 2, 0, 0, 0),
-                (3, 3, 0, 0, 0),
-                (3, 4, 0, 0, 0),
-                (3, 5, 0, 0, 0),
-                (3, 6, 0, 0, 0),
+                (0, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (0, 2, 0, 0, 0, 0),
             ],
         ],
     }
 
     shared_settings = {
         Config.TEST_LABEL: test_label,
-        Config.OFFSET_REPOSIONING: 15,
-        Config.OFFSET_TERMINATION: 30,
-        Config.CONTRACT_DURATION_LEVEL: 2,
-        Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
-        Config.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
+        Config.DISCOUNT_FACTOR: 1,
         Config.PENALIZE_REBALANCE: True,
+        Config.FLEET_SIZE: 100,
+        Config.DEMAND_RESIZE_FACTOR: 0.1,
+        Config.DEMAND_SAMPLING: True,
+        Config.OFFSET_REPOSIONING: 15,
+        Config.OFFSET_TERMINATION: 45,
+        Config.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
+        Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
     }
 
+    # Creating folders to log episodes
+    if not os.path.exists(conf.FOLDER_TUNING):
+        os.makedirs(conf.FOLDER_TUNING)
+
     conf.save_json(
-        dict(tuning_settings=tuning_params, shared_settings=shared_settings),
+        dict(
+            tuning_settings=tuning_params,
+            shared_settings=shared_settings
+        ),
         folder=conf.FOLDER_TUNING,
         file_name=test_label,
     )

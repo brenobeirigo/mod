@@ -70,7 +70,7 @@ def get_sim_config(update_dict):
             # Time - Increment (min)
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.OFFSET_TERMINATION: 30,
+            ConfigNetwork.OFFSET_TERMINATION: 60,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -111,22 +111,22 @@ def get_sim_config(update_dict):
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=adp.DISAGGREGATE,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=1,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=adp.DISAGGREGATE,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=1,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 adp.AggLevel(
                     temporal=2,
                     spatial=2,
@@ -135,30 +135,30 @@ def get_sim_config(update_dict):
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=3,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=4,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=5,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=3,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=4,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=5,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 adp.AggLevel(
                     temporal=2,
                     spatial=6,
@@ -373,7 +373,7 @@ def alg_adp(
     save_progress=True,
     log_config_dict={},
     log_mip=False,
-    linearize_model=True,
+    linearize_model=False,
     use_artificial_duals=True,
 ):
     # ---------------------------------------------------------------- #
@@ -580,11 +580,15 @@ def alg_adp(
                 # If True, does not use learned information
                 myopic=is_myopic,
                 # # Save mip .lp and .log of iteration n
-                log_iteration=(n if log_mip else None),
+                iteration=n,
+                log_mip=log_mip,
                 # # Use hierarchical aggregation to update values
                 use_artificial_duals=use_artificial_duals,
                 linearize_model=linearize_model,
+                log_times=False,
             )
+            # else:
+            #     revenue, serviced, rejected = 0, [], []
 
             # What each vehicle is doing?
             la.log_fleet_activity(
@@ -655,6 +659,10 @@ def alg_adp(
             f"- {episode_log.last_episode_stats()} "
             f"#######"
         )
+
+        print(len(amod.adp.weighted_values))
+        # print(amod.post_cost.cache_info())
+        print(amod.adp.get_state.cache_info())
 
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()

@@ -10,6 +10,8 @@ from mod.env.car import Car, HiredCar
 import mod.util.log_util as la
 import mod.env.decisions as du
 import itertools
+import pandas as pd
+import time
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION, SQ_CLASS)
@@ -293,7 +295,9 @@ def get_artificial_duals(env, time_step, attribute_trips_dict):
                 virtual_car = Car(rc_point_g)
 
                 # Time to reach trip origin
-                travel_time = env.get_travel_time_od(virtual_car.point, t.o, unit="min")
+                travel_time = env.get_travel_time_od(
+                    virtual_car.point, t.o, unit="min"
+                )
 
                 # Can the car reach the trip origin?
                 if travel_time <= t.max_delay:
@@ -355,12 +359,15 @@ def service_trips(
     time_step,
     charge=True,
     myopic=False,
-    log_iteration=None,
+    iteration=None,
+    log_mip=False,
     sq_guarantee=False,
     universal_service=False,
     use_artificial_duals=True,
     linearize_model=True,
+    log_times=True,
 ):
+    t1_total = time.time()
 
     logger_name = env.config.log_path(env.adp.n)
     logger = la.get_logger(logger_name)
@@ -400,15 +407,11 @@ def service_trips(
     m = Model("assignment")
 
     # Log steps of current episode
-    if log_iteration is not None:
+    if log_mip:
 
         m.setParam("LogToConsole", 0)
-        folder_epi_log = (
-            f"{env.config.folder_mip_log}episode_{log_iteration:04}/"
-        )
-        folder_epi_lp = (
-            f"{env.config.folder_mip_lp}episode_{log_iteration:04}/"
-        )
+        folder_epi_log = f"{env.config.folder_mip_log}episode_{iteration:04}/"
+        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{iteration:04}/"
 
         if not os.path.exists(folder_epi_log):
             os.makedirs(folder_epi_log)
@@ -427,20 +430,19 @@ def service_trips(
         m.setParam("Seed", 1)
 
         # https://www.gurobi.com/documentation/8.1/refman/method.html#parameter:Method
-        # -1=automatic, 0=primal simplex, 
-        # 1=dual simplex, 
-        # 2=barrier, 
-        # 3=concurrent, 
-        # 4=deterministic concurrent, 
+        # -1=automatic, 0=primal simplex,
+        # 1=dual simplex,
+        # 2=barrier,
+        # 3=concurrent,
+        # 4=deterministic concurrent,
         # 5=deterministic concurrent simplex.
         m.setParam("Method", 1)
-        
+
         # https://www.gurobi.com/documentation/8.1/refman/mipfocus.html
         # If you are more interested in finding feasible solutions quickly, you can select MIPFocus=1.
         # If you believe the solver is having no trouble finding good quality solutions, and wish to focus more attention on proving optimality, select MIPFocus=2.
-        # If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound. 
+        # If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound.
         m.setParam("MIPFocus", 1)
-
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -484,11 +486,13 @@ def service_trips(
         f"available cars={len(env.available)+len(env.available_hired)})"
     )
 
+    t1_decisions = time.time()
     decision_cars, decision_class = du.get_decisions(
         env,
         trips,
         # max_battery_level=env.config.battery_levels,
     )
+    t_decisions = time.time() - t1_decisions
 
     logger.debug(f"  - Decision count: {len(decision_cars)}")
 
@@ -524,13 +528,15 @@ def service_trips(
     # Model has learned shadow costs from previous iterations and can
     # use them to determine post decision costs.
     else:
+        t1_setup_costs_post = time.time()
         post_decision_costs = quicksum(
             (env.post_cost(time_step, d) * x_var[d]) for d in x_var
         )
-
+        t_setup_costs_post = time.time() - t1_setup_costs_post
+    t1_setup_costs = time.time()
     # Cost of current decision
     present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
-
+    t_setup_costs = time.time() - t1_setup_costs
     # Privilege trip decisions
     # trip_decisions = itertools.chain.from_iterable(decision_class.values())
     # extra_trip_weight = quicksum(BIG_M * x_var[d] for d in trip_decisions)
@@ -547,7 +553,7 @@ def service_trips(
     # ---------------------------------------------------------------- #
     # CONSTRAINTS ######################################################
     # ---------------------------------------------------------------- #
-
+    t1_setup_constraints = time.time()
     # Car flow conservation
     flow_cars_dict = car_flow_constr(m, x_var, attribute_cars_dict)
 
@@ -567,8 +573,10 @@ def service_trips(
         car_recharge_dict = recharge_constrs(
             m, x_var, attribute_cars_dict, max_battery
         )
-
+    t_setup_constraints = time.time() - t1_setup_constraints
+    t1_optimize = time.time()
     m.optimize()
+    t_optimize = time.time() - t1_optimize
 
     if m.status == GRB.Status.UNBOUNDED:
         print("The model cannot be solved because it is unbounded")
@@ -611,44 +619,81 @@ def service_trips(
                         "### Difference original model and relaxed: "
                         f"{m_old.objVal - m.objVal:6.2f}"
                     )
-
+                t1_duals = time.time()
                 # Extracting shadow prices from car flow constraints
                 duals = extract_duals(m, flow_cars_dict, ignore_zeros=True)
+                t_duals = time.time() - t1_duals
 
                 # Log duals
                 la.log_duals(logger_name, duals)
 
+                t1_update = time.time()
                 # Use dictionary of duals to update value functions
                 env.update_vf(duals, time_step)
+                t_update = time.time() - t1_update
 
             except Exception as e:
                 logger.debug(
                     f"Can't extract duals. Exception: '{e}'.", exc_info=True
                 )
 
+        t1_realize_decision = time.time()
         reward, serviced, rejected = env.realize_decision(
             time_step,
             best_decisions,
             attribute_trips_dict,
             attribute_cars_dict,
         )
-        
+
+        t_realize_decision = time.time() - t1_realize_decision
+
         # Add artificial value functions to each lost demand
         if use_artificial_duals:
 
+            t1_artificial_duals = time.time()
             # realize_decision modifies attribute_trips_dict leaving
             # only the trips that were not fulfilled (per od)
             artificial_duals = get_artificial_duals(
                 env, time_step, attribute_trips_dict
             )
+            t_artificial_duals = time.time() - t1_artificial_duals
 
+            t1_update_vf_artificial = time.time()
             # Use dictionary of duals to update value functions
             env.update_vf(artificial_duals, time_step)
+            t_update_vf_artificial = time.time() - t1_update_vf_artificial
 
             logger.debug(
                 "### Objective Function - "
                 f"{m.objVal:6.2f} X {reward:6.2f}"
                 " - Decision reward"
+            )
+
+        t_total = time.time() - t1_total
+
+        if log_times:
+            time_dict = {
+                "iteration": [iteration],
+                "decisions": [t_decisions],
+                "duals": [t_duals],
+                "realize_decision": [t_realize_decision],
+                "update_vf": [t_update],
+                "setup_costs": [t_setup_costs],
+                "setup_costs_post": [t_setup_costs_post],
+                "setup_constraints": [t_setup_constraints],
+                "optimize": [t_optimize],
+                "arficial duals": [t_artificial_duals],
+                "update_artificial": [t_update_vf_artificial],
+                "total": [t_total],
+            }
+
+            times_path = f"{env.config.folder_adp_log}times.csv"
+            df = pd.DataFrame(time_dict)
+            df.to_csv(
+                times_path,
+                header=(not os.path.exists(times_path)),
+                mode="a",
+                index=False,
             )
 
         return reward, serviced, rejected

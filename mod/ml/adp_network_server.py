@@ -373,6 +373,8 @@ def alg_adp(
     save_progress=True,
     log_config_dict={},
     log_mip=False,
+    # If True, saves time details in file times.csv
+    log_times=False,
     linearize_model=False,
     use_artificial_duals=True,
 ):
@@ -585,7 +587,7 @@ def alg_adp(
                 # # Use hierarchical aggregation to update values
                 use_artificial_duals=use_artificial_duals,
                 linearize_model=linearize_model,
-                log_times=False,
+                log_times=log_times,
             )
             # else:
             #     revenue, serviced, rejected = 0, [], []
@@ -660,9 +662,10 @@ def alg_adp(
             f"#######"
         )
 
-        print(len(amod.adp.weighted_values))
-        # print(amod.post_cost.cache_info())
-        print(amod.adp.get_state.cache_info())
+        # If True, saves time details in file times.csv
+        if log_times:
+            print(len(amod.adp.weighted_values))
+            print(amod.adp.get_state.cache_info())
 
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()

@@ -3,23 +3,38 @@ class Car:
     # All cars
     count = 0
 
-    IDLE = "Idle"
-    RECHARGING = "Recharging"
-    ASSIGN = "With passenger"
-    CRUISING = "Cruising"
-    REBALANCE = "Rebalancing"
+    IDLE = 0
+    RECHARGING = 1
+    ASSIGN = 2
+    CRUISING = 3
+    REBALANCE = 4
 
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
 
-    TYPE_FLEET = "AV"
-    TYPE_HIRED = "FV"
-    TYPE_TO_HIRE = "HIRE"
-
-    DISCARD = "-"
+    TYPE_FLEET = 0
+    TYPE_HIRED = 1
+    TYPE_TO_HIRE = 2
 
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
+
+    DISCARD = "-"
+    INFINITE_CONTRACT_DURATION = "Inf"  # - 2
+
+    status_label_dict = {
+        IDLE: "Idle",
+        RECHARGING: "Recharging",
+        ASSIGN: "With passenger",
+        CRUISING: "Cruising",
+        REBALANCE: "Rebalancing",
+    }
+
+    type_label_dict = {
+        TYPE_FLEET: "AV",
+        TYPE_HIRED: "FV",
+        TYPE_TO_HIRE: "HIRE",
+    }
 
     status_list = [
         IDLE,
@@ -29,7 +44,7 @@ class Car:
         CRUISING,
     ]
 
-    INFINITE_CONTRACT_DURATION = "Inf"
+    adp_label_dict = {DISCARD: "-", INFINITE_CONTRACT_DURATION: "Inf"}
 
     def __init__(self, o):
         self.id = Car.count
@@ -99,7 +114,7 @@ class Car:
             trip = ""
 
         status = (
-            f"{self.label}[{self.status:>15}]"
+            f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
             f" - Previous arrival: {self.previous_arrival:>6.2f}"
             f" - Arrival: {self.arrival_time:>6.2f}"
             f"(step={self.step:>5})"
@@ -472,7 +487,7 @@ class ElectricCar(Car):
             )
 
         status = (
-            f"{self.label}[{self.status:>15}]"
+            f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
             f" - Previous arrival: {self.previous_arrival:>6.2f}"
             f" - Arrival: {self.arrival_time:>6.2f}"
             f"(step={self.step:>5})"

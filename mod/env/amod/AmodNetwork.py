@@ -14,7 +14,7 @@ import functools
 
 from mod.env.amod.Amod import Amod
 import mod.env.decision_utils as du
-from mod.env.adp.AdpHired import AdpHired
+from mod.env.adp.AdpHiredVector import AdpHired
 
 port = 4999
 url = f"http://localhost:{port}"

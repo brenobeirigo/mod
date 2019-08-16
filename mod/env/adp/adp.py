@@ -323,6 +323,7 @@ class Adp:
 
         return stepsize
 
+    @functools.lru_cache(maxsize=None)
     def get_state(self, g, disaggregate):
 
         level = self.aggregation_levels[g]
@@ -516,25 +517,21 @@ class Adp:
     @property
     def current_data(self):
 
-        adp_data = {
-            t: {
-                g: {
-                    a: (
-                        value,
-                        self.count[t][g][a],
-                        self.transient_bias[t][g][a],
-                        self.variance_g[t][g][a],
-                        self.step_size_func[t][g][a],
-                        self.lambda_stepsize[t][g][a],
-                        self.aggregation_bias[t][g][a],
-                    )
-                    for a, value in a_value.items()
-                    if self.count[t][g][a] > 0
-                }
-                for g, a_value in g_a.items()
+        adp_data = [
+            {
+                a: (
+                    value,
+                    self.count[g][a],
+                    self.transient_bias[g][a],
+                    self.variance_g[g][a],
+                    self.step_size_func[g][a],
+                    self.lambda_stepsize[g][a],
+                    self.aggregation_bias[g][a],
+                )
+                for a, value in a_value.items()
             }
-            for t, g_a in self.values.items()
-        }
+            for g, a_value in enumerate(self.values)
+        ]
 
         return adp_data
 

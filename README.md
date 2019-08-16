@@ -28,3 +28,10 @@ Decorate the function you would like to profile with `@profile` and execute pass
 ## Printing functools
 
 print(amod.cost_func.cache_info())
+
+## Installing cython
+
+https://wiki.python.org/moin/WindowsCompilers
+
+Execution:
+`python setup.py build_ext --inplace`

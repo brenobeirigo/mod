@@ -722,15 +722,16 @@ if __name__ == "__main__":
 
     log_config = {
         la.LOG_DUALS: True,
-        la.LOG_FLEET_ACTIVITY: True,
-        la.LOG_VALUE_UPDATE: True,
-        la.LOG_COSTS: True,
+        la.LOG_FLEET_ACTIVITY: False,
+        la.LOG_VALUE_UPDATE: False,
+        la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: True,
         la.LOG_WEIGHTS: False,
         la.LOG_ALL: log_adp,
         la.LOG_LEVEL: (log_level if not log_adp else la.DEBUG),
         la.LEVEL_FILE: la.DEBUG,
         la.LEVEL_CONSOLE: la.INFO,
+        la.FORMATTER_FILE: la.FORMATTER_TERSE,
     }
 
     alg_adp(
@@ -745,6 +746,6 @@ if __name__ == "__main__":
         log_mip=log_mip,
         save_plots=save_plots,
         save_progress=save_progress,
-        linearize_model=False,
-        use_artificial_duals=False,
+        linearize_model=True,
+        use_artificial_duals=True,
     )

@@ -31,6 +31,7 @@ LOG_ALL = "log_all"
 LEVEL_FILE = "level_file"
 LEVEL_CONSOLE = "level_console"
 LOG_LEVEL = "log_level"
+FORMATTER_FILE = "formatter_file"
 
 # Save all logs for all iterations
 log_dict = dict()
@@ -46,13 +47,13 @@ def get_console_handler():
 ch = get_console_handler()
 
 
-def get_file_handler(log_file, mode="w"):
+def get_file_handler(log_file, mode="w", formatter=FORMATTER_VERBOSE):
     file_handler = logging.FileHandler(log_file, mode=mode)
-    file_handler.setFormatter(FORMATTER)
+    file_handler.setFormatter(formatter)
     return file_handler
 
 
-def create_logger(name, log_level, level_file, level_console, log_file):
+def create_logger(name, log_level, level_file, level_console, log_file, formatter_file=FORMATTER_VERBOSE):
 
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
@@ -63,7 +64,7 @@ def create_logger(name, log_level, level_file, level_console, log_file):
 
     # Only add file handler if level == DEBUG
     if log_level == DEBUG:
-        fh = get_file_handler(log_file)
+        fh = get_file_handler(log_file, formatter=formatter_file)
         fh.setLevel(level_file)
         logger.addHandler(fh)
 
@@ -428,6 +429,7 @@ class LogAux:
         level_file,
         level_console,
         log_file,
+        formatter_file=FORMATTER_VERBOSE,
         LOG_WEIGHTS=True,
         LOG_VALUE_UPDATE=True,
         LOG_DUALS=True,
@@ -445,7 +447,7 @@ class LogAux:
         self.LOG_COSTS = LOG_COSTS and log_all
         self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS and log_all
         self.logger = create_logger(
-            logger_name, log_level, level_file, level_console, log_file
+            logger_name, log_level, level_file, level_console, log_file, formatter_file=formatter_file
         )
 
 
@@ -455,6 +457,7 @@ def get_logger(
     level_file=DEBUG,
     level_console=INFO,
     log_file="traces.log",
+    formatter_file=FORMATTER_VERBOSE,
     LOG_WEIGHTS=False,
     LOG_VALUE_UPDATE=False,
     LOG_DUALS=False,
@@ -474,6 +477,7 @@ def get_logger(
             level_file,
             level_console,
             log_file,
+            formatter_file=formatter_file,
             LOG_WEIGHTS=LOG_WEIGHTS,
             LOG_VALUE_UPDATE=LOG_VALUE_UPDATE,
             LOG_DUALS=LOG_DUALS,

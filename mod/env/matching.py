@@ -164,8 +164,11 @@ def linearize(model):
     Gurobi Model
         MIP relaxed (re-optimized)
     """
-
     linear = model.fixed()
+
+    for x in linear.getVars():
+        x.vtype = GRB.CONTINUOUS
+
     # Turn off presolve
     linear.Params.presolve = 0
 

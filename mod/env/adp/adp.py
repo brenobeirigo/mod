@@ -495,7 +495,7 @@ class Adp:
 
         print(
             f"\n### Loading {self.n} episodes from '{path}'."
-            f"\n -       Last reward: {self.reward[self.n-1]:15,.2f} "
+            f"\n -       Last reward: {self.reward[self.n-1]:15.2f} "
             f"(max={max(self.reward):15,.2f})"
             f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
             f"(max={max(self.service_rate):15.2%})\n"

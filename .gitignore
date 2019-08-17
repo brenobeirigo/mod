@@ -20,3 +20,6 @@
 
 # Results
 data/output/
+
+# Tuning settings
+data/input/tuning/

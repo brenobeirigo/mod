@@ -198,7 +198,6 @@ class AdpHired(adp.Adp):
             self.config.log_path(self.n), step, [], self.values
         )
 
-
     def get_weight(self, g, a, vf_0):
 
         # WEIGHTING ############################################
@@ -305,3 +304,39 @@ class AdpHired(adp.Adp):
         adp_data = [dict(level_values) for level_values in self.values]
 
         return adp_data
+
+    def read_progress(self, path):
+        """Load episodes learned so farD
+
+        Returns:
+            values, counts -- Value functions and count per aggregation
+                level.
+        """
+
+        progress = np.load(path, allow_pickle=True).item()
+
+        self.n = progress.get("episodes", list())
+        self.reward = progress.get("reward", list())
+        self.service_rate = progress.get("service_rate", list())
+        self.weights = progress.get("weights", list())
+        self.values = [
+            defaultdict(lambda: [0, 0, 0, 0, 1, 1])
+            for g in range(len(self.aggregation_levels))
+        ]
+        adp_progress = progress.get("progress")
+        for g, dic in enumerate(adp_progress):
+            self.values[g].update(dic)
+        count_level = " - ".join(
+            [f"{len(dic)}({g})" for g, dic in enumerate(adp_progress)]
+        )
+
+        print(
+            f"\n### Loading {self.n} episodes from '{path}'."
+            f"\n -       Last reward: {self.reward[self.n-1]:15.2f} "
+            f"(max={max(self.reward):15,.2f})"
+            f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
+            f"(max={max(self.service_rate):15.2%})"
+            f"\n -   Count per level:           {count_level}"
+        )
+
+        return self.n, self.reward, self.service_rate, self.weights

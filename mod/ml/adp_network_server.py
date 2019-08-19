@@ -365,7 +365,7 @@ def alg_adp(
     save_plots=True,
     # Save .csv files for each iteration with fleet and demand statuses
     # throughtout all time steps
-    save_df=False,
+    save_df=True,
     # Save total reward, total service rate, and weights after iteration
     save_overall_stats=True,
     # Update value functions (dictionary in progress.npy file)
@@ -375,7 +375,7 @@ def alg_adp(
     log_mip=False,
     # If True, saves time details in file times.csv
     log_times=False,
-    linearize_model=False,
+    linearize_integer_model=False,
     use_artificial_duals=True,
 ):
     # ---------------------------------------------------------------- #
@@ -509,7 +509,7 @@ def alg_adp(
                 # Create trip dictionary of coordinates
                 plot_track.trips_dict[step] = vi.compute_trips(trips)
 
-            if save_plots:
+            if save_plots or save_df:
                 logger.debug("  - Computing fleet status...")
                 # Compute fleet status after making decision in step - 1
                 # What each car is doing when trips are arriving?
@@ -574,7 +574,7 @@ def alg_adp(
                 # Service step (+1 trip placement step)
                 step + 1,
                 # Guarantee lowest pickup delay for a share of users
-                sq_guarantee=sq_guarantee,
+                # sq_guarantee=sq_guarantee,
                 # All users are picked up
                 universal_service=universal_service,
                 # Allow recharging
@@ -586,7 +586,7 @@ def alg_adp(
                 log_mip=log_mip,
                 # # Use hierarchical aggregation to update values
                 use_artificial_duals=use_artificial_duals,
-                linearize_model=linearize_model,
+                # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
             )
             # else:
@@ -688,6 +688,7 @@ if __name__ == "__main__":
     log_mip = "-log_mip" in args
     save_plots = "-save_plots" in args
     save_progress = "-save_progress" in args
+    save_df = "-save_df" in args
 
     try:
         iterations = args.index("-n")
@@ -699,7 +700,7 @@ if __name__ == "__main__":
         fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
         fleet_size = int(args[fleet_size_i + 1])
     except:
-        fleet_size = 1
+        fleet_size = 10
 
     try:
         log_level_i = args.index("-level")
@@ -717,6 +718,10 @@ if __name__ == "__main__":
             ConfigNetwork.FLEET_SIZE: fleet_size,
             ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
             ConfigNetwork.DEMAND_SAMPLING: True,
+            ConfigNetwork.SQ_GUARANTEE: False,
+            ConfigNetwork.MAX_CARS_LINK: 5,
+            ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
+            ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
         }
     )
 
@@ -746,6 +751,6 @@ if __name__ == "__main__":
         log_mip=log_mip,
         save_plots=save_plots,
         save_progress=save_progress,
-        linearize_model=True,
-        use_artificial_duals=True,
+        save_df=save_df,
+        use_artificial_duals=start_config.use_artificial_duals,
     )

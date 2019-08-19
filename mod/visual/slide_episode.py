@@ -33,13 +33,13 @@ update_rate = 5 * 1000 * 60  # 5 min
 axes_font_size = "20px"
 label_font_size = "20px"
 title_font_size = "20px"
-smooth_sigma_demand = 1
-smooth_sigma_fleet = 1
+smooth_sigma_demand = 0
+smooth_sigma_fleet = 0
 
 
 doc = curdoc()
 
-exp_name = "DEBUG_LIN_cars=0010(L)_levels[8]=(1-0, 3-0, 3-30, 3-60, 3-120, 3-150, 3-240, 3-600)_rebal=(0-4, 1-4, 2-4, 3-2, 4-2, 5-1, 6-1)[P(05)]_[05h,+15m+04h+60m]_0.10(S)_1.00_0.10"
+exp_name = "REB_T_LIN_cars=0100(L)_levels[8]=(1-0, 3-0, 3-30, 3-60, 3-120, 3-150, 3-240, 3-600)_rebal=(0-4, 1-4, 2-4, 3-2, 4-2, 5-1, 6-1)[P(05)]_[05h,+15m+04h+60m]_0.10(S)_1.00_0.10"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -274,7 +274,7 @@ def load_episode_demand(e, smooth_sigma=0):
 def show_fleet_status(episode):
     """Update line chart with the car count per status and time step for
     episode e.
-    
+
     Parameters
     ----------
     e : int
@@ -297,7 +297,7 @@ def show_fleet_status(episode):
 def show_demand_status(episode):
     """Update line chart with the car count per status and time step for
     episode e.
-    
+
     Parameters
     ----------
     e : int

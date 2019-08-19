@@ -24,7 +24,7 @@ random.seed(1)
 class AmodNetworkHired(AmodNetwork):
     def __init__(self, config, car_positions=[]):
         """Street network Amod environment with third-party hired fleet
-        
+
         Parameters
         ----------
         Amod : Environment parent class
@@ -235,9 +235,12 @@ class AmodNetworkHired(AmodNetwork):
 
                 elif action == du.REBALANCE_DECISION:
                     # Rebalancing #################################### #
-                    total_duration, total_duration_steps, total_distance, reward = self.rebalance(
-                        car, self.points[d]
-                    )
+                    (
+                        total_duration,
+                        total_duration_steps,
+                        total_distance,
+                        reward,
+                    ) = self.rebalance(car, self.points[d])
 
                     car.move(
                         total_duration,
@@ -506,7 +509,7 @@ class AmodNetworkHired(AmodNetwork):
         post_state = self.preview_decision(t, decision)
 
         if post_state[adp.adp.TIME] >= self.config.time_steps:
-            return 0
+            return 0, post_state
 
         # Get the post decision state estimate value based on
         # hierarchical aggregation
@@ -520,30 +523,41 @@ class AmodNetworkHired(AmodNetwork):
 
             avg_busy_stay = 0
 
-            for busy_reb_t in range(t, post_state[adp.adp.TIME]):
+            post_time = post_state[adp.adp.TIME]
 
-                stay = (du.STAY_DECISION,) + decision[1:]
+            # Rebalancing is longer than one time step
+            if post_time > t:
 
-                # Target attribute if decision was taken
-                stay_post_state = self.preview_decision(busy_reb_t, stay)
+                for busy_reb_t in range(t, post_state[adp.adp.TIME]):
 
-                estimate_stay = self.adp.get_weighted_value(stay_post_state)
+                    stay = (du.STAY_DECISION,) + decision[1:]
 
-                avg_busy_stay += estimate_stay
+                    # Target attribute if decision was taken
+                    stay_post_state = self.preview_decision(busy_reb_t, stay)
 
-            if avg_busy_stay > 0:
+                    estimate_stay = self.adp.get_weighted_value(
+                        stay_post_state
+                    )
 
-                # avg_stay = avg_busy_stay / (post_t - t + 1)
-                # avg_stay = avg_busy_stay
-                # print(
-                #     f"t:{t} - post_t={post_t} - Stay: {np.arange(t + 1, post_t+1)} = {avg_busy_stay} (avg={avg_stay:6.2f}, previous={estimate:6.2f}, new={estimate-avg_stay:6.2f}"
-                # )
-                # Discount the average contribution that would have
-                # been gained if the car stayed still instead of
-                # rebalancing
-                estimate = max(0, estimate - avg_busy_stay)
+                    avg_busy_stay += estimate_stay
 
-        return estimate
+                if avg_busy_stay > 0:
+
+                    # avg_stay = avg_busy_stay / (post_t - t + 1)
+                    # avg_stay = avg_busy_stay
+                    # print(
+                    #     f"t:{t} - post_t={post_t} - "
+                    #     f"Stay: {np.arange(t + 1, post_t+1)} = "
+                    #     f"{avg_busy_stay} (avg={avg_stay:6.2f}, "
+                    #     f"previous={estimate:6.2f}, "
+                    #     f"new={estimate-avg_stay:6.2f}"
+                    # )
+                    # Discount the average contribution that would have
+                    # been gained if the car stayed still instead of
+                    # rebalancing
+                    estimate = max(0, estimate - avg_busy_stay)
+
+        return estimate, post_state
 
     def get_car_status_list(self, filter_status=[]):
 

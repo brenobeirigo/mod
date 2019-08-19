@@ -9,9 +9,11 @@ from mod.env.trip import ClassedTrip
 from mod.env.car import Car, HiredCar
 import mod.util.log_util as la
 import mod.env.decisions as du
+import mod.env.adp.adp as adp
 import itertools
 import pandas as pd
 import time
+from copy import deepcopy
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION, SQ_CLASS)
@@ -31,6 +33,48 @@ N_DECISIONS = 9
 # #################################################################### #
 # CONSTRAINTS ######################################################## #
 # #################################################################### #
+
+
+def optimize_and_fix_fractional_vars(m, logger=None):
+
+    def sortkey(v1):
+        """Key function used to sort variables based on relaxation
+        fractionality"""
+
+        sol = v1.x
+        return abs(sol-int(sol+0.5))
+
+    m.optimize()
+
+    for i in range(1000):
+
+        # Create a list of fractional variables, sorted in order of
+        # increasing distance from the relaxation solution to the
+        # nearest integer value
+
+        fractional = []
+        for v in m.getVars():
+            sol = v.x
+            if abs(sol - int(sol+0.5)) > 1e-5:
+                fractional += [v]
+
+        if len(fractional) == 0:
+            break
+
+        fractional.sort(key=sortkey)
+
+        # Fix the first quartile to the nearest integer value
+        logger.log(f'Iteration {i}, obj {m.objVal}, fractional {len(fractional)}')
+
+        nfix = max(int(len(fractional)/4), 1)
+        for i in range(nfix):
+            v = fractional[i]
+            fixval = int(v.x+0.5)
+            v.lb = fixval
+            v.ub = fixval
+            logger.log(f'  Fix {v.varName} to {fixval} (rel {v.x})')
+
+        m.optimize()
 
 
 def car_flow_constr(m, x_var, attribute_cars_dict):
@@ -90,6 +134,18 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
         )
 
     return car_recharge_dict
+
+
+def max_cars_link_constrs(m, x_var, decisions, max_cars_link=5):
+
+    flood_avoidance_constrs = dict()
+    for time_location, decision_list in decisions.items():
+        sum_decisions = quicksum([x_var[d] for d in decision_list])
+        flood_avoidance_constrs[time_location] = m.addConstr(
+            sum_decisions <= max_cars_link, f"TRIP_FLOW_CLASS_{time_location}"
+        )
+
+    return flood_avoidance_constrs
 
 
 def sq_constrs(m, x_var, decision_class, class_count_dict):
@@ -180,7 +236,7 @@ def linearize(model):
     return linear
 
 
-def extract_duals(m, flow_cars, ignore_zeros=False):
+def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
     """Extract duals from car flow constraints.
 
     Parameters
@@ -216,11 +272,20 @@ def extract_duals(m, flow_cars, ignore_zeros=False):
                 f"CAR_FLOW[{pos},{battery},{contract_duration},{car_type},{car_origin}]"
             )
 
-            # pi = The constraint dual value in the current solution
+            # pi = The constraint dual value in the currsent solution
             shadow_price = constr.pi
 
-            # print(f'The dual value of {constr.constrName} : {shadow_price}')
-        except:
+            # if logger:
+            #     logger.debug(
+            #         f"The dual value of {constr.constrName} : {shadow_price}"
+            #     )
+
+        except Exception as e:
+            if logger:
+                logger.debug(
+                    f"Can't extract dual from constraint '{constr}'."
+                    f" Exception '{e}'."
+                )
             shadow_price = 0
 
         # Should zero value functions be updated?
@@ -248,10 +313,20 @@ def extract_decisions(var_list):
     return decisions
 
 
+def extract_decision_compare(var_list1, m2):
+
+    diff = list()
+    # Loop (decision tuple, var) pairs
+    for decision, m1_var in var_list1.items():
+        m2_var = m2.getVarByName(f'x[{",".join(map(str,list(decision)))}]')
+        diff.append((decision, m1_var.x, m2_var.x))
+
+    return diff
+
+
 def get_total_cost(env, decision, time_step):
-    return env.cost_func(
-        decision
-    ) + env.config.discount_factor * env.post_cost(time_step, decision)
+    post_cost, _ = env.post_cost(time_step, decision)
+    return env.cost_func(decision) + env.config.discount_factor * post_cost
 
 
 def get_artificial_duals(env, time_step, attribute_trips_dict):
@@ -364,10 +439,8 @@ def service_trips(
     myopic=False,
     iteration=None,
     log_mip=False,
-    sq_guarantee=False,
     universal_service=False,
     use_artificial_duals=True,
-    linearize_model=True,
     log_times=True,
 ):
     t1_total = time.time()
@@ -398,7 +471,7 @@ def service_trips(
         If True, All users must be serviced 
     use_artificial_duals : bool, optional
         If True, insert arficial dual in all region centers associated
-        to the rejected trips. 
+        to the rejected trips.
 
     Returns
     -------
@@ -439,13 +512,13 @@ def service_trips(
         # 3=concurrent,
         # 4=deterministic concurrent,
         # 5=deterministic concurrent simplex.
-        m.setParam("Method", 1)
+        # m.setParam("Method", 1)
 
         # https://www.gurobi.com/documentation/8.1/refman/mipfocus.html
         # If you are more interested in finding feasible solutions quickly, you can select MIPFocus=1.
         # If you believe the solver is having no trouble finding good quality solutions, and wish to focus more attention on proving optimality, select MIPFocus=2.
         # If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound.
-        m.setParam("MIPFocus", 1)
+        # m.setParam("MIPFocus", 1)
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -512,10 +585,8 @@ def service_trips(
         post_opt=False,
     )
 
-    var_type = GRB.INTEGER if linearize_model else GRB.CONTINUOUS
-
     # Create variables
-    x_var = m.addVars(tuplelist(decision_cars), name="x", vtype=var_type, lb=0)
+    x_var = m.addVars(tuplelist(decision_cars), name="x", vtype=GRB.CONTINUOUS, lb=0)
 
     # ##################################################################
     # MODEL ############################################################
@@ -532,10 +603,30 @@ def service_trips(
     # use them to determine post decision costs.
     else:
         t1_setup_costs_post = time.time()
-        post_decision_costs = quicksum(
-            (env.post_cost(time_step, d) * x_var[d]) for d in x_var
-        )
+        # post_decision_costs = quicksum(
+        #     (env.post_cost(time_step, d) * x_var[d]) for d in x_var
+        # )
+
+        # post decision state and post decision cost
+        post_decision_costs = 0
+        decisions_time_pos = defaultdict(list)
+
+        for d in x_var:
+            post_cost, post_state = env.post_cost(time_step, d)
+            post_decision_costs += post_cost * x_var[d]
+
+            # STAY and REBALANCE decisions per spatiotemporal point
+            if (
+                d[du.ACTION] == du.REBALANCE_DECISION
+                or d[du.ACTION] == du.STAY_DECISION
+            ):
+
+                spatiotemporal_id = (post_state[adp.TIME], d[du.DESTINATION])
+                decisions_time_pos[spatiotemporal_id].append(d)
+
+        # Compute time to get post decision costs
         t_setup_costs_post = time.time() - t1_setup_costs_post
+
     t1_setup_costs = time.time()
     # Cost of current decision
     present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
@@ -566,7 +657,7 @@ def service_trips(
     )
 
     # Service quality constraints
-    if sq_guarantee:
+    if env.config.sq_guarantee:
         sq_flow_dict = sq_constrs(m, x_var, decision_class, class_count_dict)
 
     # Car is obliged to charged if battery reaches minimum level
@@ -576,9 +667,23 @@ def service_trips(
         car_recharge_dict = recharge_constrs(
             m, x_var, attribute_cars_dict, max_battery
         )
+
+    # Limit the number of cars per node
+    if env.config.max_cars_link:
+        max_cars_link_constr = max_cars_link_constrs(
+            m,
+            x_var,
+            decisions_time_pos,
+            max_cars_link=env.config.max_cars_link,
+        )
+
     t_setup_constraints = time.time() - t1_setup_constraints
+
     t1_optimize = time.time()
-    m.optimize()
+
+    # Try finding integer values for the fractional variables
+    optimize_and_fix_fractional_vars(m, logger=logger)
+
     t_optimize = time.time() - t1_optimize
 
     if m.status == GRB.Status.UNBOUNDED:
@@ -590,6 +695,13 @@ def service_trips(
 
         # Decision tuple + (n. of times decision was taken)
         best_decisions = extract_decisions(x_var)
+
+        # comparison = extract_decision_compare(x_var, copy_m)
+
+        # logger.debug("\n\n############# Decisions")
+        # for d, m1_v, m2_v in comparison:
+        #     if m1_v != m2_v:
+        #         logger.debug(f"{d} - {m1_v} = {m2_v}")
 
         # Logging cost calculus
         la.log_costs(
@@ -614,25 +726,23 @@ def service_trips(
         if not myopic:
 
             try:
-                # Relax MIP model to get duals
-                if linearize_model:
-                    m_old = m
-                    m = linearize(m)
-                    logger.debug(
-                        "### Difference original model and relaxed: "
-                        f"{m_old.objVal - m.objVal:6.2f}"
-                    )
+
                 t1_duals = time.time()
+
                 # Extracting shadow prices from car flow constraints
-                duals = extract_duals(m, flow_cars_dict, ignore_zeros=True)
+                duals = extract_duals(
+                    m, flow_cars_dict, ignore_zeros=True, logger=logger
+                )
                 t_duals = time.time() - t1_duals
 
                 # Log duals
-                la.log_duals(logger_name, duals)
+                la.log_duals(logger_name, duals, msg="LINEAR")
 
                 t1_update = time.time()
+
                 # Use dictionary of duals to update value functions
                 env.update_vf(duals, time_step)
+
                 t_update = time.time() - t1_update
 
             except Exception as e:
@@ -666,11 +776,11 @@ def service_trips(
             env.update_vf(artificial_duals, time_step)
             t_update_vf_artificial = time.time() - t1_update_vf_artificial
 
-            logger.debug(
-                "### Objective Function - "
-                f"{m.objVal:6.2f} X {reward:6.2f}"
-                " - Decision reward"
-            )
+        logger.debug(
+            "### Objective Function (costs and post costs) - "
+            f"{m.objVal:6.2f} X {reward:6.2f}"
+            " - Decision's total reward (costs)"
+        )
 
         t_total = time.time() - t1_total
 

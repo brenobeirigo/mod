@@ -48,7 +48,7 @@ config_adp = {
     "log_mip": False,
     "save_plots": False,
     "save_progress": True,
-    "linearize_model": False,
+    "linearize_integer_model": False,
     "use_artificial_duals": True,
 }
 

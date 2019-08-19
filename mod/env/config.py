@@ -165,6 +165,12 @@ class Config:
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
     MATCHING_LEVELS = "MATCHING_LEVELS"
 
+    # Model constraints
+    SQ_GUARANTEE = "SQ_GUARANTEE"
+    MAX_CARS_LINK = "MAX_CARS_LINK"
+    LINEARIZE_INTEGER_MODEL = "LINEARIZE_INTEGER_MODEL"
+    USE_ARTIFICIAL_DUALS = "USE_ARTIFICIAL_DUALS"
+
     # Mathing methods
 
     # Match cars with immediate neigbors at chosen level
@@ -870,6 +876,10 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.REBALANCE_MULTILEVEL] = False
         self.config[Config.PENALIZE_REBALANCE] = True
 
+        # Constraints
+        self.config[Config.SQ_GUARANTEE] = False
+        self.config[Config.MAX_CARS_LINK] = None
+
         # How much time does it take (min) to recharge one single level?
         self.config["RECHARGE_TIME_SINGLE_LEVEL"] = int(
             60
@@ -909,7 +919,9 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCHING_LEVELS] = (3, 4)
         self.config[Config.LEVEL_RC] = 2
 
-
+        # Model
+        self.config[Config.LINEARIZE_INTEGER_MODEL] = True
+        self.config[Config.USE_ARTIFICIAL_DUALS] = False
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -987,6 +999,17 @@ class ConfigNetwork(ConfigStandard):
         access."""
         return self.config["N_CLOSEST_NEIGHBORS"]
 
+    @property
+    def linearize_integer_model(self):
+        """Transform integer model into linear model (fixed) and
+        resolve"""
+        return self.config[Config.LINEARIZE_INTEGER_MODEL]
+
+    @property
+    def use_artificial_duals(self):
+        """Insert vf in missed demand positions"""
+        return self.config[Config.USE_ARTIFICIAL_DUALS]
+
     # ---------------------------------------------------------------- #
     # Matching ####################################################### #
     # ---------------------------------------------------------------- #
@@ -1055,6 +1078,16 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.PENALIZE_REBALANCE]
 
     @property
+    def max_cars_link(self):
+        # If True, add service quality constraints
+        return self.config[Config.MAX_CARS_LINK]
+
+    @property
+    def sq_guarantee(self):
+        # If True, add service quality constraints
+        return self.config[Config.SQ_GUARANTEE]
+
+    @property
     def test_label(self):
         return self.config[Config.TEST_LABEL]
 
@@ -1093,12 +1126,12 @@ class ConfigNetwork(ConfigStandard):
     def stepsize_harmonic(self):
         """Value 'a' from harmonic stepsize = a/(a+n)"""
         return self.config[Config.HARMONIC_STEPSIZE]
-    
+
     @property
     def stepsize_rule(self):
         """Fixed, harmonic, or """
         return self.config[Config.STEPSIZE_RULE]
-    
+
     @property
     def stepsize_constant(self):
         """Fixed size stepsize, generally 0.1"""
@@ -1108,11 +1141,11 @@ class ConfigNetwork(ConfigStandard):
     def update_method(self):
         """How value functions are updated"""
         return self.config[Config.UPDATE_METHOD]
-    
+
     def update_values_averaged(self):
         """How value functions are updated"""
         return self.update_method == AVERAGED_UPDATE
-    
+
     def update_values_smoothed(self):
         """How value functions are updated"""
         return self.update_method == WEIGHTED_UPDATE
@@ -1148,14 +1181,24 @@ class ConfigNetwork(ConfigStandard):
             )
         )
 
+        max_link = (f'({self.max_cars_link:02})' if self.max_cars_link else '')
+
+        penalize = (f'[P{max_link}]' if self.penalize_rebalance else '')
+
+        lin = ("LIN_INT_" if self.config[Config.LINEARIZE_INTEGER_MODEL] else "LIN_")
+
+        artificial = ("[A]_" if self.config[Config.USE_ARTIFICIAL_DUALS] else "")
+
         return (
             f"{self.config[Config.TEST_LABEL]}_"
+            f"{artificial}"
+            f"{lin}"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
             f"cars={self.config[Config.FLEET_SIZE]:04}({start})_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=({reb_neigh})_"
+            f"rebal=({reb_neigh}){penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"

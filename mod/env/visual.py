@@ -517,8 +517,8 @@ class StepLog:
     def get_step_status_count(self):
 
         self.step_df = pd.DataFrame()
-        for status_label, status_count_step in self.car_statuses.items():
-            self.step_df[status_label] = pd.Series(status_count_step)
+        for status_code, status_count_step in self.car_statuses.items():
+            self.step_df[Car.status_label_dict[status_code]] = pd.Series(status_count_step)
 
         self.step_df.index.name = "step"
 

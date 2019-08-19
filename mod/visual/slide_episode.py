@@ -39,7 +39,7 @@ smooth_sigma_fleet = 1
 
 doc = curdoc()
 
-exp_name = "SHORT_CLASSED_cars=0400_levels[6]=(  0,  60,  90, 120, 180, 270)_rebal=[0, 1]_[05h,+04h]_resize=0.10_discount=0.05_stepsize=0.10"
+exp_name = "DEBUG_LIN_cars=0010(L)_levels[8]=(1-0, 3-0, 3-30, 3-60, 3-120, 3-150, 3-240, 3-600)_rebal=(0-4, 1-4, 2-4, 3-2, 4-2, 5-1, 6-1)[P(05)]_[05h,+15m+04h+60m]_0.10(S)_1.00_0.10"
 path_fleet = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/fleet/data/"
 path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/{exp_name}/service/data/"
 
@@ -49,6 +49,7 @@ color_fleet_status = {
     "With passenger": "#53bc53",
     "Rebalancing": "firebrick",
     "Recharging": "#e55215",
+    "Cruising": "#e55215",
     "Total": "black",
 }
 
@@ -60,7 +61,7 @@ color_dict_demand = {
 }
 
 # Ignored statuses in read data
-drop_status_list = ["Recharging"]
+drop_status_list = []
 
 # Store vehicle count per status at each step of an episode
 episode_fleet_dict = defaultdict(dict)
@@ -347,6 +348,7 @@ status_list = [
     "Rebalancing",
     "Idle",
     "With passenger",
+    "Cruising",
     # "Recharging",
     "Total",
 ]

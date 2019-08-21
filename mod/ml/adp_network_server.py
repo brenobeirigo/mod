@@ -377,6 +377,7 @@ def alg_adp(
     log_times=False,
     linearize_integer_model=False,
     use_artificial_duals=True,
+    use_duals=True
 ):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -588,6 +589,7 @@ def alg_adp(
                 use_artificial_duals=use_artificial_duals,
                 # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
+                use_duals=use_duals,
             )
             # else:
             #     revenue, serviced, rejected = 0, [], []
@@ -664,8 +666,10 @@ def alg_adp(
 
         # If True, saves time details in file times.csv
         if log_times:
-            print(len(amod.adp.weighted_values))
-            print(amod.adp.get_state.cache_info())
+            print("weighted values:", len(amod.adp.weighted_values))
+            print("get_state:", amod.adp.get_state.cache_info())
+            print("preview_decision:", amod.preview_decision.cache_info())
+            print("post_cost:", amod.post_cost.cache_info())
 
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()
@@ -689,6 +693,8 @@ if __name__ == "__main__":
     save_plots = "-save_plots" in args
     save_progress = "-save_progress" in args
     save_df = "-save_df" in args
+    log_times = "-log_times" in args
+    use_duals = "-use_duals" in args
 
     try:
         iterations = args.index("-n")
@@ -749,8 +755,11 @@ if __name__ == "__main__":
         universal_service=hire,
         log_config_dict=log_config,
         log_mip=log_mip,
+        log_times=log_times,
         save_plots=save_plots,
         save_progress=save_progress,
         save_df=save_df,
+        is_myopic=False,
         use_artificial_duals=start_config.use_artificial_duals,
+        use_duals=use_duals,
     )

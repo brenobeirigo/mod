@@ -441,6 +441,7 @@ def service_trips(
     log_mip=False,
     universal_service=False,
     use_artificial_duals=True,
+    use_duals=True,
     log_times=True,
 ):
     t1_total = time.time()
@@ -668,14 +669,16 @@ def service_trips(
             m, x_var, attribute_cars_dict, max_battery
         )
 
-    # Limit the number of cars per node
-    if env.config.max_cars_link:
-        max_cars_link_constr = max_cars_link_constrs(
-            m,
-            x_var,
-            decisions_time_pos,
-            max_cars_link=env.config.max_cars_link,
-        )
+    if not myopic:
+
+        # Limit the number of cars per node
+        if env.config.max_cars_link:
+            max_cars_link_constr = max_cars_link_constrs(
+                m,
+                x_var,
+                decisions_time_pos,
+                max_cars_link=env.config.max_cars_link,
+            )
 
     t_setup_constraints = time.time() - t1_setup_constraints
 
@@ -725,30 +728,32 @@ def service_trips(
         # Update shadow prices to be used in the next iterations
         if not myopic:
 
-            try:
+            if use_duals:
 
-                t1_duals = time.time()
+                try:
 
-                # Extracting shadow prices from car flow constraints
-                duals = extract_duals(
-                    m, flow_cars_dict, ignore_zeros=True, logger=logger
-                )
-                t_duals = time.time() - t1_duals
+                    t1_duals = time.time()
 
-                # Log duals
-                la.log_duals(logger_name, duals, msg="LINEAR")
+                    # Extracting shadow prices from car flow constraints
+                    duals = extract_duals(
+                        m, flow_cars_dict, ignore_zeros=True, logger=logger
+                    )
+                    t_duals = time.time() - t1_duals
 
-                t1_update = time.time()
+                    # Log duals
+                    la.log_duals(logger_name, duals, msg="LINEAR")
 
-                # Use dictionary of duals to update value functions
-                env.update_vf(duals, time_step)
+                    t1_update = time.time()
 
-                t_update = time.time() - t1_update
+                    # Use dictionary of duals to update value functions
+                    env.update_vf(duals, time_step)
 
-            except Exception as e:
-                logger.debug(
-                    f"Can't extract duals. Exception: '{e}'.", exc_info=True
-                )
+                    t_update = time.time() - t1_update
+
+                except Exception as e:
+                    logger.debug(
+                        f"Can't extract duals. Exception: '{e}'.", exc_info=True
+                    )
 
         t1_realize_decision = time.time()
         reward, serviced, rejected = env.realize_decision(
@@ -787,6 +792,7 @@ def service_trips(
         if log_times:
             time_dict = {
                 "iteration": [iteration],
+                "step": [time_step],
                 "decisions": [t_decisions],
                 "duals": [t_duals],
                 "realize_decision": [t_realize_decision],

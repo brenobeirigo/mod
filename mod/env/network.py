@@ -307,7 +307,7 @@ def query_point_list(
     return point_list, distance_levels, level_count, level_point_ids_set
 
 
-@functools.lru_cache(maxsize=None)
+# @functools.lru_cache(maxsize=None)
 def query_neighbor_zones(center, distance, n_neighbors=4):
     """Return neighbor zone ids of center node.
 
@@ -333,7 +333,7 @@ def query_neighbor_zones(center, distance, n_neighbors=4):
     return neighbors
 
 
-@functools.lru_cache(maxsize=None)
+# @functools.lru_cache(maxsize=None)
 def query_neighbors(node, reach=1):
     """Return neighbor zone ids of center node.
 
@@ -357,7 +357,7 @@ def query_neighbors(node, reach=1):
     return neighbors
 
 
-@functools.lru_cache(maxsize=None)
+# @functools.lru_cache(maxsize=None)
 def query_level_neighbors(center, distance):
     """Get the elements belonging to region center of distance.
 
@@ -379,7 +379,7 @@ def query_level_neighbors(center, distance):
     return neighbors
 
 
-@functools.lru_cache(maxsize=None)
+# @functools.lru_cache(maxsize=None)
 def get_distance(o, d):
     """Min. distance between origin o and destination d in kilometers
     
@@ -547,7 +547,7 @@ def query_segmented_sp(
     return sp_coords
 
 
-@functools.lru_cache(maxsize=None)
+# @functools.lru_cache(maxsize=None)
 def query_sp(o, d, projection="GPS", waypoint=None):
 
     if waypoint:

@@ -65,7 +65,7 @@ class AmodNetwork(Amod):
         self.adp.init_learning()
         self.adp.init_weighting_settings()
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_distance(self, o, d):
         """Receives two points referring to network ids and return the
         the distance of the shortest path between them (km).
@@ -84,11 +84,11 @@ class AmodNetwork(Amod):
         """
         return nw.get_distance(o.id, d.id)
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_neighbors(self, center_point, reach=1):
         return nw.query_neighbors(center_point.id, reach=reach)
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_zone_neighbors(self, center, level_neighbors=((0, 4),)):
         """Get the ids of "n_neighbors" neighboring region centers
         considering aggregation level around center.
@@ -116,13 +116,13 @@ class AmodNetwork(Amod):
             targets.update(step_targets)
         return targets
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_level_neighbors(self, center, level):
         return nw.query_level_neighbors(
             center.id_level(level), Point.levels[level]
         )
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_region_elements(self, center, level):
         return nw.query_level_neighbors(center, Point.levels[level])
 

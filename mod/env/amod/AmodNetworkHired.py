@@ -43,7 +43,7 @@ class AmodNetworkHired(AmodNetwork):
         self.available_hired_ids = np.zeros(len(self.points_level[0]))
         self.expired_contract_cars = []
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=2048)
     def cost_func(self, decision):
         """Return decision cost.
 
@@ -352,6 +352,7 @@ class AmodNetworkHired(AmodNetwork):
 
         self.hired_cars = active_fleet
 
+    # @functools.lru_cache(maxsize=2048)
     def preview_decision(self, time_step, decision):
         """Apply decision to attributes
 
@@ -502,7 +503,7 @@ class AmodNetworkHired(AmodNetwork):
             elif self.config.update_values_smoothed():
                 self.adp.update_values_smoothed(time_step, duals)
 
-    # @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=2048)
     def post_cost(self, t, decision):
 
         # Target attribute if decision was taken

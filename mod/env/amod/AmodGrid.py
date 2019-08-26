@@ -52,7 +52,7 @@ class AmodGrid(Amod):
         self.init_learning()
         self.init_weighting_settings()
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_distance(self, o, d):
         """Receives two points of a gridmap and returns
         Euclidian distance.
@@ -68,7 +68,7 @@ class AmodGrid(Amod):
             np.array([o.x, o.y]) - np.array([d.x, d.y])
         )
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_neighbors(self, center, level=0, n_neighbors=4):
         return nw.get_neighbor_zones(
             center, self.config.pickup_zone_range, self.zones

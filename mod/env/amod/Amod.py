@@ -166,7 +166,7 @@ class Amod:
     # Cost functions ################################################# #
     # ################################################################ #
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def cost_func(self, action, o, d):
 
         if action == du.STAY_DECISION:
@@ -447,7 +447,7 @@ class Amod:
 
         return time_step, point, battery_post
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def preview_move(self, car_pos, o, d):
 
         # Distance in km
@@ -466,7 +466,7 @@ class Amod:
 
         return duration, dropped_levels
 
-    @functools.lru_cache(maxsize=None)
+    # # @functools.lru_cache(maxsize=None)
     def get_travel_time_tuple(self, distance):
         """Travel time in minutes and steps given distance in meters"""
 
@@ -475,7 +475,7 @@ class Amod:
         steps = math.ceil(travel_time_min / self.config.time_increment)
         return travel_time_min, steps
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_travel_time(self, distance, unit="min"):
         """Travel time in minutes given distance in miles"""
 
@@ -488,7 +488,7 @@ class Amod:
             steps = math.ceil(travel_time_min / self.config.time_increment)
             return steps
 
-    @functools.lru_cache(maxsize=None)
+    # @functools.lru_cache(maxsize=None)
     def get_travel_time_od(self, o, d, unit="min"):
         """Travel time in minutes or steps between od"""
         distance = self.get_distance(o, d)

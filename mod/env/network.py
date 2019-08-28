@@ -326,9 +326,7 @@ def query_neighbor_zones(center, distance, n_neighbors=4):
         List of center neighbors
     """
 
-    neighbors = np.array(
-        tenv.get_center_neighbors(distance, center, n_neighbors)
-    )
+    neighbors = tenv.get_center_neighbors(distance, center, n_neighbors)
 
     return neighbors
 

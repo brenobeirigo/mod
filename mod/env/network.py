@@ -14,6 +14,8 @@ sys.path.insert(0, tenv_mod)
 
 import tenv.util as tenv
 
+from tenv.util import get_distance
+
 # Reproducibility of the experiments
 random.seed(1)
 
@@ -377,27 +379,27 @@ def query_level_neighbors(center, distance):
     return neighbors
 
 
-# @functools.lru_cache(maxsize=None)
-def get_distance(o, d):
-    """Min. distance between origin o and destination d in kilometers
-    
-    Parameters
-    ----------
-    o : int
-        Origin id
-    d : int
-        Destination id
-    
-    Returns
-    -------
-    float
-        Distance in kilometers
-    """
+# # @functools.lru_cache(maxsize=None)
+# def get_distance(o, d):
+#     """Min. distance between origin o and destination d in kilometers
 
-    return tenv.get_distance(o, d) / 1000.0
-    # url_distance = f"{url}/distance_meters/{o}/{d}"
-    # r = requests.get(url=url_distance)
-    # return float(r.text) / 1000.0
+#     Parameters
+#     ----------
+#     o : int
+#         Origin id
+#     d : int
+#         Destination id
+
+#     Returns
+#     -------
+#     float
+#         Distance in kilometers
+#     """
+
+#     return tenv.get_distance(o, d)
+#     # url_distance = f"{url}/distance_meters/{o}/{d}"
+#     # r = requests.get(url=url_distance)
+#     # return float(r.text) / 1000.0
 
 
 def query_aggregated_centers(n_levels=None, dist_list=None, step=60):

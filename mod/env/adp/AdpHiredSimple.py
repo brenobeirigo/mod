@@ -150,6 +150,65 @@ class AdpHiredSimple(adp.Adp):
 
         return value_estimation
 
+    def update_vf(self, state_g, v_ta_g):
+        # Updating lambda stepsize using previous stepsizes
+        self.data[state_g][LAMBDA_STEPSIZE] = self.get_lambda_stepsize(
+            self.data[state_g][STEPSIZE_FUNC],
+            self.data[state_g][LAMBDA_STEPSIZE],
+        )
+
+        # Updating value function at gth level with smoothing
+        old_v_ta_g = self.data[state_g][VF]
+        stepsize = self.data[state_g][STEPSIZE_FUNC]
+        new_v_ta_g = (1 - stepsize) * old_v_ta_g + stepsize * v_ta_g
+        self.data[state_g][VF] = new_v_ta_g
+
+        # Updates ta_g stepsize
+        self.data[state_g][STEPSIZE_FUNC] = self.get_stepsize(
+            self.data[state_g][STEPSIZE_FUNC]
+        )
+
+    def update_values_smoothed_single(self, t, duals):
+
+        # List of duals associated to tuples (level g, attribute[g])
+        # The new value of an aggregate level correspond to the average
+        # of these duals
+        # level_update_list = defaultdict(list)
+
+        for car_flow_attribute, v_ta_sampled in duals.items():
+
+            disaggregate = (t,) + car_flow_attribute
+
+            # Append duals to all superior hierachical states
+            for g in range(len(self.aggregation_levels)):
+
+                # Value is later used to update a_g
+                state_g = self.get_state(g, disaggregate)
+
+                # level_update_list[state_g].append(v_ta_sampled)
+
+                # Update the number of times state was accessed
+                self.data[state_g][COUNT] += 1
+
+                # Bias due to smoothing of transient data series
+                # (value function change every iteration)
+                self.data[state_g][TRANSIENT_BIAS] = self.get_transient_bias(
+                    self.data[state_g][TRANSIENT_BIAS],
+                    v_ta_sampled,
+                    self.data[state_g][VF],
+                    self.stepsize,
+                )
+
+                # Estimate of total squared variation,
+                self.data[state_g][VARIANCE_G] = self.get_variance_g(
+                    v_ta_sampled,
+                    self.data[state_g][VF],
+                    self.stepsize,
+                    self.data[state_g][VARIANCE_G],
+                )
+
+                self.update_vf(state_g, v_ta_sampled)
+
     def update_values_smoothed(self, t, duals):
 
         # List of duals associated to tuples (level g, attribute[g])

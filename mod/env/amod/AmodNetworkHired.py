@@ -43,7 +43,7 @@ class AmodNetworkHired(AmodNetwork):
         self.available_hired_ids = np.zeros(len(self.points_level[0]))
         self.expired_contract_cars = []
 
-    # @functools.lru_cache(maxsize=2048)
+    # @functools.lru_cache(maxsize=None)
     def cost_func(self, decision):
         """Return decision cost.
 
@@ -352,7 +352,7 @@ class AmodNetworkHired(AmodNetwork):
 
         self.hired_cars = active_fleet
 
-    # @functools.lru_cache(maxsize=2048)
+    # @functools.lru_cache(maxsize=None)
     def preview_decision(self, time_step, decision):
         """Apply decision to attributes
 
@@ -503,7 +503,7 @@ class AmodNetworkHired(AmodNetwork):
             elif self.config.update_values_smoothed():
                 self.adp.update_values_smoothed(time_step, duals)
 
-    # @functools.lru_cache(maxsize=2048)
+    # @functools.lru_cache(maxsize=None)
     def post_cost(self, t, decision):
 
         # Target attribute if decision was taken
@@ -527,9 +527,11 @@ class AmodNetworkHired(AmodNetwork):
             post_time = post_state[adp.adp.TIME]
 
             # Rebalancing is longer than one time step
-            if post_time > t:
+            # t + 1 is allowed because the resource is guaranteed to
+            # be available in the next period
+            if post_time > t + 1:
 
-                for busy_reb_t in range(t, post_state[adp.adp.TIME]):
+                for busy_reb_t in range(t + 1, post_state[adp.adp.TIME]):
 
                     stay = (du.STAY_DECISION,) + decision[1:]
 

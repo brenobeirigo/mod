@@ -139,9 +139,7 @@ def get_decisions(env, trips, min_battery_level=None):
         except:
 
             # Get region center neighbors
-            rebalance_targets = env.get_zone_neighbors(
-                car.point, level_neighbors=env.config.n_neighbors
-            )
+            rebalance_targets = env.get_zone_neighbors(car.point.id)
 
             # All points a car can rebalance to from its corrent point
             attribute_rebalance[car.point.id] = rebalance_targets

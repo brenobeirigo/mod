@@ -17,11 +17,41 @@ import multiprocessing
 from collections import defaultdict
 import mod.util.log_util as la
 from pprint import pprint
+import itertools as it
+
+
+def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
+    if not n:
+        n = len(elements)
+    last = []
+    first = []
+
+    for k in range(1, keep_first + 1):
+        first = first + list(it.combinations(elements[:keep_first], k))
+
+    for k in range(1, keep_last + 1):
+        last = last + list(it.combinations(elements[-keep_last:], k))
+
+    power_set = set()
+    for i in range(n + 1):
+        a = [
+            tuple(sorted(f) + sorted(x) + sorted(l))
+            for x in list(it.combinations(elements[keep_first:-keep_last], i))
+            for f in first
+            for l in last
+        ]
+        power_set.update(a)
+    if max_size:
+        power_set = [s for s in power_set if len(s) <= max_size]
+
+    # Sorted by length
+    return sorted(power_set, key=lambda x: (len(x), x))
+
 
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 500
+ITERATIONS = 300
 
 
 log_config = {
@@ -35,6 +65,7 @@ log_config = {
     la.LOG_LEVEL: la.INFO,
     la.LEVEL_FILE: la.DEBUG,
     la.LEVEL_CONSOLE: la.INFO,
+    la.FORMATTER_FILE: la.FORMATTER_TERSE,
 }
 
 config_adp = {
@@ -49,9 +80,11 @@ config_adp = {
     "save_plots": False,
     "save_progress": True,
     "linearize_integer_model": False,
-    "use_artificial_duals": True,
+    "use_artificial_duals": False,
+    "use_duals": True,
+    "save_df": False,
+    "is_myopic": False,
 }
-
 
 
 def test_all(
@@ -98,7 +131,7 @@ def run_adp(exp):
     return (exp_name, label, reward_list)
 
 
-def multi_proc_exp(exp_list, processes=4):
+def multi_proc_exp(exp_list, processes=4, iterations=300):
 
     global reward_data
 
@@ -108,7 +141,7 @@ def multi_proc_exp(exp_list, processes=4):
 
     for exp_name, label, reward_list in results:
 
-        reward_data[exp_name][label] = reward_list
+        reward_data[exp_name][label] = reward_list[:iterations]
 
         df = pd.DataFrame.from_dict(dict(reward_data[exp_name]))
 
@@ -122,19 +155,27 @@ if __name__ == "__main__":
     try:
         test_label = sys.argv[1]
     except:
-        test_label = "AGG"
+        test_label = "TUNE"
 
     try:
         N_PROCESSES = int(sys.argv[2])
     except:
         N_PROCESSES = 2
 
+    n = 7
+    spatiotemporal_levels = [(0, i, 0, 0, 0, 0) for i in range(n)]
+    # print("Levels:")
+    # pprint(levels)
+    power_set = get_power_set(
+        spatiotemporal_levels, keep_first=1, n=2, keep_last=2, max_size=4
+    )
+
     tuning_params = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
         Config.DISCOUNT_FACTOR: [1],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [100],
+        Config.FLEET_SIZE: [500],
         Config.FLEET_START: [
             conf.FLEET_START_LAST,
             # conf.FLEET_START_SAME,
@@ -153,20 +194,81 @@ if __name__ == "__main__":
         ],
         Config.DEMAND_RESIZE_FACTOR: [0.1],
         # Cars rebalance to up to #region centers at each level
-        Config.N_CLOSEST_NEIGHBORS: [
-            ((0, 4), (1, 4), (2, 4), (3, 2), (4, 2), (5, 1), (6, 1))
-        ],
+        Config.N_CLOSEST_NEIGHBORS: [((0, 8),)],
         Config.AGGREGATION_LEVELS: [
+            [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+            [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
             [
                 (0, 0, 0, 0, 0, 0),
                 (0, 1, 0, 0, 0, 0),
+                (0, 4, 0, 0, 0, 0),
+                (0, 6, 0, 0, 0, 0),
             ],
             [
                 (0, 0, 0, 0, 0, 0),
-                (0, 1, 0, 0, 0, 0),
-                (0, 2, 0, 0, 0, 0),
+                (0, 4, 0, 0, 0, 0),
+                (0, 5, 0, 0, 0, 0),
+                (0, 6, 0, 0, 0, 0),
             ],
-        ],
+
+            [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
+            [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
+            [
+                (0, 0, 0, 0, 0, 0),
+                (3, 1, 0, 0, 0, 0),
+                (3, 4, 0, 0, 0, 0),
+                (3, 6, 0, 0, 0, 0),
+            ],
+            [
+                (0, 0, 0, 0, 0, 0),
+                (3, 4, 0, 0, 0, 0),
+                (3, 5, 0, 0, 0, 0),
+                (3, 6, 0, 0, 0, 0),
+            ],
+            [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            [
+                (0, 0, 0, 0, 0, 0),
+                (4, 1, 0, 0, 0, 0),
+                (4, 4, 0, 0, 0, 0),
+                (4, 6, 0, 0, 0, 0),
+            ],
+            [
+                (0, 0, 0, 0, 0, 0),
+                (4, 4, 0, 0, 0, 0),
+                (4, 5, 0, 0, 0, 0),
+                (4, 6, 0, 0, 0, 0),
+            ],
+        ]
+        # list(power_set),
+        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),(0, 9, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),(0, 9, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 9, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0), (0, 9, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+        #     [
+        #         (0, 0, 0, 0, 0, 0),
+        #         (0, 1, 0, 0, 0, 0),
+        #         (0, 2, 0, 0, 0, 0),
+        #         (0, 3, 0, 0, 0, 0),
+        #         (0, 4, 0, 0, 0, 0),
+        #         (0, 5, 0, 0, 0, 0),
+        #         (0, 6, 0, 0, 0, 0),
+        #     ],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0), (0, 10, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0), (0, 10, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
+        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0)],
+        # ]
     }
 
     shared_settings = {
@@ -175,11 +277,16 @@ if __name__ == "__main__":
         Config.PENALIZE_REBALANCE: True,
         Config.FLEET_SIZE: 100,
         Config.DEMAND_RESIZE_FACTOR: 0.1,
+        Config.DEMAND_TOTAL_HOURS: 5,
+        Config.DEMAND_EARLIEST_HOUR: 5,
+        Config.OFFSET_TERMINATION: 60,
+        Config.OFFSET_REPOSIONING: 30,
         Config.DEMAND_SAMPLING: True,
-        Config.OFFSET_REPOSIONING: 15,
-        Config.OFFSET_TERMINATION: 45,
-        Config.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
-        Config.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
+        Config.LEVEL_TIME_LIST: [0.5, 1, 2, 3, 5, 10],
+        Config.LEVEL_DIST_LIST: [0, 30, 60, 180, 300, 600, 1200],
+        Config.LINEARIZE_INTEGER_MODEL: False,
+        Config.SQ_GUARANTEE: False,
+        Config.USE_ARTIFICIAL_DUALS: False,
     }
 
     # Creating folders to log episodes
@@ -187,10 +294,7 @@ if __name__ == "__main__":
         os.makedirs(conf.FOLDER_TUNING)
 
     conf.save_json(
-        dict(
-            tuning_settings=tuning_params,
-            shared_settings=shared_settings
-        ),
+        dict(tuning_settings=tuning_params, shared_settings=shared_settings),
         folder=conf.FOLDER_TUNING,
         file_name=test_label,
     )
@@ -209,12 +313,34 @@ if __name__ == "__main__":
     # Dictionary updated during recursion
     update_dict = {}
 
+    print("## Levels:")
+    for i, spatiotemporal_levels in enumerate(power_set):
+        print(i, spatiotemporal_levels)
+
     test_all(tuning_labels, tuning_params, update_dict, setup, exp_list)
 
     exp_list = sorted(exp_list, key=lambda x: x[1])
 
     print("\n################ Experiment folders:")
-    for exp in exp_list:
-        print(f" - {exp[1]}")
 
-    multi_proc_exp(exp_list, processes=N_PROCESSES)
+    
+    try:
+        d = dict()
+        for exp in exp_list:
+            df = pd.read_csv(conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv")
+            spatiotemporal_levels = exp[2].get_levels()
+            d["reward_" + spatiotemporal_levels] = df["Total reward"][:ITERATIONS]
+            d["service_rate_" + spatiotemporal_levels] = df["Service rate"][
+                :ITERATIONS
+            ]
+            d["time_" + spatiotemporal_levels] = df["time"][:ITERATIONS]
+            print(f" - {spatiotemporal_levels}")
+
+        df_outcome = pd.DataFrame(d)
+        df_outcome = df_outcome[sorted(df_outcome.columns.values)]
+        df_outcome.to_csv("outcome_tuning.csv", index=False)
+
+    except Exception as e:
+        print(f"Could not save aggregated data. Exception: {e}")
+
+    multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)

@@ -603,14 +603,14 @@ class Adp:
                 for a, value in a_value.items():
                     self.values[t_g][g][a] = value
 
-    # @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def time_step_level(self, t, level=DISAGGREGATE):
         """Time steps in minutes"""
         # Since t start from 1, t-1 guarantee first slice is of size 2
         g_t = (t - 1) // self.temporal_levels[level]
         return g_t
 
-    # @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def car_origin_level(self, car_type, car_origin, level=DISAGGREGATE):
 
         try:
@@ -625,7 +625,7 @@ class Adp:
         except:
             return DISCARD
 
-    # @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def car_type_level(self, car_type, level=DISAGGREGATE):
 
         if level == DISAGGREGATE:
@@ -635,7 +635,7 @@ class Adp:
 
         return self.car_type_levels_dict[car_type][DISCARD]
 
-    # @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def contract_level(self, car_type, contract_duration, level=DISAGGREGATE):
 
         try:

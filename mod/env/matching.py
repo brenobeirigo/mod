@@ -763,6 +763,8 @@ def service_trips(
             attribute_cars_dict,
         )
 
+        time_dict = dict()
+
         t_realize_decision = time.time() - t1_realize_decision
 
         # Add artificial value functions to each lost demand
@@ -774,12 +776,14 @@ def service_trips(
             artificial_duals = get_artificial_duals(
                 env, time_step, attribute_trips_dict
             )
-            t_artificial_duals = time.time() - t1_artificial_duals
+
+            time_dict["arficial duals"] = [time.time() - t1_artificial_duals]
 
             t1_update_vf_artificial = time.time()
             # Use dictionary of duals to update value functions
             env.update_vf(artificial_duals, time_step)
-            t_update_vf_artificial = time.time() - t1_update_vf_artificial
+
+            time_dict["update_artificial"] = [time.time() - t1_update_vf_artificial]
 
         logger.debug(
             "### Objective Function (costs and post costs) - "
@@ -790,7 +794,7 @@ def service_trips(
         t_total = time.time() - t1_total
 
         if log_times:
-            time_dict = {
+            time_dict.update({
                 "iteration": [iteration],
                 "step": [time_step],
                 "decisions": [t_decisions],
@@ -801,10 +805,8 @@ def service_trips(
                 "setup_costs_post": [t_setup_costs_post],
                 "setup_constraints": [t_setup_constraints],
                 "optimize": [t_optimize],
-                "arficial duals": [t_artificial_duals],
-                "update_artificial": [t_update_vf_artificial],
                 "total": [t_total],
-            }
+            })
 
             times_path = f"{env.config.folder_adp_log}times.csv"
             df = pd.DataFrame(time_dict)

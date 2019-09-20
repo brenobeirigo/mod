@@ -35,7 +35,7 @@ DESTINATION = 7
 SQ_CLASS = 8
 N_DECISIONS = 9
 
-DISCARD = '-'
+DISCARD = "-"
 
 
 def stay_decision(car):

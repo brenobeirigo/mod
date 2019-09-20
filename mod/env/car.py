@@ -259,7 +259,8 @@ class Car:
 
         if pk_step == 0:
             # If pk_step is zero, car is already carrying customer
-            # in the subsequent time step
+            # in the subsequent time step. That is because car is
+            # EXACTLY in customer location.
             self.status = Car.ASSIGN
         else:
             self.status = Car.CRUISING
@@ -270,8 +271,8 @@ class Car:
         # to be free in the next time step
         self.step += max(duration_total_step, 1)
 
-        if self.arrival_time > self.step:
-            print("What!")
+        # if self.arrival_time > self.step:
+        #     print("What!", self.arrival_time, self.step)
 
     def reset(self):
         self.point = self.origin

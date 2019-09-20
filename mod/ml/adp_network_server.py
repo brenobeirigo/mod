@@ -64,11 +64,11 @@ def get_sim_config(update_dict):
         {
             ConfigNetwork.TEST_LABEL: "TEST",
             # Fleet
-            ConfigNetwork.FLEET_SIZE: 500,
+            ConfigNetwork.FLEET_SIZE: 5,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
-            ConfigNetwork.TIME_INCREMENT: 1,
+            ConfigNetwork.TIME_INCREMENT: 0.5,
             ConfigNetwork.OFFSET_REPOSIONING: 15,
             ConfigNetwork.OFFSET_TERMINATION: 60,
             # -------------------------------------------------------- #
@@ -89,14 +89,15 @@ def get_sim_config(update_dict):
             # process.
             ConfigNetwork.PENALIZE_REBALANCE: False,
             # Cars rebalance to up to #region centers at each level
+            # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                 (0, 4),
                 (1, 4),
                 (2, 4),
                 (3, 2),
                 (4, 2),
-                (5, 1),
-                (6, 1),
+                # (5, 1),
+                # (6, 1),
             ),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
@@ -129,23 +130,7 @@ def get_sim_config(update_dict):
                 ),
                 adp.AggLevel(
                     temporal=2,
-                    spatial=2,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
                     spatial=3,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=4,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
@@ -167,6 +152,22 @@ def get_sim_config(update_dict):
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=5,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=6,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 # adp.AggLevel(
                 #     temporal=1,
                 #     spatial=1,
@@ -231,7 +232,7 @@ def get_sim_config(update_dict):
                 #     car_origin=6,
                 # ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3, 5, 10],
+            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 2, 3, 5, 10],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
@@ -331,7 +332,7 @@ def hire_cars_centers(amod, contract_duration_h, step, rc_level=2):
     hired_cars = [
         HiredCar(
             amod.points[c],
-            contract_duration_h,
+            amod.config.min_contract_duration,
             current_step=step,
             current_arrival=step * amod.config.time_increment,
             duration_level=amod.config.contract_duration_level,
@@ -376,8 +377,8 @@ def alg_adp(
     # If True, saves time details in file times.csv
     log_times=False,
     linearize_integer_model=False,
-    use_artificial_duals=True,
-    use_duals=True
+    use_artificial_duals=False,
+    use_duals=True,
 ):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -667,9 +668,9 @@ def alg_adp(
         # If True, saves time details in file times.csv
         if log_times:
             print("weighted values:", len(amod.adp.weighted_values))
-            print("get_state:", amod.adp.get_state.cache_info())
-            print("preview_decision:", amod.preview_decision.cache_info())
-            print("post_cost:", amod.post_cost.cache_info())
+            # print("get_state:", amod.adp.get_state.cache_info())
+            # print("preview_decision:", amod.preview_decision.cache_info())
+            # print("post_cost:", amod.post_cost.cache_info())
 
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()
@@ -706,7 +707,7 @@ if __name__ == "__main__":
         fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
         fleet_size = int(args[fleet_size_i + 1])
     except:
-        fleet_size = 10
+        fleet_size = 100
 
     try:
         log_level_i = args.index("-level")
@@ -722,7 +723,12 @@ if __name__ == "__main__":
             ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.PENALIZE_REBALANCE: True,
             ConfigNetwork.FLEET_SIZE: fleet_size,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.4,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
+            ConfigNetwork.OFFSET_TERMINATION: 45,
+            ConfigNetwork.OFFSET_REPOSIONING: 15,
+            ConfigNetwork.TIME_INCREMENT: 15,
             ConfigNetwork.DEMAND_SAMPLING: True,
             ConfigNetwork.SQ_GUARANTEE: False,
             ConfigNetwork.MAX_CARS_LINK: 5,

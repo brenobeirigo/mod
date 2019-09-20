@@ -19,7 +19,7 @@ Example to log adp and mip execution, save progress.npy file, and plots.
 
 Execution (only save progress):
 
-    python mod\ml\adp_network_server.py TEST_NAME -save_progress -n 300 -FLEET_SIZE 500
+    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -use_duals -save_progress
 
 Batch file (`.bat`):
 

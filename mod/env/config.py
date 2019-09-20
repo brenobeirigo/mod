@@ -211,6 +211,9 @@ class Config:
     PROFIT_MARGIN = "PROFIT_MARGIN"
     CONTRACT_DURATION_LEVEL = "CONTRACT_DURATION_LEVEL"
     CONGESTION_PRICE = "CONGESTION_PRICE"
+    MEAN_CONTRACT_DURATION = "MEAN_CONTRACT_DURATION"
+    MIN_CONTRACT_DURATION = "MIN_CONTRACT_DURATION"
+    # Max. contract duration = MAX_TIME_PERIODS
 
     def __init__(self, config):
 
@@ -520,18 +523,20 @@ class Config:
 
         #       Total number of time periods
         self.config["TIME_PERIODS"] = int(
-            self.config["OFFSET_REPOSIONING"]
-            + self.config[Config.DEMAND_TOTAL_HOURS]
-            * 60
-            / self.config["TIME_INCREMENT"]
-            + self.config["OFFSET_TERMINATION"]
+            (
+                self.config["OFFSET_REPOSIONING"]
+                + self.config[Config.DEMAND_TOTAL_HOURS]
+                * 60
+                + self.config["OFFSET_TERMINATION"]
+            ) / self.config["TIME_INCREMENT"]
         )
 
         self.config["TIME_PERIODS_TERMINATION"] = int(
-            self.config["OFFSET_REPOSIONING"]
-            + self.config[Config.DEMAND_TOTAL_HOURS]
-            * 60
-            / self.config["TIME_INCREMENT"]
+            (
+                self.config["OFFSET_REPOSIONING"]
+                + self.config[Config.DEMAND_TOTAL_HOURS]
+                * 60
+            ) / self.config["TIME_INCREMENT"]
         )
 
         self.config[Config.BATTERY_DISTANCE_LEVEL] = (
@@ -695,15 +700,19 @@ class ConfigStandard(Config):
 
         # Total number of time periods
         self.config["TIME_PERIODS"] = int(
-            self.config["OFFSET_REPOSIONING"]
-            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
-            + self.config["OFFSET_TERMINATION"]
+            (
+                self.config["OFFSET_REPOSIONING"]
+                + self.config["TOTAL_TIME"] * 60 
+                + self.config["OFFSET_TERMINATION"]
+            ) / self.config["TIME_INCREMENT"]
         )
 
         # Total number of time periods
         self.config["TIME_PERIODS_TERMINATION"] = int(
+            (
             self.config["OFFSET_REPOSIONING"]
-            + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+            + self.config["TOTAL_TIME"] * 60
+            ) / self.config["TIME_INCREMENT"]
         )
 
         # Step in seconds
@@ -905,6 +914,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.PROFIT_MARGIN] = 0.3
         self.config[Config.CONTRACT_DURATION_LEVEL] = 5  # Min.
         self.config[Config.CONGESTION_PRICE] = 10
+        self.config[Config.MIN_CONTRACT_DURATION] = 0.5 # 30 min
+        self.config[Config.MEAN_CONTRACT_DURATION] = 2 # 2 hours
 
         # LEARNING ################################################### #
         self.config[Config.DISCOUNT_FACTOR] = 1
@@ -1112,6 +1123,16 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.CONGESTION_PRICE]
 
     @property
+    def mean_contract_duration(self):
+        """How long cars are available to be hired in average"""
+        return self.config[Config.MEAN_CONTRACT_DURATION]
+    
+    @property
+    def min_contract_duration(self):
+        """Minimum available time necessary to work for the platform"""
+        return self.config[Config.MIN_CONTRACT_DURATION]
+
+    @property
     def contract_duration_level(self):
         """Contract duration is sliced in levels of X minutes"""
         return self.config[Config.CONTRACT_DURATION_LEVEL]
@@ -1149,6 +1170,15 @@ class ConfigNetwork(ConfigStandard):
     def update_values_smoothed(self):
         """How value functions are updated"""
         return self.update_method == WEIGHTED_UPDATE
+
+    def get_levels(self):
+        levels = ", ".join([
+            (
+                f"{self.config[Config.LEVEL_TIME_LIST][temporal]}-"
+                f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
+            )
+            for (temporal, spatial, battery, contract, car_type, car_origin) in self.config[Config.AGGREGATION_LEVELS]])
+        return levels
 
     @property
     def label(self, name=""):
@@ -1196,6 +1226,7 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
             f"cars={self.config[Config.FLEET_SIZE]:04}({start})_"
+            f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
             f"rebal=({reb_neigh}){penalize}_"

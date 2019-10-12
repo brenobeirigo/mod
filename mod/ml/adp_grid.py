@@ -108,8 +108,8 @@ if __name__ == "__main__":
         step_trip_list = get_trips_random_ods(
             amod.points,
             step_trip_count_15,
-            offset_start=amod.config.offset_repositioning,
-            offset_end=amod.config.offset_termination,
+            offset_start=amod.config.offset_repositioning_steps,
+            offset_end=amod.config.offset_termination_steps,
             origins=origins,
             classed=False,
         )

@@ -180,7 +180,7 @@ def log_costs(
                 cost = cost_func(decision)
                 overall_cost += cost
 
-                post_cost = post_cost_func(time_step, decision)
+                post_cost, post_state = post_cost_func(time_step, decision)
                 overall_post += post_cost
 
                 total = cost + discount_factor * post_cost

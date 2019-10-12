@@ -85,12 +85,12 @@ class Amod:
 
         status_count = defaultdict(int)
         for s in Car.status_list:
-            status_count[s] = 0
+            status_count[Car.status_label_dict[s]] = 0
 
         total_battery_level = 0
         for c in self.cars:
             total_battery_level += c.battery_level_miles
-            status_count[c.status] += 1
+            status_count[Car.status_label_dict[c.status]] += 1
         return status_count, total_battery_level
 
     def get_fleet_stats(self):

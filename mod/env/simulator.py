@@ -41,7 +41,7 @@ class PlotTrack:
     SHOW_SP_LINES = False
     SHOW_LINES = True
 
-    N_POINTS = 60
+    N_POINTS = 3
     STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1
@@ -143,7 +143,7 @@ class PlotTrack:
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
                 muted_alpha=0.0,
-                legend=Car.REBALANCE,
+                legend=Car.status_label_dict[Car.REBALANCE],
             ),
             Car.ASSIGN: self.p.triangle(
                 x=[],
@@ -153,7 +153,7 @@ class PlotTrack:
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
                 muted_alpha=0.0,
-                legend=Car.ASSIGN,
+                legend=Car.status_label_dict[Car.ASSIGN],
             ),
             Car.CRUISING: self.p.triangle(
                 x=[],
@@ -164,7 +164,7 @@ class PlotTrack:
                 fill_alpha=0.0,
                 line_width=0.5,
                 muted_alpha=0.0,
-                legend=Car.CRUISING,
+                legend=Car.status_label_dict[Car.CRUISING],
             ),
             Car.IDLE: self.p.triangle(
                 x=[],
@@ -175,7 +175,7 @@ class PlotTrack:
                 line_width=0.5,
                 line_color=self.config.color_fleet_status[Car.IDLE],
                 muted_alpha=0.0,
-                legend=Car.IDLE,
+                legend=Car.status_label_dict[Car.IDLE],
             ),
             Car.RECHARGING: self.p.triangle(
                 x=[],
@@ -185,7 +185,7 @@ class PlotTrack:
                 line_width=0,
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 muted_alpha=0.0,
-                legend=Car.RECHARGING,
+                legend=Car.status_label_dict[Car.RECHARGING],
             ),
             "o": self.p.circle(
                 x=[],
@@ -698,7 +698,7 @@ class PlotTrack:
                 # Vehicle is moving
                 else:
                     # TODO should be current time?
-                    dif = car.arrival_time - car.previous_arrival
+                    dif = car.step - car.previous_step
 
                     segmented_sp = nw.query_sp_sliced(
                         car.previous,

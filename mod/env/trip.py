@@ -151,8 +151,8 @@ def get_ny_demand(config, tripdata_path, points):
         step_trip_list = get_trips(
             points,
             step_trip_od_list,
-            offset_start=config.offset_repositioning,
-            offset_end=config.offset_termination,
+            offset_start=config.offset_repositioning_steps,
+            offset_end=config.offset_termination_steps,
             classed=config.demand_is_classed,
             resize_factor=config.demand_resize_factor,
         )
@@ -185,7 +185,7 @@ def get_trip_count_step(
 
     if max_steps:
         trip_count_step = trip_count_step[
-            earliest_step: earliest_step + max_steps
+            earliest_step : earliest_step + max_steps
         ]
 
     return trip_count_step
@@ -264,7 +264,7 @@ def get_step_trip_list(
             # Trips associated to timestep
             trip_list = []
 
-            placement_first = df_slice.index[0]
+            # placement_first = df_slice.index[0]
             for i in range(0, len(df_slice) - 1):
                 # What time trip has arrived into the system
                 placement_time = df_slice.index[i]

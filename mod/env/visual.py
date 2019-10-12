@@ -328,7 +328,7 @@ class EpisodeLog:
             plt.xticks(np.arange(self.adp.n))
 
             if file_path:
-                plt.savefig(f"{file_path}_{car_type}.{file_format}", dpi=dpi)
+                plt.savefig(f"{file_path}_{car_type}.{file_format}", bbox_inches="tight", dpi=dpi)
             else:
                 plt.show()
 
@@ -350,7 +350,7 @@ class EpisodeLog:
         plt.ylabel("Reward")
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
         else:
             plt.show()
 
@@ -363,7 +363,7 @@ class EpisodeLog:
         plt.ylabel("Service rate (%)")
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
         else:
             plt.show()
 
@@ -509,7 +509,7 @@ class StepLog:
         )
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
         else:
             plt.show()
         plt.close()
@@ -626,7 +626,7 @@ class StepLog:
         )
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", dpi=dpi)
+            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
         else:
             plt.show()
         plt.close()

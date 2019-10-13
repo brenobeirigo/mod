@@ -136,8 +136,8 @@ class Config:
     COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
     TOTAL_TIME = "TOTAL_TIME"
-    OFFSET_REPOSIONING = "OFFSET_REPOSIONING"
-    OFFSET_TERMINATION = "OFFSET_TERMINATION"
+    OFFSET_REPOSITIONING_MIN = "OFFSET_REPOSITIONING_MIN"
+    OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
     TIME_PERIODS = "TIME_PERIODS"
 
     # FLEET ECONOMICS
@@ -168,6 +168,7 @@ class Config:
     # Model constraints
     SQ_GUARANTEE = "SQ_GUARANTEE"
     MAX_CARS_LINK = "MAX_CARS_LINK"
+    TIME_MAX_CARS_LINK = "TIME_MAX_CARS_LINK"
     LINEARIZE_INTEGER_MODEL = "LINEARIZE_INTEGER_MODEL"
     USE_ARTIFICIAL_DUALS = "USE_ARTIFICIAL_DUALS"
 
@@ -456,16 +457,16 @@ class Config:
         return self.config["MAX_TRIPS"]
 
     @property
-    def offset_repositioning(self):
+    def offset_repositioning_steps(self):
         """Number of time steps with no trips before 
         demand (for reposition)"""
-        return self.config["OFFSET_REPOSIONING"]
+        return int(self.config["OFFSET_REPOSITIONING_MIN"]/self.config["TIME_INCREMENT"])
 
     @property
-    def offset_termination(self):
+    def offset_termination_steps(self):
         """Number of time steps with no trips after demand (so
         that all passengers can be delivered)"""
-        return self.config["OFFSET_TERMINATION"]
+        return int(self.config["OFFSET_TERMINATION_MIN"]/self.config["TIME_INCREMENT"])
 
     def resize_zones(self, factor):
         # Each zone has width = 0.5 miles
@@ -516,24 +517,24 @@ class Config:
 
         # # Total number of time periods
         # self.config["TIME_PERIODS"] = int(
-        #     self.config["OFFSET_REPOSIONING"]
+        #     self.config["OFFSET_REPOSITIONING_MIN"]
         #     + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
-        #     + self.config["OFFSET_TERMINATION"]
+        #     + self.config["OFFSET_TERMINATION_MIN"]
         # )
 
         #       Total number of time periods
         self.config["TIME_PERIODS"] = int(
             (
-                self.config["OFFSET_REPOSIONING"]
+                self.config["OFFSET_REPOSITIONING_MIN"]
                 + self.config[Config.DEMAND_TOTAL_HOURS]
                 * 60
-                + self.config["OFFSET_TERMINATION"]
+                + self.config["OFFSET_TERMINATION_MIN"]
             ) / self.config["TIME_INCREMENT"]
         )
 
         self.config["TIME_PERIODS_TERMINATION"] = int(
             (
-                self.config["OFFSET_REPOSIONING"]
+                self.config["OFFSET_REPOSITIONING_MIN"]
                 + self.config[Config.DEMAND_TOTAL_HOURS]
                 * 60
             ) / self.config["TIME_INCREMENT"]
@@ -577,7 +578,7 @@ class Config:
         self.config[Config.DEMAND_EARLIEST_DATETIME] = (
             datetime.strptime("2011-02-01 00:00", "%Y-%m-%d %H:%M")
             + timedelta(hours=self.config[Config.DEMAND_EARLIEST_HOUR])
-            - timedelta(minutes=self.config[Config.OFFSET_REPOSIONING])
+            - timedelta(minutes=self.config[Config.OFFSET_REPOSITIONING_MIN])
         )
 
         # Convert levels to tuples to facilitate pickle
@@ -693,24 +694,24 @@ class ConfigStandard(Config):
         self.config["TOTAL_TIME"] = 24
 
         # Offset at the beginning to reposition vehicles
-        self.config["OFFSET_REPOSIONING"] = 3
+        self.config["OFFSET_REPOSITIONING_MIN"] = 3
 
         # Offset at the end to guarantee trips terminate
-        self.config["OFFSET_TERMINATION"] = 11
+        self.config["OFFSET_TERMINATION_MIN"] = 11
 
         # Total number of time periods
         self.config["TIME_PERIODS"] = int(
             (
-                self.config["OFFSET_REPOSIONING"]
+                self.config["OFFSET_REPOSITIONING_MIN"]
                 + self.config["TOTAL_TIME"] * 60 
-                + self.config["OFFSET_TERMINATION"]
+                + self.config["OFFSET_TERMINATION_MIN"]
             ) / self.config["TIME_INCREMENT"]
         )
 
         # Total number of time periods
         self.config["TIME_PERIODS_TERMINATION"] = int(
             (
-            self.config["OFFSET_REPOSIONING"]
+            self.config["OFFSET_REPOSITIONING_MIN"]
             + self.config["TOTAL_TIME"] * 60
             ) / self.config["TIME_INCREMENT"]
         )
@@ -1181,6 +1182,18 @@ class ConfigNetwork(ConfigStandard):
         return levels
 
     @property
+    def time_max_cars_link(self):
+        return self.config[Config.TIME_MAX_CARS_LINK]
+
+    def get_reb_neighbors(self):
+        reb_neigh = ", ".join(
+            [
+                f"{level}-{n_neighbors}"
+                for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
+            ]
+        )
+        return reb_neigh
+    @property
     def label(self, name=""):
 
         if self.config[Config.TUNE_LABEL] is not None:
@@ -1211,9 +1224,11 @@ class ConfigNetwork(ConfigStandard):
             )
         )
 
-        max_link = (f'({self.max_cars_link:02})' if self.max_cars_link else '')
+        max_link = (
+            f'[L({self.max_cars_link:02}' + '-' + f'{self.time_max_cars_link:02})]' if self.max_cars_link else ''
+        )
 
-        penalize = (f'[P{max_link}]' if self.penalize_rebalance else '')
+        penalize = (f'[P]' if self.penalize_rebalance else '')
 
         lin = ("LIN_INT_" if self.config[Config.LINEARIZE_INTEGER_MODEL] else "LIN_")
 
@@ -1229,16 +1244,16 @@ class ConfigNetwork(ConfigStandard):
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=({reb_neigh}){penalize}_"
+            f"rebal=({reb_neigh}){max_link}{penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             # f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
             # f"{reb_neigh}_"
             f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
-            f"+{self.config[Config.OFFSET_REPOSIONING]}m"
+            f"+{self.config[Config.OFFSET_REPOSITIONING_MIN]}m"
             f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h"
-            f"+{self.config[Config.OFFSET_TERMINATION]}m]_"
+            f"+{self.config[Config.OFFSET_TERMINATION_MIN]}m]_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
             f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"

@@ -2,7 +2,6 @@ from mod.env.car import Car, HiredCar
 from mod.env.trip import Trip
 from mod.env.network import Point
 import mod.env.decision_utils as du
-import mod.env.network as nw
 import itertools as it
 from collections import defaultdict
 import numpy as np

@@ -35,4 +35,3 @@ if __name__ == "__main__":
                 "distances=",
                 [f"{nw.get_distance(p.id, n):.2f}" for n in neighbors],
             )
-max_levels

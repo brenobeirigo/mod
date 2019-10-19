@@ -2,7 +2,6 @@ import random
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-import mod.env.network as nw
 from datetime import timedelta, datetime
 import math
 import time

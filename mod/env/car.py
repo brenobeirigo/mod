@@ -1,7 +1,13 @@
+import collections
+
+
 class Car:
 
     # All cars
     count = 0
+
+    # Cars cannot visit the last tabu locations
+    SIZE_TABU = 20
 
     IDLE = 0
     RECHARGING = 1
@@ -15,6 +21,7 @@ class Car:
     TYPE_FLEET = 0
     TYPE_HIRED = 1
     TYPE_TO_HIRE = 2
+    TYPE_VIRTUAL = 3
 
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
@@ -54,6 +61,8 @@ class Car:
         self.origin = o
         self.type = Car.TYPE_FLEET
 
+        self.tabu = collections.deque([o.id], Car.SIZE_TABU)
+
         # TODO fix battery level
         self.battery_level = 1
 
@@ -63,6 +72,7 @@ class Car:
         Car.count += 1
         self.arrival_time = 0
         self.previous_arrival = 0
+        self.previous_step = 0
         self.step = 0
         self.revenue = 0
         self.n_trips = 0
@@ -117,7 +127,7 @@ class Car:
             f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
             f" - Previous arrival: {self.previous_arrival:>6.2f}"
             f" - Arrival: {self.arrival_time:>6.2f}"
-            f"(step={self.step:>5})"
+            f"(previous={self.previous_step:>5},step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
@@ -150,6 +160,7 @@ class Car:
             self.trip = None
             self.previous = self.point
             self.previous_arrival = self.arrival_time
+            self.previous_step = self.step
             self.waypoint = None
 
             # Update route
@@ -189,6 +200,8 @@ class Car:
         time_increment : int, optional
             Duration (in minutes) of each time increment, by default 15
         """
+        # Car will not move back to the laist places it has visited
+        self.tabu.append(self.point.id)
 
         self.previous = self.point
 
@@ -199,6 +212,8 @@ class Car:
         self.revenue += cost
 
         self.previous_arrival = self.arrival_time
+
+        self.previous_step = self.step
 
         self.arrival_time += duration_service
 
@@ -235,6 +250,8 @@ class Car:
         self.previous = self.point
 
         self.previous_arrival = self.arrival_time
+
+        self.previous_step = self.step
 
         self.point = trip.d
 
@@ -280,6 +297,7 @@ class Car:
         self.point_list = [self.point]
         self.arrival_time = 0
         self.previous_arrival = 0
+        self.previous_step = 0
         self.revenue = 0
         self.distance_traveled = 0
         self.trip = None
@@ -433,6 +451,8 @@ class ElectricCar(Car):
         # Store previous car info
         self.previous_arrival = self.arrival_time
 
+        self.previous_step = self.step
+
         # Sum increment to battery level (max = battery size)
         self.battery_level_miles = min(
             self.battery_level_miles + extra_dist, self.battery_level_miles_max
@@ -491,7 +511,7 @@ class ElectricCar(Car):
             f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
             f" - Previous arrival: {self.previous_arrival:>6.2f}"
             f" - Arrival: {self.arrival_time:>6.2f}"
-            f"(step={self.step:>5})"
+            f"(previous={self.previous_step}, step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
             # f" - Revenue: {self.revenue:>6.2f}"
@@ -505,6 +525,12 @@ class ElectricCar(Car):
         )
 
         return status
+
+
+class VirtualCar(Car):
+    def __init__(self, o):
+        super().__init__(o)
+        self.type = Car.TYPE_VIRTUAL
 
 
 class HiredCar(Car):
@@ -524,6 +550,7 @@ class HiredCar(Car):
         self.step = current_step
         self.arrival_time = current_arrival
         self.previous_arrival = current_arrival
+        self.previous_step = current_step
 
         # Contract
         self.total_time = contract_duration_h * 60
@@ -576,6 +603,7 @@ class HiredElectricCar(ElectricCar):
         self.step = current_step
         self.arrival_time = current_arrival
         self.previous_arrival = current_arrival
+        self.previous_step = current_step
 
         # Contract
         self.total_time = contract_duration_h * 60

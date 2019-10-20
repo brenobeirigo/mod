@@ -1,6 +1,6 @@
 import itertools
 from collections import defaultdict
-from mod.env.car import HiredCar
+from mod.env.car import HiredCar, VirtualCar
 
 # Decision codes
 
@@ -71,6 +71,12 @@ def rebalance_decision(car, neighbor):
 def rebalance_decisions(car, targets, env):
     rebalance_decisions = set()
     for t in targets:
+
+        # If target is in car's tabu list, it means it was recently
+        # visited by the vehicle
+        if t in car.tabu:
+            continue
+
         # Car cannot service trip because it cannot go back
         # to origin in time
         if isinstance(car, HiredCar) and not env.can_move(
@@ -95,6 +101,36 @@ def trip_decision(car, trip):
 # #################################################################### #
 # Manipulate decisions ############################################### #
 # #################################################################### #
+
+
+def get_virtual_decisions(trips):
+    """Create virtual trip and stay decisions.
+    When the system must fullfil all orders, virtual cars can be
+    used to pretend customers were serviced.
+    
+    Parameters
+    ----------
+    trips : list
+        Trip list from where virtual car origins are drawn.
+    
+    Returns
+    -------
+    list
+        Virtual decisions
+    """
+
+    decisions = set()
+
+    for trip in trips:
+
+        virtual_car = VirtualCar(trip.o)
+        # Stay
+        decisions.add(stay_decision(virtual_car))
+
+        # Pickup
+        decisions.add(trip_decision(virtual_car, trip))
+
+    return decisions
 
 
 def get_decisions(env, trips, min_battery_level=None):

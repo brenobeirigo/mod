@@ -13,9 +13,7 @@
     C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels
 
 ## Execution
-Example to log adp and mip execution, save progress.npy file, and plots.
 
-    python mod\ml\adp_network_server.py TEST_NAME -use_duals -save_progress -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
 
 | Keyword | Function |
 |---------|----------|
@@ -27,6 +25,10 @@ Example to log adp and mip execution, save progress.npy file, and plots.
 |save_plots| Save iteration's demand and fleet statuses for each step.|
 |n N_ITERATON| Set the number of iterations.|
 |FLEET_SIZE | Set the fleet size.|
+
+Example to log adp and mip execution, save progress.npy file, and plots.
+
+    python mod\ml\adp_network_server.py TEST_NAME -use_duals -save_progress -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
 
 Execution (only save progress):
 

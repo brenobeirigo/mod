@@ -115,7 +115,12 @@ class Car:
             trip = (
                 (
                     f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
-                    f"(pk_step={self.trip.pk_step:>5}, dropoff={self.trip.dropoff_time:>6.2f})"
+                    f"(pk_step={self.trip.pk_step:>5}, "
+                    f"dropoff={self.trip.dropoff_time:>6.2f}, "
+                    f"placement={self.trip.placement}, "
+                    f"elapsed={self.trip.elapsed_sec:>3}, "
+                    f"class={self.trip.sq_class}, "
+                    f"max_wait={self.trip.max_delay_from_placement:>6.2f})"
                 )
                 if self.trip is not None
                 else ""

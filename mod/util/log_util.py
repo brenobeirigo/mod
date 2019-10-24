@@ -53,7 +53,14 @@ def get_file_handler(log_file, mode="w", formatter=FORMATTER_VERBOSE):
     return file_handler
 
 
-def create_logger(name, log_level, level_file, level_console, log_file, formatter_file=FORMATTER_VERBOSE):
+def create_logger(
+    name,
+    log_level,
+    level_file,
+    level_console,
+    log_file,
+    formatter_file=FORMATTER_VERBOSE,
+):
 
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
@@ -348,6 +355,55 @@ def log_update_values_smoothed(name, t, level_update_list, values):
         print(f"Can't log value function update! Exception: {e}")
 
 
+def log_update_values(name, t, values):
+
+    try:
+        logger_obj = log_dict[name]
+
+        if logger_obj.LOG_VALUE_UPDATE:
+
+            logger = logger_obj.logger
+
+            logger.debug(
+                "  ############ Updating value functions "
+                f"(method=smoothed, time={t:>4}) ################"
+            )
+
+            for g, state_data in enumerate(values):
+
+                logger.debug(f"\n############## {g}")
+
+                for a_g, data in state_data.items():
+                    (
+                        t_g,
+                        pos_g,
+                        battery_g,
+                        contract_duration_g,
+                        car_type_g,
+                        car_origin_g,
+                    ) = a_g
+
+                    logger.debug(
+                        # f"    - vf={data[VF]:6.2f}, "
+                        f"time={t_g}, "
+                        f"location={pos_g:>4}, "
+                        f"battery={battery_g}, "
+                        f"contract={contract_duration_g}, "
+                        f"car={car_type_g}, "
+                        f"origin={car_origin_g}, "
+                        # f"values={data}"
+                        f" [VF = {data[0]:6.2f}, "
+                        f"COUNT = {data[1]:>6}, "
+                        f"TRANSIENT_BIAS = {data[2]:6.2f}, "
+                        f"VARIANCE_G = {data[3]:6.2f}, "
+                        f"STEPSIZE_FUNC = {data[4]:6.2f}, "
+                        f"LAMBDA_STEPSIZE = {data[5]:6.2f}]"
+                    )
+
+    except Exception as e:
+        print(f"Can't log value function update! Exception: {e}")
+
+
 def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
     try:
         logger_obj = log_dict[name]
@@ -362,9 +418,7 @@ def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
                 f"  # ATTRIBUTE CAR COUNT {msg} ################################"
             )
             header = ["POSI", "BATT", "CONT", "CART", "DEPO"]
-            logger.debug(
-                f"    - {format_tuple(header)} = {'COUNT':>10}"
-            )
+            logger.debug(f"    - {format_tuple(header)} = {'COUNT':>10}")
 
             car_attributes = sorted(
                 list(attribute_cars_dict.items()), key=lambda d: (d[0][0])
@@ -447,7 +501,12 @@ class LogAux:
         self.LOG_COSTS = LOG_COSTS and log_all
         self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS and log_all
         self.logger = create_logger(
-            logger_name, log_level, level_file, level_console, log_file, formatter_file=formatter_file
+            logger_name,
+            log_level,
+            level_file,
+            level_console,
+            log_file,
+            formatter_file=formatter_file,
         )
 
 

@@ -14,6 +14,7 @@ import itertools
 import pandas as pd
 import time
 from copy import deepcopy
+from pprint import pprint
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION, SQ_CLASS)
@@ -35,46 +36,69 @@ N_DECISIONS = 9
 # #################################################################### #
 
 
-def optimize_and_fix_fractional_vars(m, logger=None):
+def is_optimal(m):
+    if m.status == GRB.Status.OPTIMAL:
+        return True
+    elif m.status == GRB.Status.UNBOUNDED:
+        print("The model cannot be solved because it is unbounded")
+        return False
+    elif (
+        m.status != GRB.Status.INF_OR_UNBD
+        and m.status != GRB.Status.INFEASIBLE
+    ):
+        print("Optimization was stopped with status %d" % m.status)
+        return False
 
+    elif m.status == GRB.Status.INFEASIBLE:
+        print(f"Model infeasible (status={m.status}")
+        return False
+
+
+def optimize_and_fix_fractional_vars(m, logger=None):
     def sortkey(v1):
         """Key function used to sort variables based on relaxation
         fractionality"""
 
         sol = v1.x
-        return abs(sol-int(sol+0.5))
+        return abs(sol - int(sol + 0.5))
 
     m.optimize()
 
-    for i in range(1000):
+    if is_optimal(m):
 
-        # Create a list of fractional variables, sorted in order of
-        # increasing distance from the relaxation solution to the
-        # nearest integer value
+        for i in range(1000):
 
-        fractional = []
-        for v in m.getVars():
-            sol = v.x
-            if abs(sol - int(sol+0.5)) > 1e-5:
-                fractional += [v]
+            # Create a list of fractional variables, sorted in order of
+            # increasing distance from the relaxation solution to the
+            # nearest integer value
 
-        if len(fractional) == 0:
-            break
+            fractional = []
+            for v in m.getVars():
+                sol = v.x
+                if abs(sol - int(sol + 0.5)) > 1e-5:
+                    fractional += [v]
 
-        fractional.sort(key=sortkey)
+            if len(fractional) == 0:
+                break
 
-        # Fix the first quartile to the nearest integer value
-        logger.log(f'Iteration {i}, obj {m.objVal}, fractional {len(fractional)}')
+            fractional.sort(key=sortkey)
 
-        nfix = max(int(len(fractional)/4), 1)
-        for i in range(nfix):
-            v = fractional[i]
-            fixval = int(v.x+0.5)
-            v.lb = fixval
-            v.ub = fixval
-            logger.log(f'  Fix {v.varName} to {fixval} (rel {v.x})')
+            # Fix the first quartile to the nearest integer value
+            logger.debug(
+                f"Iteration {i}, obj {m.objVal}, fractional {len(fractional)}"
+            )
 
-        m.optimize()
+            nfix = max(int(len(fractional) / 4), 1)
+            for i in range(nfix):
+                v = fractional[i]
+                fixval = int(v.x + 0.5)
+                v.lb = fixval
+                v.ub = fixval
+                logger.debug(f"  Fix {v.varName} to {fixval} (rel {v.x})")
+
+            m.optimize()
+            if not is_optimal(m):
+                break
 
 
 def car_flow_constr(m, x_var, attribute_cars_dict):
@@ -136,13 +160,19 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
     return car_recharge_dict
 
 
-def max_cars_link_constrs(m, x_var, decisions, max_cars_link=5):
+def max_cars_link_constrs(
+    m, decisions, vehicles_arriving_at, max_cars_link=5
+):
 
     flood_avoidance_constrs = dict()
-    for time_location, decision_list in decisions.items():
-        sum_decisions = quicksum([x_var[d] for d in decision_list])
-        flood_avoidance_constrs[time_location] = m.addConstr(
-            sum_decisions <= max_cars_link, f"TRIP_FLOW_CLASS_{time_location}"
+
+    for pos, constrs in decisions.items():
+
+        n_cars_link = max(0, max_cars_link - vehicles_arriving_at[pos])
+
+        # sum_decisions = quicksum([x_var[d] for d in decision_list])
+        flood_avoidance_constrs[pos] = m.addConstr(
+            constrs <= n_cars_link, f"MAX_CARS_LINK[{pos}]"
         )
 
     return flood_avoidance_constrs
@@ -267,6 +297,9 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
 
     for pos, battery, contract_duration, car_type, car_origin in flow_cars:
 
+        if car_type == Car.TYPE_VIRTUAL:
+                print("deu merda22")
+
         try:
             constr = m.getConstrByName(
                 f"CAR_FLOW[{pos},{battery},{contract_duration},{car_type},{car_origin}]"
@@ -281,6 +314,8 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
             #     )
 
         except Exception as e:
+            if car_type == Car.TYPE_VIRTUAL:
+                print("deu merda")
             if logger:
                 logger.debug(
                     f"Can't extract dual from constraint '{constr}'."
@@ -291,6 +326,10 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
         # Should zero value functions be updated?
         if shadow_price == 0 and ignore_zeros:
             continue
+
+        if car_type == Car.TYPE_VIRTUAL:
+            car_type = Car.TYPE_FLEET
+            print((pos, battery, contract_duration, car_type, car_origin), shadow_price)
 
         duals[
             (pos, battery, contract_duration, car_type, car_origin)
@@ -443,6 +482,7 @@ def service_trips(
     use_artificial_duals=True,
     use_duals=True,
     log_times=True,
+    vehicle_count_dict=None,
 ):
     t1_total = time.time()
 
@@ -526,11 +566,15 @@ def service_trips(
     # ##################################################################
 
     attribute_cars_dict = defaultdict(list)
+    # g_region = 5
+    # count_car_region = defaultdict(int)
 
     for car in itertools.chain(env.available, env.available_hired):
 
         # List of cars with the same attribute
         attribute_cars_dict[car.attribute].append(car)
+
+        # count_car_region[env.points[car.point.id].id_level(g_region)]+=1
 
     la.log_attribute_cars_dict(logger_name, attribute_cars_dict)
 
@@ -541,14 +585,25 @@ def service_trips(
     class_count_dict = defaultdict(int)
     attribute_trips_dict = defaultdict(list)
 
+    # How many trips in each region
+    # count_trips_region = defaultdict(int)
+
     # Create a dictionary associate
     for trip in trips:
 
         # Trip count per class
         class_count_dict[trip.sq_class] += 1
 
+        # count_trips_region[env.points[trip.o.id].id_level(g_region)]+=1
+
         # Group trips with the same ods
         attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
+
+    # print("### Count car region")
+    # pprint(count_car_region)
+    
+    # print("\n### Count trip region")
+    # pprint(count_trips_region)
 
     # ##################################################################
     # VARIABLES ########################################################
@@ -569,6 +624,14 @@ def service_trips(
         trips,
         # max_battery_level=env.config.battery_levels,
     )
+    # virtual_decisions = du.get_virtual_decisions(env, trips)
+    
+    # logger.debug("\n ###### Virtual vehicles:")
+    # for v in virtual_decisions:
+    #     logger.debug(f' - {v}')
+
+    # decision_cars.update(virtual_decisions)
+
     t_decisions = time.time() - t1_decisions
 
     logger.debug(f"  - Decision count: {len(decision_cars)}")
@@ -587,7 +650,12 @@ def service_trips(
     )
 
     # Create variables
-    x_var = m.addVars(tuplelist(decision_cars), name="x", vtype=GRB.CONTINUOUS, lb=0)
+    x_var = m.addVars(
+        tuplelist(decision_cars),
+        name="x",
+        vtype=GRB.CONTINUOUS,
+        lb=0
+    )
 
     # ##################################################################
     # MODEL ############################################################
@@ -610,20 +678,58 @@ def service_trips(
 
         # post decision state and post decision cost
         post_decision_costs = 0
-        decisions_time_pos = defaultdict(list)
+
+        # decisions_time_pos = defaultdict(list)
+        decisions_destination = defaultdict(int)
 
         for d in x_var:
-            post_cost, post_state = env.post_cost(time_step, d)
+
+            if d[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
+                post_cost = 0
+
+            else:
+                post_cost, post_state = env.post_cost(time_step, d)
+
+            # Updating post decision costs
             post_decision_costs += post_cost * x_var[d]
+            
+            # ######### Controlling cars per link
+            # Vehicles staying were already counted before
+            if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
 
-            # STAY and REBALANCE decisions per spatiotemporal point
-            if (
-                d[du.ACTION] == du.REBALANCE_DECISION
-                or d[du.ACTION] == du.STAY_DECISION
-            ):
+                # rebalancing_to[p] + expected_arriving_to[p] 
+                # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
 
-                spatiotemporal_id = (post_state[adp.TIME], d[du.DESTINATION])
-                decisions_time_pos[spatiotemporal_id].append(d)
+                # Cars arriving at destination
+                decisions_destination[d[du.DESTINATION]] += x_var[d]
+
+                # Cars leaving orign
+                decisions_destination[d[du.ORIGIN]] -= x_var[d]
+                
+                # Latest time of cars going to destination
+                # if post_state[adp.TIME] > max_time_d[du.DESTINATION]:
+                #     max_time_d[du.DESTINATION] = post_state[adp.TIME]
+
+                # There is a limit of the number of cars staying or
+                # rebalance to locations
+                # spatiotemporal_id = (
+                #     int(post_state[adp.TIME] / env.config.time_max_cars_link),
+                #     d[du.DESTINATION],
+                # ) 
+                # spatial_id = du.DESTINATION
+
+                # New vehicles rebalancing to location
+                # decisions_destination[du.DESTINATION].append(d)
+                # decisions_time_pos[spatiotemporal_id].append(d)
+
+            # # STAY and REBALANCE decisions per spatiotemporal point
+            # if (
+            #     d[du.ACTION] == du.REBALANCE_DECISION
+            #     or d[du.ACTION] == du.STAY_DECISION
+            # ):
+
+            #     spatiotemporal_id = (post_state[adp.TIME], d[du.DESTINATION])
+            #     decisions_time_pos[spatiotemporal_id].append(d)
 
         # Compute time to get post decision costs
         t_setup_costs_post = time.time() - t1_setup_costs_post
@@ -675,8 +781,8 @@ def service_trips(
         if env.config.max_cars_link:
             max_cars_link_constr = max_cars_link_constrs(
                 m,
-                x_var,
-                decisions_time_pos,
+                decisions_destination,
+                vehicle_count_dict,
                 max_cars_link=env.config.max_cars_link,
             )
 
@@ -733,7 +839,7 @@ def service_trips(
                 try:
 
                     t1_duals = time.time()
-
+                    
                     # Extracting shadow prices from car flow constraints
                     duals = extract_duals(
                         m, flow_cars_dict, ignore_zeros=True, logger=logger
@@ -751,8 +857,10 @@ def service_trips(
                     t_update = time.time() - t1_update
 
                 except Exception as e:
+                    print("aaaaaa")
                     logger.debug(
-                        f"Can't extract duals. Exception: '{e}'.", exc_info=True
+                        f"Can't extract duals. Exception: '{e}'.",
+                        exc_info=True,
                     )
 
         t1_realize_decision = time.time()
@@ -783,7 +891,10 @@ def service_trips(
             # Use dictionary of duals to update value functions
             env.update_vf(artificial_duals, time_step)
 
-            time_dict["update_artificial"] = [time.time() - t1_update_vf_artificial]
+            logger.debug("###### Artificial duals")
+            time_dict["update_artificial"] = [
+                time.time() - t1_update_vf_artificial
+            ]
 
         logger.debug(
             "### Objective Function (costs and post costs) - "
@@ -794,19 +905,21 @@ def service_trips(
         t_total = time.time() - t1_total
 
         if log_times:
-            time_dict.update({
-                "iteration": [iteration],
-                "step": [time_step],
-                "decisions": [t_decisions],
-                "duals": [t_duals],
-                "realize_decision": [t_realize_decision],
-                "update_vf": [t_update],
-                "setup_costs": [t_setup_costs],
-                "setup_costs_post": [t_setup_costs_post],
-                "setup_constraints": [t_setup_constraints],
-                "optimize": [t_optimize],
-                "total": [t_total],
-            })
+            time_dict.update(
+                {
+                    "iteration": [iteration],
+                    "step": [time_step],
+                    "decisions": [t_decisions],
+                    "duals": [t_duals],
+                    "realize_decision": [t_realize_decision],
+                    "update_vf": [t_update],
+                    "setup_costs": [t_setup_costs],
+                    "setup_costs_post": [t_setup_costs_post],
+                    "setup_constraints": [t_setup_constraints],
+                    "optimize": [t_optimize],
+                    "total": [t_total],
+                }
+            )
 
             times_path = f"{env.config.folder_adp_log}times.csv"
             df = pd.DataFrame(time_dict)
@@ -845,3 +958,21 @@ def service_trips(
                 print("%s" % c.constrName)
     else:
         print(f"Error code: {m.status}.")
+        print(
+            "Model was proven to be either infeasible or unbounded."
+            "To obtain a more definitive conclusion, set the "
+            " DualReductions parameter to 0 and reoptimize."
+        )
+        # Save model
+        m.write(f"myopic_error_code.lp")
+
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)

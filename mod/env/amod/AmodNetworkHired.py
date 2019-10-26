@@ -112,6 +112,9 @@ class AmodNetworkHired(AmodNetwork):
 
             contribution = PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
 
+            # if decision[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
+            #     return -contribution
+
             # Profit to service trip
             return contribution
 
@@ -186,6 +189,9 @@ class AmodNetworkHired(AmodNetwork):
                 sq_class,
                 times,
             ) = decision
+
+            if car_type == Car.TYPE_VIRTUAL:
+                continue
 
             # Track how many times a decision was taken
             decision_dict_count[action] += times
@@ -508,6 +514,11 @@ class AmodNetworkHired(AmodNetwork):
 
         # Target attribute if decision was taken
         post_state = self.preview_decision(t, decision)
+
+        if post_state[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
+            edit_post = list(post_state)
+            edit_post[du.CAR_TYPE] = Car.TYPE_FLEET
+            post_state = tuple(edit_post)
 
         if post_state[adp.adp.TIME] >= self.config.time_steps:
             return 0, post_state

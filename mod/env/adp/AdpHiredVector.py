@@ -62,6 +62,19 @@ class AdpHired(adp.Adp):
     ####################################################################
     # Smoothed #########################################################
     ####################################################################
+    def get_count(self, disaggregate, g=0):
+        state = self.values[g].get(disaggregate, None)
+        if state:
+            return state[COUNT]
+        else:
+            return None
+
+    def get_vf(self, disaggregate, g=0):
+        state = self.values[g].get(disaggregate, None)
+        if state:
+            return state[VF]
+        else:
+            return None
 
     # # @functools.lru_cache(maxsize=None)
     def get_weighted_value(self, disaggregate):
@@ -194,8 +207,8 @@ class AdpHired(adp.Adp):
             )
 
         # Log how duals are updated
-        la.log_update_values_smoothed(
-            self.config.log_path(self.n), step, [], self.values
+        la.log_update_values(
+            self.config.log_path(self.n), step, self.values
         )
 
     def get_weight(self, g, a, vf_0):

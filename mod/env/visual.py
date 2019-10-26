@@ -433,12 +433,16 @@ class StepLog:
             total = 0
 
         status, battery = self.env.get_fleet_status()
+        statuses = [
+            f"{Car.status_label_dict[status_code]}={status_count:>4}"
+            for status_code, status_count in status.items()
+        ]
         return (
             f"### Time step: {self.n:>4})"
             f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>7.2%}"
             f" ### Trips: {total:>4}"
-            f" ### Status: {dict(status)}"
+            f" ### Status: {statuses}"
         )
 
     def overall_log(self, label="Operational"):
@@ -464,7 +468,7 @@ class StepLog:
         )
 
     def plot_fleet_status(self, file_path=None, file_format="png", dpi=150, earliest_hour=0):
-        steps = np.arange(self.n+1)
+        steps = np.arange(self.n)
 
         for status_code, status_count_step in self.car_statuses.items():
             status_label = Car.status_label_dict[status_code]
@@ -551,7 +555,7 @@ class StepLog:
 
     def plot_service_status(self, file_path=None, file_format="png", dpi=150):
 
-        steps = np.arange(self.n+1)
+        steps = np.arange(self.n)
 
         fig, ax1 = plt.subplots()
         ax1.set_xlabel("Time")
@@ -607,7 +611,7 @@ class StepLog:
 
          # Configure x axis
         plt.xlim([0, self.env.config.time_steps])
-        plt.ylim([0, self.env.config.fleet_size])
+        # plt.ylim([0, self.env.config.fleet_size])
         plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
 
 

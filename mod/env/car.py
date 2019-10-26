@@ -1,4 +1,5 @@
 import collections
+import mod.util.log_util as log_util
 
 
 class Car:
@@ -7,7 +8,7 @@ class Car:
     count = 0
 
     # Cars cannot visit the last tabu locations
-    SIZE_TABU = 20
+    SIZE_TABU = 5
 
     IDLE = 0
     RECHARGING = 1
@@ -22,6 +23,8 @@ class Car:
     TYPE_HIRED = 1
     TYPE_TO_HIRE = 2
     TYPE_VIRTUAL = 3
+
+    DISCARD_BATTERY = 1
 
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
@@ -64,7 +67,7 @@ class Car:
         self.tabu = collections.deque([o.id], Car.SIZE_TABU)
 
         # TODO fix battery level
-        self.battery_level = 1
+        self.battery_level = Car.DISCARD_BATTERY
 
         self.trip = None
         self.point_list = [self.point]
@@ -295,6 +298,9 @@ class Car:
 
         # if self.arrival_time > self.step:
         #     print("What!", self.arrival_time, self.step)
+
+        # After trip, vehicle is free again to rebalance
+        self.tabu = collections.deque([self.point.id], Car.SIZE_TABU)
 
     def reset(self):
         self.point = self.origin

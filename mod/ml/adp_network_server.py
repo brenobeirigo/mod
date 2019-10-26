@@ -3,6 +3,9 @@ import sys
 from copy import deepcopy
 import time
 import random
+from collections import defaultdict
+from pprint import pprint
+import numpy as np
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -27,9 +30,35 @@ import mod.env.trip as tp
 import mod.env.network as nw
 
 from mod.env.simulator import PlotTrack
+from mod.env.trip import ClassedTrip
+
 
 # Reproducibility of the experiments
 random.seed(1)
+
+
+def move(arrival_t, current_t, lin, next_lin):
+    # Subtract
+    base_lin = np.zeros(len(lin))
+    ones = np.ones(len(lin) - current_t)
+    sub_range_ones = np.arange(current_t, len(lin))
+    np.put(
+        base_lin,
+        sub_range_ones,
+        ones
+    )
+    lin-=base_lin
+    
+    # Add
+    base_next_lin = np.zeros(len(next_lin))
+    ones = np.ones(len(next_lin) - arrival_t)
+    add_range_ones = np.arange(arrival_t, len(lin))
+    np.put(
+        base_next_lin,
+        add_range_ones,
+        ones
+    )
+    next_lin+=base_next_lin
 
 
 def get_sim_config(update_dict):
@@ -62,15 +91,15 @@ def get_sim_config(update_dict):
 
     config.update(
         {
-            ConfigNetwork.TEST_LABEL: "TEST",
+            ConfigNetwork.TEST_LABEL: "HUGE",
             # Fleet
             ConfigNetwork.FLEET_SIZE: 5,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
             ConfigNetwork.BATTERY_LEVELS: 1,
             # Time - Increment (min)
-            ConfigNetwork.TIME_INCREMENT: 0.5,
-            ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.OFFSET_TERMINATION: 60,
+            ConfigNetwork.TIME_INCREMENT: 1,
+            ConfigNetwork.OFFSET_REPOSITIONING_MIN: 15,
+            ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
             # -------------------------------------------------------- #
             # NETWORK ################################################ #
             # -------------------------------------------------------- #
@@ -87,71 +116,85 @@ def get_sim_config(update_dict):
             # Penalize rebalancing by subtracting the potential
             # profit accrued by staying still during the rebalance
             # process.
-            ConfigNetwork.PENALIZE_REBALANCE: False,
+            ConfigNetwork.PENALIZE_REBALANCE: True,
             # Cars rebalance to up to #region centers at each level
             # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                (0, 4),
-                (1, 4),
-                (2, 4),
-                (3, 2),
-                (4, 2),
-                # (5, 1),
-                # (6, 1),
+                (0, 8),
+                # (1, 4),
+                # (2, 2),
+                # (3, 1),
+                # (4, 1),
             ),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 30, 60, 120, 150, 240, 600],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 300, 600],
             # Aggregation (temporal, spatial, contract, car type)
             ConfigNetwork.AGGREGATION_LEVELS: [
+                # adp.AggLevel(
+                #     temporal=3,
+                #     spatial=adp.DISAGGREGATE,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 adp.AggLevel(
-                    temporal=adp.DISAGGREGATE,
+                    temporal=1,
                     spatial=adp.DISAGGREGATE,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
+                # adp.AggLevel(
+                #     temporal=3,
+                #     spatial=1,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 adp.AggLevel(
-                    temporal=2,
-                    spatial=adp.DISAGGREGATE,
+                    temporal=3,
+                    spatial=2,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
                 adp.AggLevel(
-                    temporal=2,
-                    spatial=1,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
+                    temporal=3,
                     spatial=3,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISAGGREGATE,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISAGGREGATE,
                 ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=5,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
-                adp.AggLevel(
-                    temporal=2,
-                    spatial=6,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
-                ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=3,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=5,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
+                # adp.AggLevel(
+                #     temporal=2,
+                #     spatial=6,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISAGGREGATE,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISAGGREGATE,
+                # ),
                 # adp.AggLevel(
                 #     temporal=2,
                 #     spatial=5,
@@ -232,7 +275,7 @@ def get_sim_config(update_dict):
                 #     car_origin=6,
                 # ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 2, 3, 5, 10],
+            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2.5, 3, 5, 10],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
@@ -350,7 +393,7 @@ def alg_adp(
     config,
     # PLOT ########################################################### #
     step_delay=PlotTrack.STEP_DELAY,
-    episodes=30,
+    episodes=300,
     enable_charging=False,
     is_myopic=False,
     # LOG ############################################################ #
@@ -441,8 +484,8 @@ def alg_adp(
             step_trip_list = get_trips_random_ods(
                 amod.points,
                 step_trip_count,
-                offset_start=amod.config.offset_repositioning,
-                offset_end=amod.config.offset_termination,
+                offset_start=amod.config.offset_repositioning_steps,
+                offset_end=amod.config.offset_termination_steps,
                 origins=origins,
                 destinations=destinations,
                 classed=classed_trips,
@@ -469,7 +512,12 @@ def alg_adp(
             f" Iteration {n:04} "
             f"- Demand (min={min(step_trip_count)}"
             f", max={max(step_trip_count)})"
-            "##################################"
+            f", step={config.time_increment}"
+            f", earliest_step={config.demand_earliest_step_min}"
+            f", max_steps={config.demand_max_steps}"
+            f", offset_start={amod.config.offset_repositioning_steps}"
+            f", offset_end={amod.config.offset_termination_steps}"
+            f", steps={amod.config.time_steps}"
         )
 
         if plot_track:
@@ -491,8 +539,40 @@ def alg_adp(
 
         start_time = time.time()
 
+        # Inflow/outflow of cars in a node at a certain node
+        # buffer = 120
+        # rows = config.node_count
+        # cols = int((config.time_steps + buffer)/config.time_max_cars_link + 0.5)
+        # vehicle_count_dict = np.zeros(rows*cols).reshape((rows, cols))
+        expected_arriving = np.zeros(config.node_count)
+        # logger.debug(f"########## {rows}X{cols} - {rows*cols} #####################")
+        
+        # for c in amod.cars:
+        #     vehicle_count_dict[c.point.id] += np.ones(cols)
+        #     expected_arriving[c.point.id]+=1
+    
+        # logger.debug("--INIT")
+        # logger.debug(f"step={0} - {np.argmax(vehicle_count_dict[:,0])}:{np.max(vehicle_count_dict[:,0])}")
+
+        # # View
+        # logger.debug(f"TIME ={str(list(np.arange(cols)))}")
+        # for i, l in enumerate(vehicle_count_dict):
+        #         if sum(l) > 0:
+        #             logger.debug(f"{i:05}={str(list(l))}")
+        
+        # import matplotlib.pyplot as plt
+
+        # plt.plot(np.arange(0, len(step_trip_list)), list(map(len, step_trip_list)))
+        # plt.show()
+        
+        outstanding = list()
+
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(deepcopy(step_trip_list)):
+
+            # Add trips from last step (when user backlogging is enabled)
+            trips.extend(outstanding)
+            outstanding = []
 
             logger.debug(
                 "###########################################"
@@ -504,18 +584,15 @@ def alg_adp(
                 "###########################################"
             )
 
+            for t in trips:
+                logger.debug(f'  - {t}')
+
             if plot_track:
                 # Update optimization time step
                 plot_track.opt_step = step
 
                 # Create trip dictionary of coordinates
                 plot_track.trips_dict[step] = vi.compute_trips(trips)
-
-            if save_plots or save_df:
-                logger.debug("  - Computing fleet status...")
-                # Compute fleet status after making decision in step - 1
-                # What each car is doing when trips are arriving?
-                step_log.compute_fleet_status(step)
 
             # ######################################################## #
             # TIME INCREMENT HAS PASSED ############################## #
@@ -526,6 +603,9 @@ def alg_adp(
             # available_hired)
             amod.update_fleet_status(step + 1)
 
+            logger.debug("\n## Car attributes:")
+            for c in amod.cars:
+                logger.debug(f'{c} - {c.attribute}')
             # What each vehicle is doing after update?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
@@ -586,24 +666,85 @@ def alg_adp(
                 # # Save mip .lp and .log of iteration n
                 iteration=n,
                 log_mip=log_mip,
-                # # Use hierarchical aggregation to update values
+                # Use hierarchical aggregation to update values
                 use_artificial_duals=use_artificial_duals,
                 # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
                 use_duals=use_duals,
+                vehicle_count_dict=expected_arriving,
             )
+
+            if amod.config.allow_user_backlogging:
+
+                expired = []
+                for r in rejected:
+                    max_delay = r.update_delay(amod.config.time_increment)
+                    if max_delay <= 0:
+                        expired.append(r)
+                    else:
+                        outstanding.append(r)
+
+                rejected = expired
+
             # else:
             #     revenue, serviced, rejected = 0, [], []
+
+            for c in amod.available:
+                # Car can move only once ()
+                if c.status == Car.REBALANCE or c.status == Car.ASSIGN or c.status == Car.CRUISING:
+
+                    expected_arriving[c.previous.id] -= 1
+                    expected_arriving[c.point.id] += 1
+                    # logger.debug(
+                    #     f"{c} is {conf.status_label_dict[c.status]} "
+                    #     f"[{c.previous.id}->{c.point.id}]"
+                    #     f"[{c.previous_step}->{int((step+1)/agg_time)}->{int(c.step/agg_time)}]")
+                    # move(
+                    #     int(c.step/config.time_max_cars_link),
+                    #     int((step+1)/config.time_max_cars_link),
+                    #     vehicle_count_dict[c.previous.id],
+                    #     vehicle_count_dict[c.point.id]
+                    # )
+
+            # link = ""
+            # for loc in range(config.node_count):
+            #     if expected_arriving[loc] > 0:
+            #         link+=f"{loc:04}-{expected_arriving[loc]:03}, "
+
+            # print(link)
+            # logger.debug(f"TIME ={str(list(np.arange(cols)))}")
+            # for i, l in enumerate(vehicle_count_dict):
+            #     if sum(l) > 0:
+            #         logger.debug(f"{i:05}={str(list(l))}")
+
+            # argmax = np.argmax(vehicle_count_dict.flatten())
+            # argmin = np.argmin(vehicle_count_dict.flatten())
+            # amax_r = int(argmax/cols)
+            # amax_c = argmax%cols
+            # # pprint(vehicle_count_dict)
+            # print(
+            #     f"step={step} - "
+            #     f"Max. next step={np.max(vehicle_count_dict[:,int((step+1)/agg_time)])}"
+            #     f"[v={np.argmax(vehicle_count_dict[:,int((step+1)/agg_time)])}]"
+            #     f"[overall max: {np.max(vehicle_count_dict.flatten())}({amax_r},{amax_c})]"
+            #     f"[overall min: {np.min(vehicle_count_dict.flatten())}({int(argmin/cols)},{int(argmin%cols)})]"
+            # )
 
             # What each vehicle is doing?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
-                step + 1,
+                int((step+1)/config.time_max_cars_link),
                 skip_steps,
                 step_log,
                 filter_status=[],
                 msg="after decision",
             )
+
+            if save_plots or save_df:
+                logger.debug("  - Computing fleet status...")
+                # Compute fleet status after making decision in step - 1
+                # What each car is doing when trips are arriving?
+                step_log.compute_fleet_status(step+1)
 
             # Virtual hired cars are discarded
             if enable_hiring:
@@ -723,26 +864,42 @@ if __name__ == "__main__":
             ConfigNetwork.DISCOUNT_FACTOR: 1,
             ConfigNetwork.PENALIZE_REBALANCE: True,
             ConfigNetwork.FLEET_SIZE: fleet_size,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.4,
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 24,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 0,
-            ConfigNetwork.OFFSET_TERMINATION: 45,
-            ConfigNetwork.OFFSET_REPOSIONING: 15,
-            ConfigNetwork.TIME_INCREMENT: 15,
+            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+            ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
+            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+            ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+            ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
+            ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.DEMAND_SAMPLING: True,
             ConfigNetwork.SQ_GUARANTEE: False,
-            ConfigNetwork.MAX_CARS_LINK: 5,
+            ConfigNetwork.MAX_CARS_LINK: None,
+            # 10 steps = 5 min
+            ConfigNetwork.TIME_MAX_CARS_LINK: 5,
             ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
             ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
+            # Controlling user matching
+            ConfigNetwork.MATCHING_DELAY: 15,
+            ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+            ConfigNetwork.FLEET_START: conf.FLEET_START_LAST
         }
     )
 
+    print(f"Saving experimental settings at: \"{start_config.exp_settings}\"")
+    start_config.save()
+
+    ClassedTrip.q_classes = dict(A=1.0, B=0.9)
+    ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
+    # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
+    ClassedTrip.min_max_time_class = dict(A=dict(min=1, max=3), B=dict(min=4,max=9))
+    ClassedTrip.class_proportion = dict(A=0.0, B=1)
+
+    # Toggle what is going to be logged
     log_config = {
         la.LOG_DUALS: True,
-        la.LOG_FLEET_ACTIVITY: False,
+        la.LOG_FLEET_ACTIVITY: True,
         la.LOG_VALUE_UPDATE: False,
-        la.LOG_COSTS: False,
-        la.LOG_SOLUTIONS: True,
+        la.LOG_COSTS: True,
+        la.LOG_SOLUTIONS: False,
         la.LOG_WEIGHTS: False,
         la.LOG_ALL: log_adp,
         la.LOG_LEVEL: (log_level if not log_adp else la.DEBUG),
@@ -758,7 +915,7 @@ if __name__ == "__main__":
         contract_duration_h=2,
         sq_guarantee=hire,
         enable_hiring=hire,
-        universal_service=hire,
+        universal_service=False,
         log_config_dict=log_config,
         log_mip=log_mip,
         log_times=log_times,

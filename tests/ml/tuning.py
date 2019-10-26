@@ -175,11 +175,11 @@ if __name__ == "__main__":
         Config.DISCOUNT_FACTOR: [1],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [500],
+        Config.FLEET_SIZE: [300],
         Config.FLEET_START: [
             conf.FLEET_START_LAST,
             # conf.FLEET_START_SAME,
-            # conf.FLEET_START_RANDOM,
+            conf.FLEET_START_RANDOM,
         ],
         # -------------------------------------------------------- #
         # DEMAND ################################################# #
@@ -194,51 +194,106 @@ if __name__ == "__main__":
         ],
         Config.DEMAND_RESIZE_FACTOR: [0.1],
         # Cars rebalance to up to #region centers at each level
-        Config.N_CLOSEST_NEIGHBORS: [((0, 8),)],
+        Config.N_CLOSEST_NEIGHBORS: [
+            ((0, 8),),
+            ((0, 4),),
+            # ((0, 8),(4, 4)),
+            # ((0, 8),(4, 4), (5, 1))
+        ],
+        # Config.MAX_CARS_LINK: [None, 5, 10],
         Config.AGGREGATION_LEVELS: [
-            [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (0, 1, 0, 0, 0, 0),
-                (0, 4, 0, 0, 0, 0),
-                (0, 6, 0, 0, 0, 0),
-            ],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (0, 4, 0, 0, 0, 0),
-                (0, 5, 0, 0, 0, 0),
-                (0, 6, 0, 0, 0, 0),
-            ],
-
-            [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
-            [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (3, 1, 0, 0, 0, 0),
-                (3, 4, 0, 0, 0, 0),
-                (3, 6, 0, 0, 0, 0),
-            ],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (3, 4, 0, 0, 0, 0),
-                (3, 5, 0, 0, 0, 0),
-                (3, 6, 0, 0, 0, 0),
-            ],
-            [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (4, 1, 0, 0, 0, 0),
-                (4, 4, 0, 0, 0, 0),
-                (4, 6, 0, 0, 0, 0),
-            ],
-            [
-                (0, 0, 0, 0, 0, 0),
-                (4, 4, 0, 0, 0, 0),
-                (4, 5, 0, 0, 0, 0),
-                (4, 6, 0, 0, 0, 0),
-            ],
+            # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
+            # [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
+            [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
+            [(1, 0, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
+            # [
+            #     (3, 0, 0, 0, 0, 0),
+            #     (3, 1, 0, 0, 0, 0),
+            #     (3, 2, 0, 0, 0, 0),
+            #     (3, 3, 0, 0, 0, 0),
+            # ]
+            # [(5, 0, 0, 0, 0, 0), (5, 4, 0, 0, 0, 0), (5, 5, 0, 0, 0, 0)],
+            # [(6, 0, 0, 0, 0, 0), (6, 4, 0, 0, 0, 0), (6, 5, 0, 0, 0, 0)],
+            # [(7, 0, 0, 0, 0, 0), (7, 4, 0, 0, 0, 0), (7, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
+            # [(3, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
+            # [(4, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (0, 1, 0, 0, 0, 0),
+            #     (0, 4, 0, 0, 0, 0),
+            #     (0, 6, 0, 0, 0, 0),
+            # ],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (0, 4, 0, 0, 0, 0),
+            #     (0, 5, 0, 0, 0, 0),
+            #     (0, 6, 0, 0, 0, 0),
+            # ],
+            # ############# 0.5 minutes
+            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (0, 1, 0, 0, 0, 0),
+            #     (0, 4, 0, 0, 0, 0),
+            #     (0, 6, 0, 0, 0, 0),
+            # ],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (0, 4, 0, 0, 0, 0),
+            #     (0, 5, 0, 0, 0, 0),
+            #     (0, 6, 0, 0, 0, 0),
+            # ],
+            # # ############# 1 all minutes
+            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
+            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
+            # [
+            #     (1, 0, 0, 0, 0, 0),
+            #     (1, 1, 0, 0, 0, 0),
+            #     (1, 4, 0, 0, 0, 0),
+            #     (1, 6, 0, 0, 0, 0),
+            # ],
+            # [
+            #     (1, 0, 0, 0, 0, 0),
+            #     (1, 4, 0, 0, 0, 0),
+            #     (1, 5, 0, 0, 0, 0),
+            #     (1, 6, 0, 0, 0, 0),
+            # ],
+            # # ############# 3 minutes
+            # [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 6, 0, 0, 0, 0)],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (3, 1, 0, 0, 0, 0),
+            #     (3, 4, 0, 0, 0, 0),
+            #     (3, 6, 0, 0, 0, 0),
+            # ],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (3, 4, 0, 0, 0, 0),
+            #     (3, 5, 0, 0, 0, 0),
+            #     (3, 6, 0, 0, 0, 0),
+            # ],
+            # # ############# 5 minutes
+            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
+            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 6, 0, 0, 0, 0)],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (4, 1, 0, 0, 0, 0),
+            #     (4, 4, 0, 0, 0, 0),
+            #     (4, 6, 0, 0, 0, 0),
+            # ],
+            # [
+            #     (0, 0, 0, 0, 0, 0),
+            #     (4, 4, 0, 0, 0, 0),
+            #     (4, 5, 0, 0, 0, 0),
+            #     (4, 6, 0, 0, 0, 0),
+            # ],
         ]
         # list(power_set),
         #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
@@ -275,18 +330,23 @@ if __name__ == "__main__":
         Config.TEST_LABEL: test_label,
         Config.DISCOUNT_FACTOR: 1,
         Config.PENALIZE_REBALANCE: True,
-        Config.FLEET_SIZE: 100,
+        Config.FLEET_SIZE: 300,
+        # 10 steps = 5 min
+        Config.TIME_MAX_CARS_LINK: 5,
         Config.DEMAND_RESIZE_FACTOR: 0.1,
         Config.DEMAND_TOTAL_HOURS: 5,
         Config.DEMAND_EARLIEST_HOUR: 5,
-        Config.OFFSET_TERMINATION: 60,
-        Config.OFFSET_REPOSIONING: 30,
+        Config.TIME_INCREMENT: 1,
+        Config.OFFSET_TERMINATION_MIN: 60,
+        Config.OFFSET_REPOSITIONING_MIN: 30,
         Config.DEMAND_SAMPLING: True,
-        Config.LEVEL_TIME_LIST: [0.5, 1, 2, 3, 5, 10],
-        Config.LEVEL_DIST_LIST: [0, 30, 60, 180, 300, 600, 1200],
+        Config.LEVEL_TIME_LIST: [0.5, 1, 2.5, 3, 5, 10],
+        Config.LEVEL_DIST_LIST: [0, 60, 300, 600],
         Config.LINEARIZE_INTEGER_MODEL: False,
         Config.SQ_GUARANTEE: False,
         Config.USE_ARTIFICIAL_DUALS: False,
+        Config.MATCHING_DELAY: 15,
+        Config.ALLOW_USER_BACKLOGGING: False,
     }
 
     # Creating folders to log episodes
@@ -323,18 +383,18 @@ if __name__ == "__main__":
 
     print("\n################ Experiment folders:")
 
-    
     try:
         d = dict()
         for exp in exp_list:
-            df = pd.read_csv(conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv")
+            path_all_stats = conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv"
+            df = pd.read_csv(path_all_stats)
             spatiotemporal_levels = exp[2].get_levels()
-            d["reward_" + spatiotemporal_levels] = df["Total reward"][:ITERATIONS]
-            d["service_rate_" + spatiotemporal_levels] = df["Service rate"][
-                :ITERATIONS
-            ]
-            d["time_" + spatiotemporal_levels] = df["time"][:ITERATIONS]
-            print(f" - {spatiotemporal_levels}")
+            neighbors = exp[2].get_reb_neighbors()
+            id_label = spatiotemporal_levels + neighbors
+            d["reward_" + id_label] = df["Total reward"][:ITERATIONS]
+            d["service_rate_" + id_label] = df["Service rate"][:ITERATIONS]
+            d["time_" + id_label] = df["time"][:ITERATIONS]
+            print(f" - {id_label}")
 
         df_outcome = pd.DataFrame(d)
         df_outcome = df_outcome[sorted(df_outcome.columns.values)]

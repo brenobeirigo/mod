@@ -41,7 +41,7 @@ class PlotTrack:
     SHOW_SP_LINES = False
     SHOW_LINES = True
 
-    N_POINTS = 3
+    N_POINTS = 5
     STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1

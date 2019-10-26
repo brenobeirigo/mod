@@ -27,7 +27,7 @@ class Trip:
         return (self.o.id_level(level), self.d.id_level(level))
 
     def __str__(self):
-        return f"T{self.id:02}({self.o},{self.d})"
+        return f"T{self.id:03}[{self.o:>4},{self.d:>4}]"
 
     def __repr__(self):
 
@@ -53,6 +53,14 @@ class ClassedTrip(Trip):
     min_max_time_class = dict(A=dict(min=4, max=4), B=dict(min=4, max=9))
     class_proportion = dict(A=0.0, B=1)
 
+    def __str__(self):
+        return (
+            f"[{self.time:04}({self.placement})]"
+            f"{self.sq_class}{self.id:03}[{self.o:>4},{self.d:>4}]"
+            f" - remaining: {self.max_delay_from_placement:>6.2f} min"
+        )
+
+
     @classmethod
     def get_levels(cls):
         class_levels = set()
@@ -60,17 +68,24 @@ class ClassedTrip(Trip):
             class_levels.update(levels)
         return class_levels
 
-    @property
-    def min_delay(self):
-        return ClassedTrip.min_max_time_class[self.sq_class]["min"]
-
-    @property
-    def max_delay(self):
-        return ClassedTrip.min_max_time_class[self.sq_class]["max"]
-
-    def __init__(self, o, d, time, sq_class):
+    def __init__(self, o, d, time, sq_class, elapsed_sec=0, placement=None):
         super().__init__(o, d, time)
         self.sq_class = sq_class
+
+        # How much time has passed from the beginning of the step
+        # to the announcement time
+        self.elapsed_sec = elapsed_sec
+
+        # Datetime trip was placed in the system
+        self.placement = placement
+
+        # Min/Max class delays
+        self.min_delay = ClassedTrip.min_max_time_class[sq_class]["min"]
+        self.max_delay = ClassedTrip.min_max_time_class[sq_class]["max"]
+
+        # Min/Max delays discounting announcement
+        self.min_delay_from_placement = self.min_delay - self.elapsed_sec / 60
+        self.max_delay_from_placement = self.max_delay - self.elapsed_sec / 60
 
         # Level demanded in best case scenario
         self.sq1_level = ClassedTrip.sq_level_class[sq_class][0]
@@ -83,6 +98,12 @@ class ClassedTrip(Trip):
 
         # Region center id of worst case pickup scenario
         self.id_sq2_level = self.o.id_level(self.sq2_level)
+
+    def update_delay(self, period_min):
+        self.max_delay_from_placement -= period_min
+        self.min_delay_from_placement -= period_min
+        return self.max_delay_from_placement
+
 
     @property
     def attribute(self, level=0):
@@ -245,8 +266,10 @@ def get_step_trip_list(
         # Time increment
         step_timedelta = timedelta(minutes=step)
 
-        # Earliest time window
-        from_datetime = df.index[0]
+        # Earliest time (first date)
+        from_datetime = datetime(
+            year=df.index[0].year, month=df.index[0].month, day=df.index[0].day
+        )
 
         # Earliest time
         from_datetime = from_datetime + earliest_step * step_timedelta
@@ -258,15 +281,19 @@ def get_step_trip_list(
         while True:
             # Right time window
             to_datetime = from_datetime + step_timedelta
-            df_slice = df[from_datetime:to_datetime]
+            mask = (df.index >= from_datetime) & (df.index < to_datetime)
+            df_slice = df[mask]
 
             # Trips associated to timestep
             trip_list = []
 
             # placement_first = df_slice.index[0]
-            for i in range(0, len(df_slice) - 1):
+            for i in range(0, len(df_slice)):
                 # What time trip has arrived into the system
                 placement_time = df_slice.index[i]
+
+                # Time delta
+                elapsed_sec = (placement_time - from_datetime).seconds
 
                 # How many passengers
                 passenger_count = df_slice.iloc[i]["passenger_count"]
@@ -281,6 +308,7 @@ def get_step_trip_list(
                 trip_list.append(
                     (
                         placement_time,
+                        int(elapsed_sec),
                         int(passenger_count),
                         int(pk_id),
                         int(dp_id),
@@ -294,6 +322,7 @@ def get_step_trip_list(
             if resize_factor < 1:
                 sample_size = math.ceil(resize_factor * len(trip_list))
                 trip_list = random.sample(trip_list, k=sample_size)
+                trip_list.sort(key=lambda t: t[0])
 
             step_trip_list.append(trip_list)
 
@@ -445,8 +474,10 @@ def get_trips(
                         if random.random() <= ClassedTrip.class_proportion["A"]
                         else ClassedTrip.SQ_CLASS_2
                     ),
+                    elapsed_sec=elapsed_sec,
+                    placement=time,
                 )
-                for time, count, o, d in trips
+                for time, elapsed_sec, count, o, d in trips
                 if random.random() < resize_factor
             ]
         )

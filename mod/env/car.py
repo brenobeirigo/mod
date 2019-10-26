@@ -514,11 +514,12 @@ class ElectricCar(Car):
 
         status = (
             f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
-            f" - Previous arrival: {self.previous_arrival:>6.2f}"
-            f" - Arrival: {self.arrival_time:>6.2f}"
-            f"(previous={self.previous_step}, step={self.step:>5})"
-            f" - Traveled: {self.distance_traveled:>6.2f}"
-            f" - Battery: {self.battery_level:2}/{self.battery_level_max}"
+            f"{log_util.format_tuple(self.attribute)}"
+            f" - steps=[{self.previous_step} ({self.previous_arrival:>6.2f} min),"
+            f" {self.step:>5} ({self.arrival_time:>6.2f} min)]"
+            f" - traveled: {self.distance_traveled:>6.2f} km"
+            f""
+            # f" - battery: {self.battery_level:2}/{self.battery_level_max}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
             # f" - #Previous: {self.previous.id:>4}"

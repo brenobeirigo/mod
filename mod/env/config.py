@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -17,13 +17,15 @@ FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
 TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
-        "trips_2011-01-04-enriched.csv"
+        # "trips_2011-01-04-enriched.csv"
+        "tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv"
         # "trips_2011-02-01.csv",
         # "trips_2011-02-08.csv",
         # "trips_2011-02-15.csv",
         # "trips_2011-02-22.csv",
     ]
 ]
+
 
 # Car statuses
 IDLE = 0
@@ -108,6 +110,7 @@ class Config:
     MIN_TRIPS = "MIN_TRIPS"
     MAX_TRIPS = "MAX_TRIPS"
     PICKUP_ZONE_RANGE = "PICKUP_ZONE_RANGE"
+    MATCHING_DELAY = "MATCHING_DELAY"
 
     # In general, aggregation of attribute vectors is performed using a
     # collection of aggregation functions, G(g) : A → A(g), where A(g)
@@ -200,6 +203,7 @@ class Config:
     DEMAND_EARLIEST_DATETIME = "DEMAND_EARLIEST_DATETIME"
     DEMAND_SAMPLING = "DEMAND_SAMPLING"
     DEMAND_CLASSED = "DEMAND_CLASSED"
+    ALLOW_USER_BACKLOGGING = "ALLOW_USER_BACKLOGGING"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -368,6 +372,16 @@ class Config:
     def pickup_zone_range(self):
         """Duration of the time steps in (min)"""
         return self.config["PICKUP_ZONE_RANGE"]
+    
+    @property
+    def allow_user_backlogging(self):
+        return self.config["ALLOW_USER_BACKLOGGING"]
+    @property
+    def matching_delay(self):
+        """Matching delay in minutes
+        """
+        return self.config["MATCHING_DELAY"]
+
 
     @property
     def time_increment(self):
@@ -585,6 +599,35 @@ class Config:
         self.config[Config.AGGREGATION_LEVELS] = [
             tuple(a) for a in self.config[Config.AGGREGATION_LEVELS]
         ]
+
+    @property
+    def exp_settings(self):
+        return FOLDER_OUTPUT + self.label + "/exp_settings.json"
+
+    @property
+    def label(self, name=""):
+        # Implemented by childreen
+        pass
+
+    def save(self, file_path=None):
+
+        if not os.path.isdir(FOLDER_OUTPUT + self.label):
+            os.makedirs(FOLDER_OUTPUT + self.label)
+
+        def convert_times(t):
+            if isinstance(t, (date, datetime)):
+                return t.strftime("%Y-%m-%d %H:%M:%S")
+            elif isinstance(t, timedelta):
+                return t.seconds
+
+        if not file_path:
+            file_path = self.exp_settings
+
+        with open(file_path, 'w') as f:
+            json.dump(self.config, f, indent=4, default=convert_times)
+
+    def log_path(self, iteration=""):
+        return self.folder_adp_log + f"{iteration:04}.log"
 
     @property
     def step_seconds(self):
@@ -910,6 +953,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.EARLIEST_STEP_MIN] = int(
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
+        self.config[Config.ALLOW_USER_BACKLOGGING] = False
 
         # HIRING ##################################################### #
         self.config[Config.PROFIT_MARGIN] = 0.3
@@ -930,10 +974,13 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCH_MAX_NEIGHBORS] = 8
         self.config[Config.MATCHING_LEVELS] = (3, 4)
         self.config[Config.LEVEL_RC] = 2
+        self.config[Config.MATCHING_DELAY] = 2 # min
 
         # Model
         self.config[Config.LINEARIZE_INTEGER_MODEL] = True
         self.config[Config.USE_ARTIFICIAL_DUALS] = False
+
+        # self.update(config)
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -1193,6 +1240,7 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
         return reb_neigh
+
     @property
     def label(self, name=""):
 
@@ -1261,14 +1309,13 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
 
-
-    def log_path(self, iteration=""):
-        return self.folder_adp_log + f"{iteration:04}.log"
-
-
-    def save(self, file_path):
-        with open(file_path, 'w') as outfile:
-            json.dump(data, outfile, sort_keys=True, indent=4)
+    @staticmethod
+    def load(file_path):
+        with open(file_path, 'r') as f:
+            config = json.load(f)
+            c = ConfigNetwork(config)
+            c.update(config)
+        return c
 
 
 def save_json(data, file_path=None, folder=None, file_name=None):

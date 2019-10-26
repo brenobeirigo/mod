@@ -203,14 +203,18 @@ def get_decisions(env, trips, min_battery_level=None):
             travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
             # Can the car reach the trip origin?
-            if travel_time <= trip.max_delay:
+            if travel_time <= min(
+                env.config.matching_delay, trip.max_delay_from_placement
+            ):
 
                 # Setup decisions
                 d = trip_decision(car, trip)
                 decisions.add(d)
 
                 # Car can fulfill the shortest delay
-                if travel_time <= trip.min_delay:
+                if travel_time <= min(
+                    env.config.matching_delay, trip.min_delay_from_placement
+                ):
 
                     # ---------------------------------------- #
                     # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #

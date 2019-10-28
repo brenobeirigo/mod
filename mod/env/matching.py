@@ -168,7 +168,7 @@ def max_cars_link_constrs(
 
     for pos, constrs in decisions.items():
 
-        n_cars_link = max(0, max_cars_link - vehicles_arriving_at[pos])
+        n_cars_link = max(0, max_cars_link - len(vehicles_arriving_at[pos]))
 
         # sum_decisions = quicksum([x_var[d] for d in decision_list])
         flood_avoidance_constrs[pos] = m.addConstr(
@@ -482,7 +482,6 @@ def service_trips(
     use_artificial_duals=True,
     use_duals=True,
     log_times=True,
-    vehicle_count_dict=None,
 ):
     t1_total = time.time()
 
@@ -566,13 +565,24 @@ def service_trips(
     # ##################################################################
 
     attribute_cars_dict = defaultdict(list)
+    attribute_cars_busy_dict = defaultdict(list)
+    cars_location = defaultdict(list)
     # g_region = 5
     # count_car_region = defaultdict(int)
 
-    for car in itertools.chain(env.available, env.available_hired):
+    for car in itertools.chain(env.cars, env.hired_cars):
 
+        a = car.attribute
+        
         # List of cars with the same attribute
-        attribute_cars_dict[car.attribute].append(car)
+        if not car.busy:
+            attribute_cars_dict[a].append(car)
+        else:
+            attribute_cars_busy_dict[a].append(car)
+
+        # Cars arriving at each location
+        cars_location[a[Car.A_LOCATION]].append(car)
+
 
         # count_car_region[env.points[car.point.id].id_level(g_region)]+=1
 
@@ -703,33 +713,8 @@ def service_trips(
                 # Cars arriving at destination
                 decisions_destination[d[du.DESTINATION]] += x_var[d]
 
-                # Cars leaving orign
+                # Cars leaving origin
                 decisions_destination[d[du.ORIGIN]] -= x_var[d]
-                
-                # Latest time of cars going to destination
-                # if post_state[adp.TIME] > max_time_d[du.DESTINATION]:
-                #     max_time_d[du.DESTINATION] = post_state[adp.TIME]
-
-                # There is a limit of the number of cars staying or
-                # rebalance to locations
-                # spatiotemporal_id = (
-                #     int(post_state[adp.TIME] / env.config.time_max_cars_link),
-                #     d[du.DESTINATION],
-                # ) 
-                # spatial_id = du.DESTINATION
-
-                # New vehicles rebalancing to location
-                # decisions_destination[du.DESTINATION].append(d)
-                # decisions_time_pos[spatiotemporal_id].append(d)
-
-            # # STAY and REBALANCE decisions per spatiotemporal point
-            # if (
-            #     d[du.ACTION] == du.REBALANCE_DECISION
-            #     or d[du.ACTION] == du.STAY_DECISION
-            # ):
-
-            #     spatiotemporal_id = (post_state[adp.TIME], d[du.DESTINATION])
-            #     decisions_time_pos[spatiotemporal_id].append(d)
 
         # Compute time to get post decision costs
         t_setup_costs_post = time.time() - t1_setup_costs_post
@@ -738,16 +723,11 @@ def service_trips(
     # Cost of current decision
     present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
     t_setup_costs = time.time() - t1_setup_costs
-    # Privilege trip decisions
-    # trip_decisions = itertools.chain.from_iterable(decision_class.values())
-    # extra_trip_weight = quicksum(BIG_M * x_var[d] for d in trip_decisions)
-    extra_trip_weight = 0
 
     # Maximize present and future outcome
     m.setObjective(
         present_contribution
-        + env.config.discount_factor * post_decision_costs
-        + extra_trip_weight,
+        + env.config.discount_factor * post_decision_costs,
         GRB.MAXIMIZE,
     )
 
@@ -782,7 +762,7 @@ def service_trips(
             max_cars_link_constr = max_cars_link_constrs(
                 m,
                 decisions_destination,
-                vehicle_count_dict,
+                cars_location,
                 max_cars_link=env.config.max_cars_link,
             )
 
@@ -804,13 +784,6 @@ def service_trips(
 
         # Decision tuple + (n. of times decision was taken)
         best_decisions = extract_decisions(x_var)
-
-        # comparison = extract_decision_compare(x_var, copy_m)
-
-        # logger.debug("\n\n############# Decisions")
-        # for d, m1_v, m2_v in comparison:
-        #     if m1_v != m2_v:
-        #         logger.debug(f"{d} - {m1_v} = {m2_v}")
 
         # Logging cost calculus
         la.log_costs(

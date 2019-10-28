@@ -11,6 +11,7 @@
 ## Activating the environment
 
     C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels
+    C:\Users\breno\Anaconda3\Scripts\activate env_slevels
 
 ## Execution
 

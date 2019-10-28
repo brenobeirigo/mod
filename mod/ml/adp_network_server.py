@@ -121,8 +121,8 @@ def get_sim_config(update_dict):
             # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                 (0, 8),
-                # (1, 4),
-                # (2, 2),
+                (1, 8),
+                # (2, 1),
                 # (3, 1),
                 # (4, 1),
             ),
@@ -393,7 +393,7 @@ def alg_adp(
     config,
     # PLOT ########################################################### #
     step_delay=PlotTrack.STEP_DELAY,
-    episodes=300,
+    episodes=450,
     enable_charging=False,
     is_myopic=False,
     # LOG ############################################################ #
@@ -415,13 +415,25 @@ def alg_adp(
     # Update value functions (dictionary in progress.npy file)
     # after each iteration
     save_progress=True,
-    log_config_dict={},
+    log_config_dict= {
+        # la.LOG_DUALS: True,
+        # la.LOG_FLEET_ACTIVITY: True,
+        # la.LOG_VALUE_UPDATE: True,
+        # la.LOG_COSTS: True,
+        # la.LOG_SOLUTIONS: True,
+        # la.LOG_WEIGHTS: True,
+        # la.LOG_ALL: True,
+        # la.LOG_LEVEL: la.DEBUG,
+        # la.LEVEL_FILE: la.DEBUG,
+        # la.LEVEL_CONSOLE: la.INFO,
+        # la.FORMATTER_FILE: la.FORMATTER_TERSE,
+    },
     log_mip=False,
     # If True, saves time details in file times.csv
     log_times=False,
     linearize_integer_model=False,
     use_artificial_duals=False,
-    use_duals=True,
+    use_duals=False,
 ):
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
@@ -450,6 +462,7 @@ def alg_adp(
     try:
         # Load last episode
         episode_log.load_progress()
+        print("Data loaded successfully.")
 
     except Exception as e:
         print(f"No previous episodes were saved (Exception: '{e}').")
@@ -539,32 +552,6 @@ def alg_adp(
 
         start_time = time.time()
 
-        # Inflow/outflow of cars in a node at a certain node
-        # buffer = 120
-        # rows = config.node_count
-        # cols = int((config.time_steps + buffer)/config.time_max_cars_link + 0.5)
-        # vehicle_count_dict = np.zeros(rows*cols).reshape((rows, cols))
-        expected_arriving = np.zeros(config.node_count)
-        # logger.debug(f"########## {rows}X{cols} - {rows*cols} #####################")
-        
-        # for c in amod.cars:
-        #     vehicle_count_dict[c.point.id] += np.ones(cols)
-        #     expected_arriving[c.point.id]+=1
-    
-        # logger.debug("--INIT")
-        # logger.debug(f"step={0} - {np.argmax(vehicle_count_dict[:,0])}:{np.max(vehicle_count_dict[:,0])}")
-
-        # # View
-        # logger.debug(f"TIME ={str(list(np.arange(cols)))}")
-        # for i, l in enumerate(vehicle_count_dict):
-        #         if sum(l) > 0:
-        #             logger.debug(f"{i:05}={str(list(l))}")
-        
-        # import matplotlib.pyplot as plt
-
-        # plt.plot(np.arange(0, len(step_trip_list)), list(map(len, step_trip_list)))
-        # plt.show()
-        
         outstanding = list()
 
         # Iterate through all steps and match requests to cars
@@ -671,7 +658,6 @@ def alg_adp(
                 # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
                 use_duals=use_duals,
-                vehicle_count_dict=expected_arriving,
             )
 
             if amod.config.allow_user_backlogging:
@@ -685,50 +671,6 @@ def alg_adp(
                         outstanding.append(r)
 
                 rejected = expired
-
-            # else:
-            #     revenue, serviced, rejected = 0, [], []
-
-            for c in amod.available:
-                # Car can move only once ()
-                if c.status == Car.REBALANCE or c.status == Car.ASSIGN or c.status == Car.CRUISING:
-
-                    expected_arriving[c.previous.id] -= 1
-                    expected_arriving[c.point.id] += 1
-                    # logger.debug(
-                    #     f"{c} is {conf.status_label_dict[c.status]} "
-                    #     f"[{c.previous.id}->{c.point.id}]"
-                    #     f"[{c.previous_step}->{int((step+1)/agg_time)}->{int(c.step/agg_time)}]")
-                    # move(
-                    #     int(c.step/config.time_max_cars_link),
-                    #     int((step+1)/config.time_max_cars_link),
-                    #     vehicle_count_dict[c.previous.id],
-                    #     vehicle_count_dict[c.point.id]
-                    # )
-
-            # link = ""
-            # for loc in range(config.node_count):
-            #     if expected_arriving[loc] > 0:
-            #         link+=f"{loc:04}-{expected_arriving[loc]:03}, "
-
-            # print(link)
-            # logger.debug(f"TIME ={str(list(np.arange(cols)))}")
-            # for i, l in enumerate(vehicle_count_dict):
-            #     if sum(l) > 0:
-            #         logger.debug(f"{i:05}={str(list(l))}")
-
-            # argmax = np.argmax(vehicle_count_dict.flatten())
-            # argmin = np.argmin(vehicle_count_dict.flatten())
-            # amax_r = int(argmax/cols)
-            # amax_c = argmax%cols
-            # # pprint(vehicle_count_dict)
-            # print(
-            #     f"step={step} - "
-            #     f"Max. next step={np.max(vehicle_count_dict[:,int((step+1)/agg_time)])}"
-            #     f"[v={np.argmax(vehicle_count_dict[:,int((step+1)/agg_time)])}]"
-            #     f"[overall max: {np.max(vehicle_count_dict.flatten())}({amax_r},{amax_c})]"
-            #     f"[overall min: {np.min(vehicle_count_dict.flatten())}({int(argmin/cols)},{int(argmin%cols)})]"
-            # )
 
             # What each vehicle is doing?
             la.log_fleet_activity(
@@ -872,7 +814,7 @@ if __name__ == "__main__":
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.DEMAND_SAMPLING: True,
             ConfigNetwork.SQ_GUARANTEE: False,
-            ConfigNetwork.MAX_CARS_LINK: None,
+            ConfigNetwork.MAX_CARS_LINK: 5,
             # 10 steps = 5 min
             ConfigNetwork.TIME_MAX_CARS_LINK: 5,
             ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,

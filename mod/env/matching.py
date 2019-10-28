@@ -632,6 +632,7 @@ def service_trips(
     decision_cars, decision_class = du.get_decisions(
         env,
         trips,
+        myopic=myopic
         # max_battery_level=env.config.battery_levels,
     )
     # virtual_decisions = du.get_virtual_decisions(env, trips)
@@ -674,7 +675,9 @@ def service_trips(
     # ---------------------------------------------------------------- #
     # COST FUNCTION ####################################################
     # ---------------------------------------------------------------- #
-
+    # decisions_time_pos = defaultdict(list)
+    decisions_destination = defaultdict(int)
+    
     if myopic:
         post_decision_costs = 0
 
@@ -689,9 +692,6 @@ def service_trips(
         # post decision state and post decision cost
         post_decision_costs = 0
 
-        # decisions_time_pos = defaultdict(list)
-        decisions_destination = defaultdict(int)
-
         for d in x_var:
 
             if d[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
@@ -702,23 +702,11 @@ def service_trips(
 
             # Updating post decision costs
             post_decision_costs += post_cost * x_var[d]
-            
-            # ######### Controlling cars per link
-            # Vehicles staying were already counted before
-            if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
-
-                # rebalancing_to[p] + expected_arriving_to[p] 
-                # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
-
-                # Cars arriving at destination
-                decisions_destination[d[du.DESTINATION]] += x_var[d]
-
-                # Cars leaving origin
-                decisions_destination[d[du.ORIGIN]] -= x_var[d]
 
         # Compute time to get post decision costs
         t_setup_costs_post = time.time() - t1_setup_costs_post
-
+    
+    # ######### Controlling cars per link
     t1_setup_costs = time.time()
     # Cost of current decision
     present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
@@ -755,16 +743,30 @@ def service_trips(
             m, x_var, attribute_cars_dict, max_battery
         )
 
-    if not myopic:
+    # Limit the number of cars per node
+    if env.config.max_cars_link:
 
-        # Limit the number of cars per node
-        if env.config.max_cars_link:
-            max_cars_link_constr = max_cars_link_constrs(
-                m,
-                decisions_destination,
-                cars_location,
-                max_cars_link=env.config.max_cars_link,
-            )
+        for d in x_var:
+
+            # Vehicles staying were already counted before
+            if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
+
+                # rebalancing_to[p] + expected_arriving_to[p] 
+                # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
+
+                # Cars arriving at destination
+                decisions_destination[d[du.DESTINATION]] += x_var[d]
+
+                # Cars leaving origin
+                decisions_destination[d[du.ORIGIN]] -= x_var[d]
+
+        # Set up constraint
+        max_cars_link_constr = max_cars_link_constrs(
+            m,
+            decisions_destination,
+            cars_location,
+            max_cars_link=env.config.max_cars_link,
+        )
 
     t_setup_constraints = time.time() - t1_setup_constraints
 

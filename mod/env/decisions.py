@@ -133,7 +133,7 @@ def get_virtual_decisions(trips):
     return decisions
 
 
-def get_decisions(env, trips, min_battery_level=None):
+def get_decisions(env, trips, min_battery_level=None, myopic=False):
     """Get list of decision tuples.
 
     Parameters
@@ -169,22 +169,23 @@ def get_decisions(env, trips, min_battery_level=None):
             d_stay = stay_decision(car)
             decisions.add(d_stay)
 
-        # Rebalancing ################################################ #
-        try:
-            # Get rebalance targets if previously defined (car with
-            # the same attribute)
-            rebalance_targets = attribute_rebalance[car.point.id]
+        # Vehicle knows nothing about future states, hence no rebalancing
+        if not myopic:
+            # Rebalancing ################################################ #
+            try:
+                # Get rebalance targets if previously defined (car with
+                # the same attribute)
+                rebalance_targets = attribute_rebalance[car.point.id]
 
-        except:
+            except:
+                # Get region center neighbors
+                rebalance_targets = env.get_zone_neighbors(car.point.id)
 
-            # Get region center neighbors
-            rebalance_targets = env.get_zone_neighbors(car.point.id)
+                # All points a car can rebalance to from its corrent point
+                attribute_rebalance[car.point.id] = rebalance_targets
 
-            # All points a car can rebalance to from its corrent point
-            attribute_rebalance[car.point.id] = rebalance_targets
-
-        d_rebalance = rebalance_decisions(car, rebalance_targets, env)
-        decisions.update(d_rebalance)
+            d_rebalance = rebalance_decisions(car, rebalance_targets, env)
+            decisions.update(d_rebalance)
 
         # Recharge ################################################### #
         if min_battery_level and car.battery_level < min_battery_level:

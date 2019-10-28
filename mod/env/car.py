@@ -26,6 +26,13 @@ class Car:
 
     DISCARD_BATTERY = 1
 
+    A_LOCATION = 0
+    A_BATTERY = 1
+    A_CONTRACT = 2
+    A_TYPE = 3
+    A_STATION = 4
+    A_ARRIVAL = 5
+
     # List of car types (each type is associated to different estimates)
     car_types = [TYPE_FLEET, TYPE_HIRED]
 
@@ -63,6 +70,7 @@ class Car:
         self.previous = o
         self.origin = o
         self.type = Car.TYPE_FLEET
+        self.idle_step_count = 0
 
         self.tabu = collections.deque([o.id], Car.SIZE_TABU)
 
@@ -100,6 +108,7 @@ class Car:
             self.contract_duration,
             self.type,
             Car.DISCARD,
+            # self.step,
         )
 
     def attribute_level(self, level):
@@ -208,8 +217,11 @@ class Car:
         time_increment : int, optional
             Duration (in minutes) of each time increment, by default 15
         """
-        # Car will not move back to the laist places it has visited
+        # Car will not move back to the last places it has visited
         self.tabu.append(self.point.id)
+        
+        # self.idle_step_count+=1
+        self.idle_step_count = 0
 
         self.previous = self.point
 
@@ -301,6 +313,8 @@ class Car:
 
         # After trip, vehicle is free again to rebalance
         self.tabu = collections.deque([self.point.id], Car.SIZE_TABU)
+
+        self.idle_step_count = 0
 
     def reset(self):
         self.point = self.origin

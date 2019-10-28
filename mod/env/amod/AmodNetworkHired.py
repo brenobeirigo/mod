@@ -259,7 +259,7 @@ class AmodNetworkHired(AmodNetwork):
                 elif action == du.STAY_DECISION:
                     # Car settings are updated all together when time
                     # step finishes
-                    pass
+                    car.idle_step_count+=1
 
                 elif action == du.TRIP_DECISION:
                     # Servicing ###################################### #

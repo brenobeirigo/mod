@@ -822,6 +822,7 @@ if __name__ == "__main__":
             # Controlling user matching
             ConfigNetwork.MATCHING_DELAY: 15,
             ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+            ConfigNetwork.MAX_IDLE_STEP_COUNT: 5000,
             ConfigNetwork.FLEET_START: conf.FLEET_START_LAST
         }
     )

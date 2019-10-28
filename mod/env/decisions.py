@@ -164,7 +164,10 @@ def get_decisions(env, trips, min_battery_level=None):
 
     for car in itertools.chain(env.available, env.available_hired):
         # Stay ####################################################### #
-        decisions.add(stay_decision(car))
+        if car.idle_step_count <= env.config.max_idle_step_count:
+            
+            d_stay = stay_decision(car)
+            decisions.add(d_stay)
 
         # Rebalancing ################################################ #
         try:
@@ -180,7 +183,8 @@ def get_decisions(env, trips, min_battery_level=None):
             # All points a car can rebalance to from its corrent point
             attribute_rebalance[car.point.id] = rebalance_targets
 
-        decisions.update(rebalance_decisions(car, rebalance_targets, env))
+        d_rebalance = rebalance_decisions(car, rebalance_targets, env)
+        decisions.update(d_rebalance)
 
         # Recharge ################################################### #
         if min_battery_level and car.battery_level < min_battery_level:

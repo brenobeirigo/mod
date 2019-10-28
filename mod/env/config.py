@@ -204,6 +204,7 @@ class Config:
     DEMAND_SAMPLING = "DEMAND_SAMPLING"
     DEMAND_CLASSED = "DEMAND_CLASSED"
     ALLOW_USER_BACKLOGGING = "ALLOW_USER_BACKLOGGING"
+    MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -381,6 +382,10 @@ class Config:
         """Matching delay in minutes
         """
         return self.config["MATCHING_DELAY"]
+
+    @property
+    def max_idle_step_count(self):
+        return self.config["MAX_IDLE_STEP_COUNT"]
 
 
     @property
@@ -975,6 +980,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.MATCHING_LEVELS] = (3, 4)
         self.config[Config.LEVEL_RC] = 2
         self.config[Config.MATCHING_DELAY] = 2 # min
+        # Disabled (cars can stay idle indefinetely)
+        self.config[Config.MAX_IDLE_STEP_COUNT] = 5000
 
         # Model
         self.config[Config.LINEARIZE_INTEGER_MODEL] = True

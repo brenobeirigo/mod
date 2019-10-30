@@ -580,11 +580,14 @@ def service_trips(
         else:
             attribute_cars_busy_dict[a].append(car)
 
-        # Cars arriving at each location
-        cars_location[a[Car.A_LOCATION]].append(car)
-
+            # Cars arriving at each location
+            cars_location[car.point.id].append(car)
 
         # count_car_region[env.points[car.point.id].id_level(g_region)]+=1
+
+    # flood = {k: v for k, v in cars_location.items() if len(v) > 5}
+    # if flood:
+    #     print(time_step, flood)
 
     la.log_attribute_cars_dict(logger_name, attribute_cars_dict)
 
@@ -705,7 +708,7 @@ def service_trips(
 
         # Compute time to get post decision costs
         t_setup_costs_post = time.time() - t1_setup_costs_post
-    
+
     # ######### Controlling cars per link
     t1_setup_costs = time.time()
     # Cost of current decision
@@ -749,16 +752,20 @@ def service_trips(
         for d in x_var:
 
             # Vehicles staying were already counted before
-            if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
+            # if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
 
-                # rebalancing_to[p] + expected_arriving_to[p] 
-                # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
+            # rebalancing_to[p] + expected_arriving_to[p] 
+            # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
 
-                # Cars arriving at destination
-                decisions_destination[d[du.DESTINATION]] += x_var[d]
+            # Cars arriving at destination
+            decisions_destination[d[du.DESTINATION]] += x_var[d]
 
-                # Cars leaving origin
-                decisions_destination[d[du.ORIGIN]] -= x_var[d]
+            # Cars leaving origin
+            # decisions_destination[d[du.ORIGIN]] -= x_var[d]
+
+            # else:
+            #     # Cars staying at destination
+            #     decisions_destination[d[du.DESTINATION]] += x_var[d]
 
         # Set up constraint
         max_cars_link_constr = max_cars_link_constrs(
@@ -938,6 +945,24 @@ def service_trips(
             "To obtain a more definitive conclusion, set the "
             " DualReductions parameter to 0 and reoptimize."
         )
+
+        # do IIS
+        print("The model is infeasible; computing IIS")
+
+        # Save model
+        m.write("myopic.lp")
+
+        m.computeIIS()
+
+        if m.IISMinimal:
+            print("IIS is minimal\n")
+        else:
+            print("IIS is not minimal\n")
+            print("\nThe following constraint(s) cannot be satisfied:")
+        for c in m.getConstrs():
+            if c.IISConstr:
+                print("%s" % c.constrName)
+
         # Save model
         m.write(f"myopic_error_code.lp")
 

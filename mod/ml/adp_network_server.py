@@ -121,10 +121,14 @@ def get_sim_config(update_dict):
             # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                 (0, 8),
-                (1, 8),
-                # (2, 1),
-                # (3, 1),
+                # (1, 8),
+                # (2, 4),
+                # (3, 2),
                 # (4, 1),
+            ),
+            ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: (
+                (2, 16),
+                (3, 16)
             ),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
@@ -634,6 +638,14 @@ def alg_adp(
                 amod.hired_cars.extend(hired_cars)
                 amod.available_hired.extend(hired_cars)
 
+            # count_car_point = defaultdict(int)
+            # for c in amod.cars:
+            #     count_car_point[c.point.id] += 1
+
+            # for p, count in count_car_point.items():
+            #     if count > 5:
+            #         print(f"{step} - link {p} has {count} cars")
+
             # Optimize
             revenue, serviced, rejected = service_trips(
                 # Amod environment with configuration file
@@ -814,7 +826,7 @@ if __name__ == "__main__":
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.DEMAND_SAMPLING: True,
             ConfigNetwork.SQ_GUARANTEE: False,
-            ConfigNetwork.MAX_CARS_LINK: 5,
+            ConfigNetwork.MAX_CARS_LINK: 10,
             # 10 steps = 5 min
             ConfigNetwork.TIME_MAX_CARS_LINK: 5,
             ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
@@ -822,10 +834,16 @@ if __name__ == "__main__":
             # Controlling user matching
             ConfigNetwork.MATCHING_DELAY: 15,
             ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
-            ConfigNetwork.MAX_IDLE_STEP_COUNT: 5000,
-            ConfigNetwork.FLEET_START: conf.FLEET_START_LAST
+            ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+            # When cars start in the last visited point, the model takes
+            # a long time to figure out the best time
+            ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
+            ConfigNetwork.CAR_SIZE_TABU: 0,
         }
     )
+
+    # Set tabu size (vehicles cannot visit nodes in tabu)
+    Car.SIZE_TABU = start_config.car_size_tabu
 
     print(f"Saving experimental settings at: \"{start_config.exp_settings}\"")
     start_config.save()

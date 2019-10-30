@@ -93,6 +93,7 @@ class Config:
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
     FLEET_START = "FLEET_START"
+    CAR_SIZE_TABU = "CAR_SIZE_TABU"
 
     BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
 
@@ -161,6 +162,7 @@ class Config:
     # Network
     STEP_SECONDS = "STEP_SECONDS"  # In km/h
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
+    N_CLOSEST_NEIGHBORS_EXPLORE = "N_CLOSEST_NEIGHBORS_EXPLORE"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     PENALIZE_REBALANCE = "PENALIZE_REBALANCE"
@@ -240,7 +242,7 @@ class Config:
     @property
     def origin_center_zone_size(self):
         return self.config[Config.ORIGIN_CENTER_ZONE_SIZE]
-
+    
     @property
     def demand_center_level(self):
         # E.g., levels 1, 2, 3 = 60, 120, 180
@@ -519,6 +521,11 @@ class Config:
                 dict_update[Config.N_CLOSEST_NEIGHBORS]
             )
 
+        if Config.N_CLOSEST_NEIGHBORS_EXPLORE in dict_update:
+            dict_update[Config.N_CLOSEST_NEIGHBORS_EXPLORE] = tuple(
+                dict_update[Config.N_CLOSEST_NEIGHBORS_EXPLORE]
+            )
+
         if Config.AGGREGATION_LEVELS in dict_update:
             dict_update[Config.AGGREGATION_LEVELS] = tuple(
                 dict_update[Config.AGGREGATION_LEVELS]
@@ -668,6 +675,10 @@ class Config:
     def demand_earliest_step_min(self):
         return self.config[Config.EARLIEST_STEP_MIN]
 
+    @property
+    def car_size_tabu(self):
+        return self.config[Config.CAR_SIZE_TABU]
+
     def get_time(self, steps, format="%H:%M"):
         """Return time corresponding to the steps elapsed since the
         the first time step"""
@@ -676,7 +687,6 @@ class Config:
             + steps * self.time_increment_timedelta
         )
         return t.strftime(format)
-
 
 class ConfigStandard(Config):
     def __init__(self, config=None):
@@ -896,6 +906,8 @@ class ConfigNetwork(ConfigStandard):
             "Total": "black",
         }
 
+
+        self.config[Config.CAR_SIZE_TABU] = 0
         self.config[Config.TEST_LABEL] = ""
         self.config[Config.TUNE_LABEL] = None
 
@@ -926,7 +938,8 @@ class ConfigNetwork(ConfigStandard):
         # Time #########################################################
 
         self.config[Config.STEP_SECONDS] = 60
-        self.config[Config.N_CLOSEST_NEIGHBORS] = (4,)
+        self.config[Config.N_CLOSEST_NEIGHBORS] = ((0,8),)
+        self.config[Config.N_CLOSEST_NEIGHBORS_EXPLORE] = ((1,8),)
         self.config[Config.NEIGHBORHOOD_LEVEL] = 1
 
         self.config[Config.REBALANCE_LEVEL] = (1,)
@@ -1064,6 +1077,12 @@ class ConfigNetwork(ConfigStandard):
         """Number of closest region centers each region center can
         access."""
         return self.config["N_CLOSEST_NEIGHBORS"]
+
+    @property
+    def n_neighbors_explore(self):
+        """Number of closest region centers each region center can
+        access."""
+        return self.config["N_CLOSEST_NEIGHBORS_EXPLORE"]
 
     @property
     def linearize_integer_model(self):
@@ -1260,6 +1279,14 @@ class ConfigNetwork(ConfigStandard):
                 for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
+
+        reb_neigh_explore = ", ".join(
+            [
+                f"{level}-{n_neighbors}"
+                for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS_EXPLORE]
+            ]
+        )
+
         levels = ", ".join([
             (
                 f"{self.config[Config.LEVEL_TIME_LIST][temporal]}-"
@@ -1280,7 +1307,7 @@ class ConfigNetwork(ConfigStandard):
         )
 
         max_link = (
-            f'[L({self.max_cars_link:02}' + '-' + f'{self.time_max_cars_link:02})]' if self.max_cars_link else ''
+            f'[L({self.max_cars_link:02})]' if self.max_cars_link else ''
         )
 
         penalize = (f'[P]' if self.penalize_rebalance else '')
@@ -1288,6 +1315,8 @@ class ConfigNetwork(ConfigStandard):
         lin = ("LIN_INT_" if self.config[Config.LINEARIZE_INTEGER_MODEL] else "LIN_")
 
         artificial = ("[A]_" if self.config[Config.USE_ARTIFICIAL_DUALS] else "")
+
+        explore = (f"-[{reb_neigh_explore}][I({self.config[Config.MAX_IDLE_STEP_COUNT]:02})]" if self.config[Config.MAX_IDLE_STEP_COUNT] else "")
 
         return (
             f"{self.config[Config.TEST_LABEL]}_"
@@ -1299,7 +1328,7 @@ class ConfigNetwork(ConfigStandard):
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=({reb_neigh}){max_link}{penalize}_"
+            f"rebal=([{reb_neigh}]{explore}[tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"

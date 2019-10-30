@@ -51,7 +51,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 300
+ITERATIONS = 200
 
 
 log_config = {
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         Config.HARMONIC_STEPSIZE: [1],
         Config.FLEET_SIZE: [300],
         Config.FLEET_START: [
-            conf.FLEET_START_LAST,
+            # conf.FLEET_START_LAST,
             # conf.FLEET_START_SAME,
             conf.FLEET_START_RANDOM,
         ],
@@ -196,16 +196,17 @@ if __name__ == "__main__":
         # Cars rebalance to up to #region centers at each level
         Config.N_CLOSEST_NEIGHBORS: [
             ((0, 8),),
-            ((0, 4),),
+            # ((0, 4),),
             # ((0, 8),(4, 4)),
             # ((0, 8),(4, 4), (5, 1))
         ],
+        Config.MAX_CARS_LINK: [5, 10, None],
         # Config.MAX_CARS_LINK: [None, 5, 10],
         Config.AGGREGATION_LEVELS: [
             # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
-            [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
+            #[(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
             [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
-            [(1, 0, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
+            #[(1, 0, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
             # [(1, 0, 0, 0, 0, 0), (1, 1, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
             # [
             #     (3, 0, 0, 0, 0, 0),

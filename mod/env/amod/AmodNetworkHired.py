@@ -173,8 +173,6 @@ class AmodNetworkHired(AmodNetwork):
             du.RECHARGE_DECISION: 0,
         }
 
-        matched_cars = set()
-
         for decision in decisions:
 
             (
@@ -209,14 +207,6 @@ class AmodNetworkHired(AmodNetwork):
             while cars_with_attribute and n < times:
                 n += 1
                 car = cars_with_attribute.pop(0)
-
-                # Check if car was already used. If so, try next car
-                if car not in matched_cars:
-                    matched_cars.add(car)
-
-                else:
-                    # Some decision was already applied to this car
-                    continue
 
                 # Ignores last element (n. times decision was applied)
                 contribution_car = self.cost_func(decision[:-1])

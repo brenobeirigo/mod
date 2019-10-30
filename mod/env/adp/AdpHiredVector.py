@@ -76,11 +76,15 @@ class AdpHired(adp.Adp):
         else:
             return None
 
+    def get_initial_weight_vector(self):
+        v = np.zeros(len(self.aggregation_levels))
+        # v[VF] = 10
+        return v
     # # @functools.lru_cache(maxsize=None)
     def get_weighted_value(self, disaggregate):
 
         value_estimation, weight_vector = self.weighted_values.get(
-            disaggregate, (0, np.zeros(len(self.aggregation_levels)))
+            disaggregate, (0, self.get_initial_weight_vector())
         )
         if value_estimation > 0:
             self.update_weight_track(

@@ -994,7 +994,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.LEVEL_RC] = 2
         self.config[Config.MATCHING_DELAY] = 2 # min
         # Disabled (cars can stay idle indefinetely)
-        self.config[Config.MAX_IDLE_STEP_COUNT] = 5000
+        self.config[Config.MAX_IDLE_STEP_COUNT] = None
 
         # Model
         self.config[Config.LINEARIZE_INTEGER_MODEL] = True

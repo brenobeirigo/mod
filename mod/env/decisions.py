@@ -250,7 +250,10 @@ def get_decisions(env, trips, min_battery_level=None, myopic=False):
             )
 
             if not d_rebalance:
-                car.tabu.leftpop()
+                # Remove from tabu if not empty.
+                # Avoid cars are corned indefinitely
+                if car.tabu:
+                    car.tabu.popleft()
 
             # Vehicles can stay idle for a maximum number of steps.
             # If they surpass this number, they can rebalance to farther

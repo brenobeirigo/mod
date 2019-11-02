@@ -324,7 +324,7 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
             shadow_price = 0
 
         # Should zero value functions be updated?
-        if shadow_price == 0 and ignore_zeros:
+        if ignore_zeros and shadow_price == 0:
             continue
 
         if car_type == Car.TYPE_VIRTUAL:
@@ -824,7 +824,7 @@ def service_trips(
                     
                     # Extracting shadow prices from car flow constraints
                     duals = extract_duals(
-                        m, flow_cars_dict, ignore_zeros=True, logger=logger
+                        m, flow_cars_dict, ignore_zeros=env.config.adp_ignore_zeros, logger=logger
                     )
                     t_duals = time.time() - t1_duals
 

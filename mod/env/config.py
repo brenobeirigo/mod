@@ -112,6 +112,7 @@ class Config:
     MAX_TRIPS = "MAX_TRIPS"
     PICKUP_ZONE_RANGE = "PICKUP_ZONE_RANGE"
     MATCHING_DELAY = "MATCHING_DELAY"
+    REACHABLE_NEIGHBORS = "REACHABLE_NEIGHBORS"
 
     # In general, aggregation of attribute vectors is performed using a
     # collection of aggregation functions, G(g) : A → A(g), where A(g)
@@ -123,6 +124,7 @@ class Config:
     LEVEL_CAR_TYPE = "LEVEL_CAR_TYPE"
     LEVEL_CAR_ORIGIN = "LEVEL_CAR_ORIGIN"
     INCUMBENT_AGGREGATION_LEVEL = "INCUMBENT_AGGREGATION_LEVEL"
+    ADP_IGNORE_ZEROS = "ADP_IGNORE_ZEROS"
 
     ZONE_WIDTH = "ZONE_WIDTH"
     VALID_ZONES = "VALID_ZONES"
@@ -384,6 +386,13 @@ class Config:
         """Matching delay in minutes
         """
         return self.config["MATCHING_DELAY"]
+
+    @property
+    def adp_ignore_zeros(self):
+        """Method can ignore/use duals which are zero.
+        """
+        return self.config["ADP_IGNORE_ZEROS"]
+
 
     @property
     def max_idle_step_count(self):
@@ -1050,6 +1059,12 @@ class ConfigNetwork(ConfigStandard):
     def level_car_origin_dict(self):
         """Car origin for each aggregated level"""
         return self.config[Config.LEVEL_CAR_ORIGIN]
+
+    @property
+    def reachable_neighbors(self):
+        """Whether method should use all reachable neighbors
+        (within a time limit) instead of level neighbors"""
+        return self.config[Config.REACHABLE_NEIGHBORS]
 
     @property
     def level_car_type_dict(self):

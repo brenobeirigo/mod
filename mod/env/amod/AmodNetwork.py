@@ -88,6 +88,9 @@ class AmodNetwork(Amod):
     def get_neighbors(self, center_point, reach=1):
         return nw.query_neighbors(center_point.id, reach=reach)
 
+    def reachable_neighbors(self, n, t, limit):
+        return nw.tenv.reachable_neighbors(n, t, limit)
+
     # @functools.lru_cache(maxsize=None)
     def get_zone_neighbors(self, center, explore=False):
         """Get the ids of "n_neighbors" neighboring region centers

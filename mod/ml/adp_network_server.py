@@ -126,6 +126,7 @@ def get_sim_config(update_dict):
                 # (3, 2),
                 # (4, 1),
             ),
+            # Only used when max idle step count is not None
             ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: (
                 (2, 16),
                 (3, 16)
@@ -439,6 +440,13 @@ def alg_adp(
     use_artificial_duals=False,
     use_duals=False,
 ):
+
+    # Set tabu size (vehicles cannot visit nodes in tabu)
+    Car.SIZE_TABU = config.car_size_tabu
+
+    print(f"Saving experimental settings at: \"{config.exp_settings}\"")
+    config.save()
+
     # ---------------------------------------------------------------- #
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
@@ -826,7 +834,7 @@ if __name__ == "__main__":
             ConfigNetwork.TIME_INCREMENT: 1,
             ConfigNetwork.DEMAND_SAMPLING: True,
             ConfigNetwork.SQ_GUARANTEE: False,
-            ConfigNetwork.MAX_CARS_LINK: 10,
+            ConfigNetwork.MAX_CARS_LINK: 5,
             # 10 steps = 5 min
             ConfigNetwork.TIME_MAX_CARS_LINK: 5,
             ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
@@ -839,14 +847,10 @@ if __name__ == "__main__":
             # a long time to figure out the best time
             ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
             ConfigNetwork.CAR_SIZE_TABU: 0,
+            ConfigNetwork.REACHABLE_NEIGHBORS: True,
+            ConfigNetwork.ADP_IGNORE_ZEROS: False,
         }
     )
-
-    # Set tabu size (vehicles cannot visit nodes in tabu)
-    Car.SIZE_TABU = start_config.car_size_tabu
-
-    print(f"Saving experimental settings at: \"{start_config.exp_settings}\"")
-    start_config.save()
 
     ClassedTrip.q_classes = dict(A=1.0, B=0.9)
     ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])

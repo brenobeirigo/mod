@@ -848,7 +848,7 @@ if __name__ == "__main__":
             ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
             ConfigNetwork.CAR_SIZE_TABU: 0,
             ConfigNetwork.REACHABLE_NEIGHBORS: True,
-            ConfigNetwork.ADP_IGNORE_ZEROS: False,
+            ConfigNetwork.ADP_IGNORE_ZEROS: True,
         }
     )
 

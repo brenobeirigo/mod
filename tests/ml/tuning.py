@@ -200,7 +200,8 @@ if __name__ == "__main__":
             # ((0, 8),(4, 4)),
             # ((0, 8),(4, 4), (5, 1))
         ],
-        Config.MAX_CARS_LINK: [5, 10, None],
+        Config.MAX_CARS_LINK: [5],
+        Config.CAR_SIZE_TABU: [20, 30],
         # Config.MAX_CARS_LINK: [None, 5, 10],
         Config.AGGREGATION_LEVELS: [
             # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
@@ -349,6 +350,7 @@ if __name__ == "__main__":
         Config.USE_ARTIFICIAL_DUALS: False,
         Config.MATCHING_DELAY: 15,
         Config.ALLOW_USER_BACKLOGGING: False,
+        Config.REACHABLE_NEIGHBORS: False,
     }
 
     # Creating folders to log episodes
@@ -375,9 +377,9 @@ if __name__ == "__main__":
     # Dictionary updated during recursion
     update_dict = {}
 
-    print("## Levels:")
-    for i, spatiotemporal_levels in enumerate(power_set):
-        print(i, spatiotemporal_levels)
+    # print("## Levels:")
+    # for i, spatiotemporal_levels in enumerate(power_set):
+    #     print(i, spatiotemporal_levels)
 
     test_all(tuning_labels, tuning_params, update_dict, setup, exp_list)
 

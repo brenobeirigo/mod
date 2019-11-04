@@ -15,13 +15,13 @@ class Car:
     ASSIGN = 2
     CRUISING = 3
     REBALANCE = 4
+    RETURN = 5
 
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
 
     TYPE_FLEET = 0
     TYPE_HIRED = 1
-    TYPE_TO_HIRE = 2
     TYPE_VIRTUAL = 3
 
     DISCARD_BATTERY = 1
@@ -45,12 +45,12 @@ class Car:
         ASSIGN: "With passenger",
         CRUISING: "Cruising",
         REBALANCE: "Rebalancing",
+        RETURN: "Returning"
     }
 
     type_label_dict = {
         TYPE_FLEET: "AV",
         TYPE_HIRED: "FV",
-        TYPE_TO_HIRE: "HIRE",
     }
 
     status_list = [
@@ -59,6 +59,7 @@ class Car:
         ASSIGN,
         REBALANCE,
         CRUISING,
+        RETURN,
     ]
 
     adp_label_dict = {DISCARD: "-", INFINITE_CONTRACT_DURATION: "Inf"}
@@ -201,6 +202,7 @@ class Car:
         distance_traveled,
         cost,
         destination,
+        return_trip=False
     ):
         """Update car settings after being matched with a passenger.
 
@@ -239,7 +241,10 @@ class Car:
 
         self.step += max(duration_service_steps, 1)
 
-        self.status = Car.REBALANCE
+        if return_trip:
+            self.status = Car.RETURN
+        else:
+            self.status = Car.REBALANCE
 
     def update_trip(
         self,
@@ -425,6 +430,7 @@ class ElectricCar(Car):
         revenue,
         destination,
         trip=None,
+        return_trip=False,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -445,7 +451,13 @@ class ElectricCar(Car):
             )
         )
 
-        super().move(duration_service, distance_traveled, revenue, destination)
+        super().move(
+            duration_service,
+            distance_traveled,
+            revenue,
+            destination,
+            return_trip=return_trip
+        )
 
     @property
     def attribute(self, level=0):
@@ -571,7 +583,7 @@ class HiredCar(Car):
         super().__init__(o)
 
         self.depot = o
-        self.type = Car.TYPE_TO_HIRE
+        self.type = Car.TYPE_HIRED
         self.started_contract = False
         self.step = current_step
         self.arrival_time = current_arrival
@@ -580,7 +592,7 @@ class HiredCar(Car):
 
         # Contract
         self.total_time = contract_duration_h * 60
-        self.contract_duration = self.total_time // duration_level
+        self.contract_duration = int(self.total_time // duration_level)
         self.duration_level = duration_level
 
     def update(self, step, time_increment=1):
@@ -622,9 +634,9 @@ class HiredElectricCar(ElectricCar):
         duration_level=15,
     ):
         super().__init__(o, battery_level_max, battery_level_miles_max)
-        self.contract_duration = contract_duration_h * (60 // duration_level)
+        self.contract_duration = int(contract_duration_h * (60 // duration_level))
         self.depot = o
-        self.type = Car.TYPE_TO_HIRE
+        self.type = Car.TYPE_HIRED
         self.started_contract = False
         self.step = current_step
         self.arrival_time = current_arrival

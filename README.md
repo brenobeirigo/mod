@@ -1,4 +1,8 @@
 # Mobility-on-demand fleet management application
+## ADP config
+
+state = TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, CARORIGIN
+decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, ORIGIN, DESTINATION, SQ_CLASS, N_DECISIONS
 
 ## Running the simulator
 
@@ -20,7 +24,7 @@
 |---------|----------|
 |save_df  | Save .csv dataframes with fleet (status, vehicle count) and demand (met, unmet) data|
 |use_duas | Extract duals from solution and use them to approximate the value function of the states.|
-|save_progress| Update a progress file (progress.npy) after each iteration with the current value functions.|
+|save_progress| Update a progress file (progress.npy) after n iterations (default n=1) with the current value functions.|
 |level LOG_LEVEL| Choose logging level LOG_LEVEL = [INFO, DEBUG].|
 |log_mip | Save mip model (`.lp`) and mip solution log (`.log`) for each time step and iteration.|
 |save_plots| Save iteration's demand and fleet statuses for each step.|
@@ -29,11 +33,11 @@
 
 Example to log adp and mip execution, save progress.npy file, and plots.
 
-    python mod\ml\adp_network_server.py TEST_NAME -use_duals -save_progress -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
+    python mod\ml\adp_network_server.py TEST_NAME -use_duals -save_progress 10 -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
 
 Execution (only save progress):
 
-    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -use_duals -save_progress
+    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -use_duals -save_progress 10
 
 Batch file (`.bat`):
 

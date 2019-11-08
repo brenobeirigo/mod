@@ -21,10 +21,8 @@ TIME_INCREMENT = 5
 
 CONTRACT_DISAGGREGATE = 1
 CONTRACT_L1 = 5
-CONTRACT_L2 = 10
-CONTRACT_L3 = 20
-CONTRACT_L4 = 30
-CONTRACT_L5 = 60
+CONTRACT_L2 = 15
+CONTRACT_L3 = 60
 
 DISCARD = "-"
 DISAGGREGATE = 0
@@ -640,7 +638,7 @@ class Adp:
 
         try:
             time_slot = self.contract_levels_dict[car_type][level]
-            return round(contract_duration / time_slot)
+            return contract_duration // time_slot
 
         except:
             return self.contract_levels_dict[car_type][DISCARD]

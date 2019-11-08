@@ -45,12 +45,12 @@ path_demand = f"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/m
 
 # Color per vehicle status
 color_fleet_status = {
-    "Idle": "#24aafe",
+    "Parked": "#24aafe",
     "With passenger": "#53bc53",
-    "Rebalancing": "firebrick",
+    "Repositioning": "firebrick",
     "Recharging": "#e55215",
-    "Cruising": "#e55215",
-    "Total": "black",
+    "Driving to pick up": "#e55215",
+    "Total": "magenta",
 }
 
 # Color per vehicle status
@@ -345,11 +345,12 @@ def update_episode_list():
 
 # Setup plots
 status_list = [
-    "Rebalancing",
-    "Idle",
+    "Repositioning",
+    "Parked",
     "With passenger",
-    "Cruising",
+    "Driving to pick up",
     # "Recharging",
+    # "Returning to station"
     "Total",
 ]
 

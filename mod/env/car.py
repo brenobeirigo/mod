@@ -16,6 +16,7 @@ class Car:
     CRUISING = 3
     REBALANCE = 4
     RETURN = 5
+    SERVICING = 6
 
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
@@ -40,12 +41,13 @@ class Car:
     INFINITE_CONTRACT_DURATION = "Inf"  # - 2
 
     status_label_dict = {
-        IDLE: "Idle",
+        IDLE: "Parked",
         RECHARGING: "Recharging",
         ASSIGN: "With passenger",
-        CRUISING: "Cruising",
-        REBALANCE: "Rebalancing",
-        RETURN: "Returning"
+        CRUISING: "Driving to pick up",
+        REBALANCE: "Repositioning",
+        RETURN: "Returning",
+        SERVICING: "Servicing passenger"
     }
 
     type_label_dict = {

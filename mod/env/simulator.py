@@ -145,6 +145,18 @@ class PlotTrack:
                 muted_alpha=0.0,
                 legend=Car.status_label_dict[Car.REBALANCE],
             ),
+
+            Car.RETURN: self.p.triangle(
+                x=[],
+                y=[],
+                size=PlotTrack.CAR_SIZE,
+                color=self.config.color_fleet_status[Car.RETURN],
+                fill_alpha=PlotTrack.CAR_FILL_ALPHA,
+                line_width=0,
+                muted_alpha=0.0,
+                legend=Car.status_label_dict[Car.RETURN],
+            ),
+
             Car.ASSIGN: self.p.triangle(
                 x=[],
                 y=[],

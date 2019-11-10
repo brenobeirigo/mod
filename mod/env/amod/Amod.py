@@ -550,6 +550,8 @@ class Amod:
 
     def reset(self):
 
+        new_origins = []
+
         if self.config.cars_start_from_initial_positions:
 
             new_origins = self.car_origin_points

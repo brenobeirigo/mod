@@ -9,7 +9,7 @@ from collections import defaultdict
 import numpy as np
 import random
 from pprint import pprint
-from mod.env.config import FOLDER_EPISODE_TRACK
+from mod.env.config import FOLDER_EPISODE_TRACK, FAV_DATA_PATH
 import requests
 import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
@@ -39,9 +39,101 @@ class AmodNetworkHired(AmodNetwork):
 
         # Third-party fleet can be hired to assist main fleet
         self.hired_cars = []
+
+        # With a depot list, we can determine a number of FAVs per node.
+        # For that to work, we need a fixed order.
+        self.fav_depots = self.get_fav_depots()
+
+        # Depot set is used in flood avoidance constraint. Depot nodes
+        # have no max. number o vehicles, since they are considered to
+        # be parking lots.
+        self.depots = set(self.fav_depots)
+        # List of fav list
+        self.step_favs = self.get_hired_step()
         self.available_hired = []
         self.available_hired_ids = np.zeros(len(self.points_level[0]))
         self.expired_contract_cars = []
+
+        # Used to execute the method in sequence for vehicles of
+        # different types. For example, first execute only for PAVs, and
+        # then only for FAVs.
+        self.toggled_fleet = dict()
+        self.toggled_fleet[Car.TYPE_FLEET] = None
+        self.toggled_fleet[Car.TYPE_HIRED] = None
+        
+    def get_hired_step(self):
+
+        if self.config.fav_fleet_size == 0:
+            return []
+
+        step_hire = self.get_fav_info()
+
+        # np.save(
+        #     f"{FAV_DATA_PATH}step_fav_fleet.npy",
+        #     step_hire,
+        #     allow_pickle=True
+        # )
+
+        hired_cars = {
+            step: [
+                HiredCar(
+                    self.points[depot_id],
+                    contract_duration_h,
+                    current_step=step,
+                    current_arrival=(self.config.reposition_h + earliest_h - self.config.demand_earliest_hour) * 60,
+                    duration_level=self.config.contract_duration_level,
+                )
+                for depot_id, earliest_h, contract_duration_h, deadline_h in car_info
+            ]
+            for step, car_info in step_hire.items()
+        }
+
+        # print(f"Finished hiring cars. Total={sum([len(cars) for s,cars in hired_cars.items()])}")
+
+        return hired_cars
+
+    def total_cost(self, t, d):
+        return (
+            self.cost_func(d)
+            + self.config.discount_factor * self.post_cost(t, d)[0]
+        )
+
+    def toggle_fleet(self, car_type):
+        """Disable/enable all vehicles of a car_type.
+        Must be executed in sequence.
+
+        Parameters
+        ----------
+        car_type : int
+            Type of car to enable or disable.
+
+        Example
+        -------
+        >>> print("Disable PAVs")
+        >>> self.toggle_fleet(self, Car.TYPE_FLEET)
+        >>> print("Enable PAVs")
+        >>> self.toggle_fleet(self, Car.TYPE_FLEET)
+
+        """
+
+        # Check if toggling is enabled
+        if self.config.separate_fleets:
+
+            # If None, remove cars of type = car_type
+            if not self.toggled_fleet[car_type]:
+                if car_type == Car.TYPE_FLEET:
+                    self.toggled_fleet[car_type] = self.hired_cars, self.available_hired
+                    self.hired_cars, self.available_hired = [], []
+                else:
+                    self.toggled_fleet[car_type] = self.cars, self.available
+                    self.cars, self.available = [], []
+
+            # Activate cars of type = car_type
+            else:
+                if car_type == Car.TYPE_FLEET:
+                    self.hired_cars, self.available_hired = self.toggled_fleet[car_type]
+                else:
+                    self.cars, self.available = self.toggled_fleet[car_type]
 
     # @functools.lru_cache(maxsize=None)
     def cost_func(self, decision):
@@ -75,18 +167,18 @@ class AmodNetworkHired(AmodNetwork):
 
         CONGESTION_PRICE = 0
 
-        if (
-            decision[du.CAR_TYPE] == Car.TYPE_HIRED
-            or decision[du.CAR_TYPE] == Car.TYPE_TO_HIRE
-        ):
-            PROFIT_MARGIN = self.config.profit_margin
+        COST_STAY = self.config.parking_cost_step
 
-        if decision[du.CAR_TYPE] == Car.TYPE_TO_HIRE:
-            CONGESTION_PRICE = self.config.congestion_price
+        if decision[du.CAR_TYPE] == Car.TYPE_HIRED:
+            PROFIT_MARGIN = self.config.profit_margin
+            RETURN_FACTOR = 2
+            # Car is parking somewhere different than its parking lot
+            if decision[du.DESTINATION] != decision[du.ORIGIN]:
+                COST_STAY = 2*self.config.recharge_cost_distance
 
         if decision[du.ACTION] == du.STAY_DECISION:
             # Stay
-            return 0
+            return -COST_STAY
 
         elif decision[du.ACTION] == du.TRIP_DECISION:
 
@@ -124,7 +216,7 @@ class AmodNetworkHired(AmodNetwork):
             cost = self.config.cost_recharge_single_increment
             return -cost
 
-        elif decision[du.ACTION] == du.REBALANCE_DECISION:
+        elif decision[du.ACTION] in [du.REBALANCE_DECISION, du.RETURN_DECISION]:
 
             # From trip's origin to trip'scar_type
             dist_trip = self.get_distance(
@@ -161,6 +253,128 @@ class AmodNetworkHired(AmodNetwork):
 
         return remaining_hiring_time > duration_movement
 
+    def get_fav_depots(self):
+
+        if self.config.fav_fleet_size == 0:
+            return []
+
+        try:
+            P = np.load(self.config.path_depot_list, allow_pickle=True)
+            print(f"{len(P)} FAV depots loaded.")
+
+        except:
+
+            # If FAVs start from region centers
+            if self.config.fav_depot_level:
+
+                # Node id list
+                N = list(set([self.points[p].id_level(self.config.fav_depot_level) for p in range(self.config.node_count)]))
+            else:
+                N = list(np.arange(self.config.node_count))
+
+            # If only a share of the nodes is used
+            if self.config.depot_share:
+                n_depots = int(self.config.depot_share*len(N))
+
+                # If share is lower than 1 (i.e., there are not depots),
+                # the entire set is considered.
+                if  n_depots <= 1:
+                    n_depots = len(N)
+
+            else:
+                n_depots = len(N)
+
+            # Select n depots from from depot set
+            P = sorted(random.sample(set(N), n_depots))
+
+            # Save the depots to use in future iterations. The depots
+            # don't change, only the distribution of cars throughout
+            # these depots change.
+            np.save(self.config.path_depot_list, P, allow_pickle=True)
+            print(f"Saving {len(P)} FAV depots.")
+
+        return P
+
+    def get_fav_depot_assignment(self, P=None):
+
+        if not P:
+            P = self.fav_depots
+
+        # How many FAVs for each depot?
+        fav_count_depot = np.zeros(len(P))
+
+        unassigned_favs = self.config.fav_fleet_size
+
+        # Assign favs to depots randomly
+        while unassigned_favs > 0:
+            fav_count_depot[random.randint(0, len(P)-1)] += 1
+            unassigned_favs -= 1
+
+        return fav_count_depot
+
+    def get_fav_info(self, max_contract_duration=True):
+
+        fav_count_depot = self.get_fav_depot_assignment()
+
+        # What time favs arrive in each depot?
+        earliest_times = []
+
+        # Correspondent contract durations
+        contract_durations = []
+
+        # FAVs per time step (30s = hour*60*2)
+        step_fav = defaultdict(list)
+
+        depot_info = dict()
+        for i, n in enumerate(self.fav_depots):
+
+            n_favs = int(fav_count_depot[i])
+
+            depot_info[n] = list()
+
+            # Earlist times of FAVs arriving in node n
+            earliest_time = self.config.get_earliest_time(n_favs)
+
+            # Contract durations of FAVs arriving in node n
+            contract_duration = self.config.get_contract_duration(n_favs)
+
+            # Earlist times and contract durations
+            for e, c in zip(earliest_time, contract_duration):
+
+                # earliest_request = earliest_features[2]
+                # latest_request = earliest_features[3]
+                # rebalance_offset = earliest_features[4]
+                # delivery_offset = earliest_features[5]
+
+                # Contract duration can't surpass last time period
+                if max_contract_duration:
+                    # Car stay in the system from the moment
+                    # it arrives until the end:
+                    # earliest hour + demand interval + rebalance offset
+                    c = self.config.latest_hour - e
+                else:
+                    c = min(c, self.config.latest_hour - e)
+                # Add clipped contract duration
+                contract_durations.append(c)
+
+                # earliest, service time, deadline
+                fav_data = (n, e, c, e + c)
+
+                # FAVs per depot
+                depot_info[n].append(fav_data)
+
+                # Time step = 0.5 min (truncate seconds)
+                step = self.config.get_step(e)
+
+                # FAVs per step
+                step_fav[step].append(fav_data)
+
+            earliest_times.extend(earliest_time)
+
+        # print(len(P), P)
+
+        return dict(step_fav)
+
     def realize_decision(self, t, decisions, a_trips_dict, a_cars_dict):
         total_reward = 0
         serviced = list()
@@ -171,6 +385,7 @@ class AmodNetworkHired(AmodNetwork):
             du.REBALANCE_DECISION: 0,
             du.TRIP_DECISION: 0,
             du.RECHARGE_DECISION: 0,
+            du.RETURN_DECISION: 0,
         }
 
         for decision in decisions:
@@ -214,14 +429,10 @@ class AmodNetworkHired(AmodNetwork):
                 # print(decision, contribution_car)
 
                 # Start contract, if not started
-                if car_type == Car.TYPE_TO_HIRE:
+                if car_type == Car.TYPE_HIRED:
 
                     # Hired car will be used by the system
-                    if action != du.STAY_DECISION:
-                        car.started_contract = True
-                        car.type = Car.TYPE_HIRED
-                    else:
-                        contribution_car = 0
+                    car.started_contract = True
 
                 if action == du.RECHARGE_DECISION:
                     # Recharging ##################################### #
@@ -229,7 +440,7 @@ class AmodNetworkHired(AmodNetwork):
                         car, self.config.recharge_time_single_level
                     )
 
-                elif action == du.REBALANCE_DECISION:
+                elif action in [du.REBALANCE_DECISION, du.RETURN_DECISION]:
                     # Rebalancing #################################### #
                     (
                         total_duration,
@@ -244,12 +455,13 @@ class AmodNetworkHired(AmodNetwork):
                         total_distance,
                         contribution_car,
                         self.points[d],
+                        return_trip=(action == du.RETURN_DECISION),
                     )
 
                 elif action == du.STAY_DECISION:
                     # Car settings are updated all together when time
                     # step finishes
-                    car.idle_step_count+=1
+                    car.idle_step_count += 1
 
                 elif action == du.TRIP_DECISION:
                     # Servicing ###################################### #
@@ -283,7 +495,44 @@ class AmodNetworkHired(AmodNetwork):
 
         return (total_reward, serviced, denied)
 
+    @functools.lru_cache(maxsize=None)
+    def get_neighbors(self, car_id):
+
+        # Rebalancing ################################################ #
+        if self.config.reachable_neighbors:
+            n_neighbors = 8
+            neighbors = set(
+                random.sample(
+                    list(
+                        self.reachable_neighbors(
+                            car_id, 60, n_neighbors
+                        )
+                    ),
+                    n_neighbors,
+                )
+            )
+
+        else:
+            neighbors = self.get_zone_neighbors(car_id)
+
+        return neighbors
+
     def update_fleet_status(self, time_step):
+
+        # List of cars per attribute
+        self.attribute_cars_dict = defaultdict(list)
+
+        # Set of reachable neighbors from each car position
+        self.attribute_rebalance = dict()
+
+        # List of cars per location
+        self.cars_location = defaultdict(list)
+
+        # Vehicles stopped at location do not visit tabu list
+        self.cars_location_tabu = defaultdict(set)
+
+        # List of cars per region center
+        self.count_car_region = defaultdict(lambda: defaultdict(int))
 
         # Idle company-owned cars
         available = []
@@ -299,6 +548,23 @@ class AmodNetworkHired(AmodNetwork):
             # Discard busy vehicles
             if not car.busy:
                 available.append(car)
+
+                self.attribute_cars_dict[car.attribute].append(car)
+
+                # Get accessible neighbors from each car position
+                if car.point.id not in self.attribute_rebalance:
+                    self.attribute_rebalance[car.point.id] = self.get_neighbors(car.point.id)
+
+                # Get union set of tabu locations to visit
+                if self.config.car_size_tabu > 0:
+                    self.cars_location_tabu[car.point.id] |= set(car.tabu)
+            else:
+                # Busy cars arriving at each location
+                self.cars_location[car.point.id].append(car)
+
+            # # Car count per region center
+            # for g in range(len(self.config.level_dist_list)):
+            #     self.count_car_region[g][self.points[car.point.id].id_level(g)]+= 1
 
         # Idle hired cars
         available_hired = []
@@ -316,16 +582,35 @@ class AmodNetworkHired(AmodNetwork):
             car.update(time_step, time_increment=self.config.time_increment)
 
             # Car has started the contract
-            if car.started_contract:
+            # if car.started_contract:
 
-                # Contract duration has expired
-                if car.contract_duration == 0:
-                    expired_contract.append(car)
-                    self.available_hired_ids[car.point.id] += 1
+            # Contract duration has expired
+            if car.contract_duration == 0:
+                # expired_contract.append(car)
+                expired_contract.append(car)
+                # self.hired_cars.remove(car)
+                self.available_hired_ids[car.point.id] += 1
 
-                # Discard busy vehicles
-                elif not car.busy:
-                    available_hired.append(car)
+            # Discard busy vehicles
+            elif not car.busy:
+                available_hired.append(car)
+
+                self.attribute_cars_dict[car.attribute].append(car)
+
+                # Get accessible neighbors from each car position
+                if car.point.id not in self.attribute_rebalance:
+                    self.attribute_rebalance[car.point.id] = self.get_neighbors(car.point.id)
+
+                if self.config.car_size_tabu > 0:
+                    self.cars_location_tabu[car.point.id] |= set(car.tabu)
+            
+            else:
+                # Busy cars arriving at each location
+                self.cars_location[car.point.id].append(car)
+
+            # # Car count per region center
+            # for g in range(len(self.config.level_dist_list)):
+            #     self.count_car_region[g][self.points[car.point.id].id_level(g)] += 1
 
         self.available = available
         self.available_hired = available_hired
@@ -334,8 +619,10 @@ class AmodNetworkHired(AmodNetwork):
         for car in expired_contract:
             self.hired_cars.remove(car)
 
-            # Save expired contract cars
-            self.expired_contract_cars.extend(expired_contract)
+        # Save expired contract cars
+        self.expired_contract_cars.extend(expired_contract)
+
+        # pprint(self.cars_location_tabu)
 
     def discard_excess_hired(self):
 
@@ -387,17 +674,13 @@ class AmodNetworkHired(AmodNetwork):
             time_step += self.config.recharge_time_single_level
             duration = self.config.recharge_time_single_level
 
-        elif action == du.REBALANCE_DECISION:
+        elif action in [du.REBALANCE_DECISION, du.RETURN_DECISION]:
             # Rebalancing ##############################################
 
             duration, battery_drop = self.preview_move(point, o, d)
             time_step += max(1, duration)
             battery_post = max(0, battery - battery_drop)
             point = d
-
-            # Hiring is performed when car rebalance
-            if car_type == Car.TYPE_TO_HIRE:
-                type_post = Car.TYPE_HIRED
 
         elif action == du.STAY_DECISION:
             # Staying ##################################################
@@ -411,12 +694,8 @@ class AmodNetworkHired(AmodNetwork):
             battery_post = max(0, battery - battery_drop)
             point = d
 
-            # Hiring is performed when car service user
-            if car_type == Car.TYPE_TO_HIRE:
-                type_post = Car.TYPE_HIRED
-
         # Contract duration is altered only for hired cars
-        if car_type == Car.TYPE_HIRED or car_type == Car.TYPE_TO_HIRE:
+        if car_type == Car.TYPE_HIRED:
             contract_duration -= int(
                 duration / self.config.contract_duration_level
             )
@@ -438,6 +717,8 @@ class AmodNetworkHired(AmodNetwork):
             dict, float -- #cars per status, total battery level
         """
         status_count = defaultdict(int)
+        fav_status_count = defaultdict(int)
+        pav_status_count = defaultdict(int)
         for s in Car.status_list:
             status_count[s] = 0
 
@@ -445,18 +726,22 @@ class AmodNetworkHired(AmodNetwork):
         for c in self.cars:
             # total_battery_level += c.battery_level_miles
             status_count[c.status] += 1
+            pav_status_count[c.status] += 1
 
         for c in self.hired_cars:
             if c.started_contract:
                 # total_battery_level += c.battery_level_miles
                 status_count[c.status] += 1
+                fav_status_count[c.status] += 1
 
-        return status_count, total_battery_level
+        return status_count, pav_status_count, fav_status_count, total_battery_level
 
     def reset(self):
 
         super().reset()
         self.hired_cars = []
+        self.step_favs = self.get_hired_step()
+        self.expired_contract_cars = []
         self.available_hired = []
         # self.post_cost.cache_clear()
         self.adp.weighted_values.clear()
@@ -499,7 +784,6 @@ class AmodNetworkHired(AmodNetwork):
             elif self.config.update_values_smoothed():
                 self.adp.update_values_smoothed(time_step, duals)
 
-    # @functools.lru_cache(maxsize=None)
     def post_cost(self, t, decision):
 
         # Target attribute if decision was taken

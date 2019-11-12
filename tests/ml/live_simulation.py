@@ -14,10 +14,10 @@ import mod.env.config as conf
 # best_link_LIN_cars=0500(L)_t=0.5_levels[3]=(3-0, 3-300, 3-600)_rebal=(0-4)[P(10)]_[05h,+15m+04h+30m]_0.10(S)_1.00_0.10
 start_config = alg.get_sim_config(
     {
-        ConfigNetwork.TEST_LABEL: "rule",
+        ConfigNetwork.TEST_LABEL: "favs_rand_contr",
         ConfigNetwork.DISCOUNT_FACTOR: 1,
         ConfigNetwork.PENALIZE_REBALANCE: True,
-        ConfigNetwork.FLEET_SIZE: 300,
+        ConfigNetwork.FLEET_SIZE: 0,
         ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
         ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
         ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
@@ -34,8 +34,16 @@ start_config = alg.get_sim_config(
         # Controlling user matching
         ConfigNetwork.MATCHING_DELAY: 15,
         ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+        ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+        # When cars start in the last visited point, the model takes
+        # a long time to figure out the best time
         ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
-        ConfigNetwork.MAX_IDLE_STEP_COUNT: 15,
+        ConfigNetwork.CAR_SIZE_TABU: 10,
+        ConfigNetwork.REACHABLE_NEIGHBORS: False,
+        ConfigNetwork.ADP_IGNORE_ZEROS: True,
+        ConfigNetwork.DEPOT_SHARE: 0.5,
+        ConfigNetwork.FAV_FLEET_SIZE: 300,
+        ConfigNetwork.FAV_DEPOT_LEVEL: 2,
     }
 )
 run_plot = PlotTrack(start_config)

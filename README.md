@@ -33,17 +33,17 @@ decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, O
 
 Example to log adp and mip execution, save progress.npy file, and plots.
 
-    python mod\ml\adp_network_server.py TEST_NAME -use_duals -save_progress 10 -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
+    python mod\ml\adp_network_server.py TEST_NAME -save_progress 10 -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
 
 Execution (only save progress):
 
-    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -use_duals -save_progress 10
+    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -save_progress 10
 
 Batch file (`.bat`):
 
     call C:\Users\LocalAdmin\Anaconda3\Scripts\activate env_slevels
     call cd C:\Users\LocalAdmin\OneDrive\leap_forward\phd_project\reb\code\mod\
-    call python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -use_duals -save_progress
+    call python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -save_progress
 
 ## Memory profiling
 
@@ -60,8 +60,8 @@ https://wiki.python.org/moin/WindowsCompilers
 Execution:
 `python setup.py build_ext --inplace`
 
-
-## Gurobi error codes
+## MIP
+### Gurobi error codes
 
 Once an optimize call has returned, the Gurobi optimizer sets the Status attribute of the model to one of several [possible values](https://www.gurobi.com/documentation/6.0/refman/optimization_status_codes.html). E.g.: 
 
@@ -72,3 +72,27 @@ Once an optimize call has returned, the Gurobi optimizer sets the Status attribu
 | OPTIMAL         | 2     | Model was solved to optimality (subject to tolerances)  and an optimal solution is available.|
 | INFEASIBLE      | 3     | Model was proven to be infeasible.|
 | INF_OR_UNBD     | 4     | Model was proven to be either infeasible or unbounded.|
+
+### Gurobi method
+Algorithm used to solve continuous models or the root node of a MIP model ([info](https://www.gurobi.com/documentation/8.1/refman/method.html#parameter:Method)). Options are: 
+ * -1=automatic
+ * 0=primal simplex
+ * 1=dual simplex
+ * 2=barrier
+ * 3=concurrent
+ * 4=deterministic concurrent
+ * 5=deterministic concurrent simplex
+
+Example:
+    
+    m.setParam("Method", 1)
+
+### Gurobi MIP focus
+If you believe the solver is having no trouble finding good quality solutions, and wish to focus more attention on proving optimality, select MIPFocus=2.
+If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound ([info](https://www.gurobi.com/documentation/8.1/refman/mipfocus.html)).
+
+If you are more interested in finding feasible solutions quickly, you can select MIPFocus=1.
+
+Example:
+
+    m.setParam("MIPFocus", 1)

@@ -1,6 +1,7 @@
 import itertools
 from collections import defaultdict
 from mod.env.car import HiredCar, VirtualCar
+import random
 
 # Decision codes
 
@@ -12,14 +13,15 @@ RECHARGE_DECISION = 2
 
 REBALANCE_DECISION = 3
 
-HIRE_DECISION = 4
+# Drive back to origin
+RETURN_DECISION = 4
 
 label_dict = {
     TRIP_DECISION: "TRIP",
     STAY_DECISION: "STAY",
     RECHARGE_DECISION: "CHAR",
     REBALANCE_DECISION: "REBA",
-    HIRE_DECISION: "HIRE",
+    RETURN_DECISION: "BACK",
 }
 
 
@@ -39,6 +41,7 @@ DISCARD = "-"
 
 
 def stay_decision(car):
+    """Stay in current position"""
     return (
         (STAY_DECISION,)
         + car.attribute
@@ -49,6 +52,7 @@ def stay_decision(car):
 
 
 def recharge_decision(car):
+    """Stay in current position recharging"""
     return (
         (RECHARGE_DECISION,)
         + car.attribute
@@ -58,7 +62,19 @@ def recharge_decision(car):
     )
 
 
+def return_decision(car):
+    """Back to car origin"""
+    return (
+        (RETURN_DECISION,)
+        + car.attribute
+        + (car.point.id,)
+        + (car.origin.id,)
+        + (DISCARD,)
+    )
+
+
 def rebalance_decision(car, neighbor):
+    """Rebalance car to neighbor"""
     return (
         (REBALANCE_DECISION,)
         + car.attribute
@@ -71,8 +87,7 @@ def rebalance_decision(car, neighbor):
 def rebalance_decisions(car, targets, env):
     rebalance_decisions = set()
     for t in targets:
-        # Car cannot service trip because it cannot go back
-        # to origin in time
+        # Car cannot rebalance since it cannot go back to origin in time
         if isinstance(car, HiredCar) and not env.can_move(
             car.point.id, car.point.id, t, car.depot.id, car.contract_duration
         ):
@@ -131,7 +146,7 @@ def get_virtual_decisions(trips):
     return decisions
 
 
-def get_decisions(env, trips, min_battery_level=None, myopic=False):
+def get_decisions(env, trips, min_battery_level=None):
     """Get list of decision tuples.
 
     Parameters
@@ -152,6 +167,7 @@ def get_decisions(env, trips, min_battery_level=None, myopic=False):
     """
 
     decisions = set()
+    decisions_return = set()
     decision_class = defaultdict(list)
     # Which positions are surrounding each car position
     attribute_rebalance = dict()
@@ -165,33 +181,63 @@ def get_decisions(env, trips, min_battery_level=None, myopic=False):
         d_stay = stay_decision(car)
         decisions.add(d_stay)
 
-        # Vehicle knows nothing about future states, hence no rebalancing
-        if not myopic:
+        # Vehicle knows nothing about future states, hence it rebalances
+        if not env.config.myopic:
             # Rebalancing ################################################ #
-            try:
-                attribute_rebalance[car.point.id] = attribute_rebalance[
-                    car.point.id
-                ]  - set(car.tabu)
-            except:
-                attribute_rebalance[car.point.id] = env.get_zone_neighbors(
-                    car.point.id
-                )  - set(car.tabu)
 
-            # attribute_rebalance[car.point.id] = (
-            #     attribute_rebalance.get(car.point.id, set())
-            #     | env.get_zone_neighbors(car.point.id)) - set(car.tabu)
-            # try:
-            #     # Get rebalance targets if previously defined (car with
-            #     # the same attribute)
-            #     rebalance_targets = attribute_rebalance[car.point.id] - set(car.tabu)
-            #     attribute_rebalance[car.point.id] = rebalance_targets - set(car.tabu)
+            neighbors = env.attribute_rebalance[car.point.id]
 
-            # except:
-            #     # Get region center neighbors
-            #     rebalance_targets = env.get_zone_neighbors(car.point.id)
-            #     attribute_rebalance[car.point.id] = rebalance_targets - set(car.tabu)
-            #     # All points a car can rebalance to from its corrent point
-            #     # attribute_rebalance[car.point.id] = rebalance_targets
+            d_rebalance = rebalance_decisions(car, neighbors, env)
+
+            # Return trips are always available
+            if isinstance(car, HiredCar):
+
+                # If car has moved from depot
+                if car.point.id != car.depot.id:
+
+                    # d_return_trip = rebalance_decision(car, car.depot.id)
+                    # d_rebalance.add(d_return_trip)
+
+                    travel_time = env.get_travel_time_od(
+                        car.point, car.depot, unit="min"
+                    )
+
+                    # Car must return if when contract is about to end
+                    # (1 step offset given)
+                    return_trip_duration = (
+                        travel_time + env.config.time_increment
+                    )
+
+                    if car.contract_duration <= return_trip_duration:
+                        d_return = return_decision(car)
+                        d_rebalance.add(d_return)
+                        decisions_return.add(d_return)
+
+            if not d_rebalance:
+                # Remove from tabu if not empty.
+                # Avoid cars are corned indefinitely
+                if car.tabu:
+                    car.tabu.popleft()
+
+            # Vehicles can stay idle for a maximum number of steps.
+            # If they surpass this number, they can rebalance to farther
+            # areas.
+            if env.config.max_idle_step_count:
+
+                # Car can rebalance to farther locations besides the
+                # closest
+                if car.idle_step_count >= env.config.max_idle_step_count:
+                    farther = env.get_zone_neighbors(
+                        car.point.id, explore=True
+                    )
+
+                    # print(f"farther: {farther} - d_rebalance: {d_rebalance}")
+                    d_rebalance.update(rebalance_decisions(car, farther, env))
+                    # d_rebalance = d_rebalance | farther
+
+            # print(f"farther: {d_rebalance}")
+
+            decisions.update(d_rebalance)
 
         # Recharge ################################################### #
         if min_battery_level and car.battery_level < min_battery_level:
@@ -238,68 +284,4 @@ def get_decisions(env, trips, min_battery_level=None, myopic=False):
 
                     decision_class[trip.sq_class].append(d)
 
-    if not myopic:
-
-        # Cars only rebalance to places where
-        for car in itertools.chain(env.available, env.available_hired):
-
-            # Vehicles in the same location cannot rebalance to any
-            # location in their tabu lists
-            d_rebalance = rebalance_decisions(
-                car, attribute_rebalance[car.point.id], env
-            )
-
-            if not d_rebalance:
-                # Remove from tabu if not empty.
-                # Avoid cars are corned indefinitely
-                if car.tabu:
-                    car.tabu.popleft()
-
-            # Vehicles can stay idle for a maximum number of steps.
-            # If they surpass this number, they can rebalance to farther
-            # areas.
-            if env.config.max_idle_step_count:
-
-                if car.idle_step_count >= env.config.max_idle_step_count:
-                    farther = env.get_zone_neighbors(car.point.id, explore=True)
-
-                    # print(f"farther: {farther} - d_rebalance: {d_rebalance}")
-                    d_rebalance = rebalance_decisions(
-                        car, farther, env
-                    )
-                    # d_rebalance = d_rebalance | farther
-
-            
-            
-            # print(f"farther: {d_rebalance}")
-
-            decisions.update(d_rebalance)
-
-            # print(f"{car} - {len(d_rebalance)} - {d_rebalance}")
-
-            # print(car, d_rebalance)
-
-            # car.decisions.update(d_rebalance)
-
-            # if not car.decisions:
-            #     d_stay = stay_decision(car)
-            #     decisions.add(d_stay)
-            #     try:
-            #         removed = car.tabu.popleft()
-            #     except:
-            #         removed = "-empty-"
-            #     # print(f"{car} has no decisions. {d_stay} added. removed from tabu = {removed}")
-            #     # Start removing from tabu
-            #     # car.tabu.popleft()
-            # elif len(d_rebalance) == 1:
-            #     try:
-            #         removed = car.tabu.popleft()
-            #     except:
-            #         removed = "-empty-"
-
-            # d_stay = stay_decision(car)
-            # decisions.add(d_stay)
-            # print(f"{car} has only 1 rebalance decisions={d_rebalance}. Removed tabu: {removed}")
-
-            # car.decisions = set()
-    return decisions, decision_class
+    return decisions, decisions_return, decision_class

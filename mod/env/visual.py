@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 from pprint import pprint
 import pandas as pd
@@ -186,6 +187,7 @@ class EpisodeLog:
         plots=True,
         save_df=True,
         save_learning=True,
+        save_after_iteration=1,
         save_overall_stats=True
     ):
 
@@ -206,11 +208,33 @@ class EpisodeLog:
         if plots:
 
             # Fleet status (idle, recharging, rebalancing, servicing)
-            step_log.plot_fleet_status(
-                file_path=self.output_folder_fleet + f"{self.adp.n:04}",
-                file_format="png",
-                dpi=150,
-            )
+            # step_log.plot_fleet_status(
+            #     step_log.car_statuses,
+            #     file_path=self.output_folder_fleet + f"{self.adp.n:04}_total",
+            #     file_format="png",
+            #     dpi=150,
+            # )
+
+            if step_log.env.config.fleet_size > 0:
+                step_log.plot_fleet_status(
+                    step_log.pav_statuses,
+                    file_path=self.output_folder_fleet + f"{self.adp.n:04}_pav",
+                    file_format="png",
+                    dpi=150,
+                )
+            # step_log.plot_fleet_status_all(
+            #     step_log.car_statuses, step_log.pav_statuses, step_log.fav_statuses, 
+            #     file_path=self.output_folder_fleet + f"{self.adp.n:04}_fav",
+            #     file_format="png",
+            #     dpi=150,
+            # )
+            if step_log.env.config.fav_fleet_size > 0:
+                step_log.plot_fleet_status(
+                    step_log.fav_statuses,
+                    file_path=self.output_folder_fleet + f"{self.adp.n:04}_fav",
+                    file_format="png",
+                    dpi=150,
+                )
 
             # Service status (battery level, demand, serviced demand)
             step_log.plot_service_status(
@@ -245,7 +269,7 @@ class EpisodeLog:
             )
 
         # Save what was learned so far
-        if save_learning and self.adp:
+        if save_learning and self.adp and self.adp.n%save_learning == 0:
 
             path = self.output_path + "/progress.npy"
 
@@ -312,6 +336,8 @@ class EpisodeLog:
     def plot_weights(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
+
+        sns.set_context("paper")
         def plot_series(weights, car_type="AV"):
             series_list = [list(a) for a in zip(*weights)]
 
@@ -324,8 +350,8 @@ class EpisodeLog:
             plt.legend([f"Level {g}" for g in range(len(series_list))])
 
             # Ticks
-            plt.yticks(np.arange(1, step=0.05))
-            plt.xticks(np.arange(self.adp.n))
+            # plt.yticks(np.arange(1, step=0.05))
+            # plt.xticks(np.arange(self.adp.n))
 
             if file_path:
                 plt.savefig(f"{file_path}_{car_type}.{file_format}", bbox_inches="tight", dpi=dpi)
@@ -343,7 +369,7 @@ class EpisodeLog:
     def plot_reward(
         self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
-
+        sns.set_context("paper")
         plt.plot(np.arange(self.adp.n), self.adp.reward, color="r")
         plt.xlabel("Episodes")
         plt.xscale(scale)
@@ -357,7 +383,7 @@ class EpisodeLog:
         plt.close()
 
     def plot_service_rate(self, file_path=None, file_format="png", dpi=150):
-
+        sns.set_context("paper")
         plt.plot(np.arange(self.adp.n), self.adp.service_rate, color="b")
         plt.xlabel("Episodes")
         plt.ylabel("Service rate (%)")
@@ -378,6 +404,8 @@ class StepLog:
         self.rejected_list = list()
         self.total_list = list()
         self.car_statuses = defaultdict(list)
+        self.pav_statuses = defaultdict(list)
+        self.fav_statuses = defaultdict(list)
         self.total_battery = list()
         self.n = 0
 
@@ -389,7 +417,7 @@ class StepLog:
 
         # Get number of cars per status in a time step
         # and aggregate battery level
-        dict_status, battery_level = self.env.get_fleet_status()
+        dict_status, pav_status, fav_status, battery_level = self.env.get_fleet_status()
 
         # Fleet aggregate battery level
         self.total_battery.append(battery_level)
@@ -397,6 +425,8 @@ class StepLog:
         # Number of vehicles per status
         for k in Car.status_list:
             self.car_statuses[k].append(dict_status.get(k, 0))
+            self.pav_statuses[k].append(pav_status.get(k, 0))
+            self.fav_statuses[k].append(fav_status.get(k, 0))
 
     def add_record(self, reward, serviced, rejected):
         self.reward_list.append(reward)
@@ -432,17 +462,28 @@ class StepLog:
             reward = 0
             total = 0
 
-        status, battery = self.env.get_fleet_status()
+        status, status_pav, status_fav, battery = self.env.get_fleet_status()
         statuses = [
             f"{Car.status_label_dict[status_code]}={status_count:>4}"
             for status_code, status_count in status.items()
         ]
+
+        pav_statuses = [
+            f"{Car.status_label_dict[status_code]}={status_count:>4}"
+            for status_code, status_count in status_pav.items()
+        ]
+
+        fav_statuses = [
+            f"{Car.status_label_dict[status_code]}={status_count:>4}"
+            for status_code, status_count in status_fav.items()
+        ]
+
         return (
             f"### Time step: {self.n:>4})"
             f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>7.2%}"
             f" ### Trips: {total:>4}"
-            f" ### Status: {statuses}"
+            f" ### Status: {statuses} | PAV: {pav_statuses} | FAV: {fav_statuses}"
         )
 
     def overall_log(self, label="Operational"):
@@ -467,25 +508,66 @@ class StepLog:
             f"        Total profit: {self.total_reward:.2f}"
         )
 
-    def plot_fleet_status(self, file_path=None, file_format="png", dpi=150, earliest_hour=0):
-        steps = np.arange(self.n)
 
-        for status_code, status_count_step in self.car_statuses.items():
+    def plot_fleet_status(self, car_statuses, file_path=None, file_format="png", dpi=150, earliest_hour=0, omit_cruising=True):
+
+        sns.set_context("talk", font_scale=1.4)
+
+        steps = np.arange(self.n)
+        linewidth = 2
+        lenght_tick = 6
+        if omit_cruising:
+            car_statuses[Car.SERVICING] = (
+                np.array(car_statuses[Car.CRUISING])
+                + np.array(car_statuses[Car.ASSIGN])
+            )
+            del car_statuses[Car.CRUISING]
+            del car_statuses[Car.ASSIGN]
+        
+
+        for status_code, status_count_step in car_statuses.items():
             status_label = Car.status_label_dict[status_code]
             plt.plot(
-                steps,
-                status_count_step,
+                steps[:-1],
+                status_count_step[:-1],
+                linewidth=linewidth+1,
                 label=status_label,
                 color=self.env.config.color_fleet_status[status_code]
             )
 
-        matrix_status_count = np.array(list(self.car_statuses.values()))
+        matrix_status_count = np.array(list(car_statuses.values()))
         total_count = np.sum(matrix_status_count, axis=0)
-        plt.plot(steps, total_count, color="#000000", label="Total")
+        plt.plot(steps[:-1], total_count[:-1], linewidth=linewidth+1, color="magenta", label="Total")
 
-        
+        termination = self.n-self.env.config.offset_termination_steps
+        repositioning = self.env.config.offset_repositioning_steps
 
-        
+        # Demarcate offsets
+        plt.axvline(repositioning, color='k', linewidth=linewidth, linestyle="--")
+        plt.axvline(termination, color='k', linewidth=linewidth, linestyle="--")
+
+        # TODO automatic xticks
+        fig = plt.gcf()
+        fig.set_size_inches(10, 10)
+
+        xticks = np.linspace(0, 330, 12)
+        xticks[-1] = 329
+
+        plt.xticks(
+            xticks,
+            ["", "5AM", "", "6AM", "", "7AM", "", "8AM", "", "9AM", "", "10AM"]
+        )
+        plt.tick_params(labelsize=25)
+
+        plt.tick_params(
+            direction='out',
+            length=lenght_tick,
+            width=linewidth,
+            colors='k',
+            grid_color='k',
+            grid_alpha=0.5
+        )
+
         # x_ticks = 6
         # x_stride = 60*3
         # max_x = np.math.ceil(self.n / x_stride) * x_stride
@@ -493,9 +575,13 @@ class StepLog:
         # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
 
         # Configure x axis
-        plt.xlim([0, self.env.config.time_steps])
-        plt.ylim([0, self.env.config.fleet_size])
-        plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
+        plt.xlim([0, self.env.config.time_steps-1])
+        plt.ylim([0, max(self.env.config.fleet_size, self.env.config.fav_fleet_size)+10])
+
+        # plt.ylim([0, self.env.config.fleet_size])
+        # plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
+
+        plt.xlabel("Time")
         
         # Configure y axis
         plt.ylabel("# Cars")
@@ -506,10 +592,10 @@ class StepLog:
         )
 
         plt.legend(
-            loc="upper center",
+            loc="center left",
             frameon=False,
-            bbox_to_anchor=(0.5, -0.15),
-            ncol=5,
+            bbox_to_anchor=(1, 0, 0.5, 1), #(0.5, -0.15),
+            ncol=1,
         )
 
         if file_path:

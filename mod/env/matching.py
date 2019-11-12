@@ -160,20 +160,47 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
     return car_recharge_dict
 
 
-def max_cars_link_constrs(
-    m, decisions, vehicles_arriving_at, max_cars_link=5
-):
+def max_cars_node_constrs(
+        m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[]):
+    """Restrict the number of cars arriving at each node.
+
+    Parameters
+    ----------
+    m : Model
+        Gurobi model.
+    decisions : dict
+        Dictionary associating each position p to the decisions in which
+        p is the destination (STAY, REBALANCE, and TRIP).
+    vehicles_arriving_at : dict
+        Number of vehicles already arriving in each positions from
+        previous assignments.
+    max_cars_node : int, optional
+        Max. number of cars per node, by default 5
+    unrestricted : list, optional
+        List of nodes where the maximum number of cars constraint
+        is not applied (e.g., parking lots), by default []
+
+    Returns
+    -------
+    dict
+        Constraints associated to each destination p.
+    """
 
     flood_avoidance_constrs = dict()
 
     for pos, constrs in decisions.items():
 
-        n_cars_link = max(0, max_cars_link - len(vehicles_arriving_at[pos]))
+        # Depots are unrestricted (unlimited number of vehicles)
+        if pos not in unrestricted:
 
-        # sum_decisions = quicksum([x_var[d] for d in decision_list])
-        flood_avoidance_constrs[pos] = m.addConstr(
-            constrs <= n_cars_link, f"MAX_CARS_LINK[{pos}]"
-        )
+            n_cars_link = max(
+                0,
+                max_cars_node - len(vehicles_arriving_at[pos])
+            )
+
+            flood_avoidance_constrs[pos] = m.addConstr(
+                constrs <= n_cars_link, f"MAX_CARS_LINK[{pos}]"
+            )
 
     return flood_avoidance_constrs
 
@@ -201,6 +228,23 @@ def sq_constrs(m, x_var, decision_class, class_count_dict):
 
     return constr_sq_class
 
+
+def return_to_station_constrs(m, x_var, decision_return):
+    """FAVs must return to stations before their contract ends.
+
+    Parameters
+    ----------
+    m : Model
+        Gurobi model.
+    x_var : tuplelist
+        All decision variables.
+    decision_return : list
+        Decision tuples concerning return trips to FAV origin.
+    """
+
+    for d in decision_return:
+        m.addConstr(x_var[d] == 1,
+        f'RETURN_DEPOT_[{d[du.POSITION]},{d[du.CAR_ORIGIN]}]')
 
 # #################################################################### #
 # UTILS ############################################################## #
@@ -475,18 +519,13 @@ def service_trips(
     trips,
     time_step,
     charge=True,
-    myopic=False,
     iteration=None,
     log_mip=False,
     universal_service=False,
     use_artificial_duals=True,
-    use_duals=True,
     log_times=True,
+    car_type_hide=None
 ):
-    t1_total = time.time()
-
-    logger_name = env.config.log_path(env.adp.n)
-    logger = la.get_logger(logger_name)
 
     """Assign trips to available vehicles optimally at the current
         time step.
@@ -501,8 +540,6 @@ def service_trips(
         Time step after receiving trips
     charge : bool, optional
         Apply the charging constraint, by default True
-    myopic : bool, optional
-        If True, does not learn between iterations, by default False
     log_iteration : int, optional
         Iteration number tp log
     sq_guarantee : bool, optional
@@ -518,6 +555,14 @@ def service_trips(
     float, list, list
         total contribution, serviced trips, rejected trips
     """
+
+    # Starting time and logs
+    t1_total = time.time()
+    logger_name = env.config.log_path(env.adp.n)
+    logger = la.get_logger(logger_name)
+
+    # Disable fleet
+    env.toggle_fleet(car_type_hide)
 
     # Starting assignment model
     m = Model("assignment")
@@ -542,64 +587,28 @@ def service_trips(
     else:
         # Disables all logging (file and console)
         m.setParam("OutputFlag", 0)
+
         # Model is deterministic (usefull for testing)
         m.setParam("Seed", 1)
-
-        # https://www.gurobi.com/documentation/8.1/refman/method.html#parameter:Method
-        # -1=automatic, 0=primal simplex,
-        # 1=dual simplex,
-        # 2=barrier,
-        # 3=concurrent,
-        # 4=deterministic concurrent,
-        # 5=deterministic concurrent simplex.
-        # m.setParam("Method", 1)
-
-        # https://www.gurobi.com/documentation/8.1/refman/mipfocus.html
-        # If you are more interested in finding feasible solutions quickly, you can select MIPFocus=1.
-        # If you believe the solver is having no trouble finding good quality solutions, and wish to focus more attention on proving optimality, select MIPFocus=2.
-        # If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound.
-        # m.setParam("MIPFocus", 1)
 
     # ##################################################################
     # SORT CARS ########################################################
     # ##################################################################
 
-    attribute_cars_dict = defaultdict(list)
-    attribute_cars_busy_dict = defaultdict(list)
-    cars_location = defaultdict(list)
-    # g_region = 5
-    # count_car_region = defaultdict(int)
-
-    for car in itertools.chain(env.cars, env.hired_cars):
-
-        a = car.attribute
-        
-        # List of cars with the same attribute
-        if not car.busy:
-            attribute_cars_dict[a].append(car)
-        else:
-            attribute_cars_busy_dict[a].append(car)
-
-            # Cars arriving at each location
-            cars_location[car.point.id].append(car)
-
-        # count_car_region[env.points[car.point.id].id_level(g_region)]+=1
-
-    # flood = {k: v for k, v in cars_location.items() if len(v) > 5}
-    # if flood:
-    #     print(time_step, flood)
-
-    la.log_attribute_cars_dict(logger_name, attribute_cars_dict)
+    la.log_attribute_cars_dict(logger_name, env.attribute_cars_dict)
 
     # ##################################################################
     # SORT TRIPS #######################################################
     # ##################################################################
 
+    # Number of trips per class
     class_count_dict = defaultdict(int)
+
+    # List of trips per OD
     attribute_trips_dict = defaultdict(list)
 
     # How many trips in each region
-    # count_trips_region = defaultdict(int)
+    count_trips_region = defaultdict(lambda: defaultdict(lambda: {'o': 0, 'd': 0}))
 
     # Create a dictionary associate
     for trip in trips:
@@ -607,13 +616,17 @@ def service_trips(
         # Trip count per class
         class_count_dict[trip.sq_class] += 1
 
-        # count_trips_region[env.points[trip.o.id].id_level(g_region)]+=1
-
         # Group trips with the same ods
         attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
 
+        # TODO Rebalance based on car productivity (trips/cars/area)
+        # Trip count per region center
+        # for g in range(len(env.config.level_dist_list)):
+        #     count_trips_region[g][env.points[trip.o.id].id_level(g)]['o']+=1
+        #     count_trips_region[g][env.points[trip.d.id].id_level(g)]['d']+=1
+
     # print("### Count car region")
-    # pprint(count_car_region)
+    # pprint(env.count_car_region)
     
     # print("\n### Count trip region")
     # pprint(count_trips_region)
@@ -632,14 +645,15 @@ def service_trips(
     )
 
     t1_decisions = time.time()
-    decision_cars, decision_class = du.get_decisions(
+    decision_cars, decision_return, decision_class = du.get_decisions(
         env,
-        trips,
-        myopic=myopic
+        trips
         # max_battery_level=env.config.battery_levels,
     )
+
+
     # virtual_decisions = du.get_virtual_decisions(env, trips)
-    
+
     # logger.debug("\n ###### Virtual vehicles:")
     # for v in virtual_decisions:
     #     logger.debug(f' - {v}')
@@ -678,56 +692,39 @@ def service_trips(
     # ---------------------------------------------------------------- #
     # COST FUNCTION ####################################################
     # ---------------------------------------------------------------- #
-    # decisions_time_pos = defaultdict(list)
-    decisions_destination = defaultdict(int)
-    
-    if myopic:
-        post_decision_costs = 0
 
-    # Model has learned shadow costs from previous iterations and can
-    # use them to determine post decision costs.
-    else:
-        t1_setup_costs_post = time.time()
-        # post_decision_costs = quicksum(
-        #     (env.post_cost(time_step, d) * x_var[d]) for d in x_var
-        # )
-
-        # post decision state and post decision cost
-        post_decision_costs = 0
-
-        for d in x_var:
-
-            if d[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
-                post_cost = 0
-
-            else:
-                post_cost, post_state = env.post_cost(time_step, d)
-
-            # Updating post decision costs
-            post_decision_costs += post_cost * x_var[d]
-
-        # Compute time to get post decision costs
-        t_setup_costs_post = time.time() - t1_setup_costs_post
-
-    # ######### Controlling cars per link
+    # Time to setup post decision costs
     t1_setup_costs = time.time()
-    # Cost of current decision
-    present_contribution = quicksum(env.cost_func(d) * x_var[d] for d in x_var)
-    t_setup_costs = time.time() - t1_setup_costs
 
-    # Maximize present and future outcome
-    m.setObjective(
-        present_contribution
-        + env.config.discount_factor * post_decision_costs,
-        GRB.MAXIMIZE,
-    )
+    # If myopic, do not include post decision costs
+    if env.config.myopic:
+
+        contribution = quicksum(
+            env.cost_func(d) * x_var[d]
+            for d in x_var
+        )
+
+    else:
+        # Model has learned shadow costs from previous iterations and
+        # can use them to determine post decision costs.
+        contribution = quicksum(
+            env.total_cost(time_step, d) * x_var[d]
+            for d in x_var
+        )
+
+    m.setObjective(contribution, GRB.MAXIMIZE)
+
+    t_setup_costs = time.time() - t1_setup_costs
 
     # ---------------------------------------------------------------- #
     # CONSTRAINTS ######################################################
     # ---------------------------------------------------------------- #
     t1_setup_constraints = time.time()
     # Car flow conservation
-    flow_cars_dict = car_flow_constr(m, x_var, attribute_cars_dict)
+    flow_cars_dict = car_flow_constr(m, x_var, env.attribute_cars_dict)
+
+    # FAVs return to their origins before contract deadlines
+    return_to_station_constrs(m, x_var, decision_return)
 
     # Trip flow conservation
     flow_trips = trip_flow_constrs(
@@ -743,36 +740,27 @@ def service_trips(
     if charge:
         max_battery = env.config.battery_levels
         car_recharge_dict = recharge_constrs(
-            m, x_var, attribute_cars_dict, max_battery
+            m, x_var, env.attribute_cars_dict, max_battery
         )
 
     # Limit the number of cars per node
     if env.config.max_cars_link:
 
+        # decisions_time_pos = defaultdict(list)
+        decisions_destination = defaultdict(int)
+
         for d in x_var:
-
-            # Vehicles staying were already counted before
-            # if d[du.ACTION] in [du.TRIP_DECISION, du.REBALANCE_DECISION]:
-
-            # rebalancing_to[p] + expected_arriving_to[p] 
-            # – rebalancing_from[p] – trip_from[p] <= max_cars_link[p]
 
             # Cars arriving at destination
             decisions_destination[d[du.DESTINATION]] += x_var[d]
 
-            # Cars leaving origin
-            # decisions_destination[d[du.ORIGIN]] -= x_var[d]
-
-            # else:
-            #     # Cars staying at destination
-            #     decisions_destination[d[du.DESTINATION]] += x_var[d]
-
         # Set up constraint
-        max_cars_link_constr = max_cars_link_constrs(
+        max_cars_node_constr = max_cars_node_constrs(
             m,
             decisions_destination,
-            cars_location,
-            max_cars_link=env.config.max_cars_link,
+            env.cars_location,
+            max_cars_node=env.config.max_cars_link,
+            unrestricted=env.depots,
         )
 
     t_setup_constraints = time.time() - t1_setup_constraints
@@ -814,43 +802,44 @@ def service_trips(
         logger.debug(denied_count_dict)
 
         # Update shadow prices to be used in the next iterations
-        if not myopic:
+        if not env.config.myopic:
 
-            if use_duals:
+            try:
 
-                try:
+                t1_duals = time.time()
 
-                    t1_duals = time.time()
-                    
-                    # Extracting shadow prices from car flow constraints
-                    duals = extract_duals(
-                        m, flow_cars_dict, ignore_zeros=env.config.adp_ignore_zeros, logger=logger
-                    )
-                    t_duals = time.time() - t1_duals
+                # Extracting shadow prices from car flow constraints
+                duals = extract_duals(
+                    m,
+                    flow_cars_dict,
+                    ignore_zeros=env.config.adp_ignore_zeros,
+                    logger=logger
+                )
 
-                    # Log duals
-                    la.log_duals(logger_name, duals, msg="LINEAR")
+                t_duals = time.time() - t1_duals
 
-                    t1_update = time.time()
+                # Log duals
+                la.log_duals(logger_name, duals, msg="LINEAR")
 
-                    # Use dictionary of duals to update value functions
-                    env.update_vf(duals, time_step)
+                t1_update = time.time()
 
-                    t_update = time.time() - t1_update
+                # Use dictionary of duals to update value functions
+                env.update_vf(duals, time_step)
 
-                except Exception as e:
-                    print("aaaaaa")
-                    logger.debug(
-                        f"Can't extract duals. Exception: '{e}'.",
-                        exc_info=True,
-                    )
+                t_update = time.time() - t1_update
+
+            except Exception as e:
+                logger.debug(
+                    f"Can't extract duals. Exception: '{e}'.",
+                    exc_info=True,
+                )
 
         t1_realize_decision = time.time()
         reward, serviced, rejected = env.realize_decision(
             time_step,
             best_decisions,
             attribute_trips_dict,
-            attribute_cars_dict,
+            env.attribute_cars_dict,
         )
 
         time_dict = dict()
@@ -911,6 +900,9 @@ def service_trips(
                 mode="a",
                 index=False,
             )
+
+        # Enable fleet
+        env.toggle_fleet(car_type_hide)
 
         return reward, serviced, rejected
 

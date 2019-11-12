@@ -6,7 +6,7 @@ import random
 from collections import defaultdict
 from pprint import pprint
 import numpy as np
-
+import json
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
@@ -121,10 +121,7 @@ def get_sim_config(update_dict):
             # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                 (0, 8),
-                # (1, 8),
-                # (2, 4),
-                # (3, 2),
-                # (4, 1),
+                (1, 8),
             ),
             # Only used when max idle step count is not None
             ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: (
@@ -135,161 +132,96 @@ def get_sim_config(update_dict):
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 300, 600],
             # Aggregation (temporal, spatial, contract, car type)
+
+            # # FAVs and PAVS BEST HIERARCHICAL AGGREGATION
+            # ConfigNetwork.AGGREGATION_LEVELS: [
+            #     adp.AggLevel(
+            #         temporal=1,
+            #         spatial=0,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=2,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISAGGREGATE,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=1,
+            #         spatial=0,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=3,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=3,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=1,
+            #         spatial=0,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=3,
+            #         spatial=2,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=3,
+            #         spatial=3,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            # ],
+
+            # #### ONLY PAVs - BEST PERFORMANCE HiERARCHICAL AGGREGATION
             ConfigNetwork.AGGREGATION_LEVELS: [
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=adp.DISAGGREGATE,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
+
                 adp.AggLevel(
                     temporal=1,
                     spatial=adp.DISAGGREGATE,
                     battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
+                    contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
+                    car_origin=adp.DISCARD,
                 ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=1,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
+
                 adp.AggLevel(
                     temporal=3,
                     spatial=2,
                     battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
+                    contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
+                    car_origin=adp.DISCARD,
                 ),
+
                 adp.AggLevel(
                     temporal=3,
                     spatial=3,
                     battery=adp.DISAGGREGATE,
-                    contract=adp.DISAGGREGATE,
+                    contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISAGGREGATE,
+                    car_origin=adp.DISCARD,
                 ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=3,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=5,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=6,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=5,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=6,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISAGGREGATE,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=1,
-                #     spatial=1,
-                #     contract=1,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=2,
-                #     spatial=1,
-                #     contract=1,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=1,
-                #     contract=1,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISAGGREGATE,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=1,
-                #     contract=2,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=1,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=2,
-                #     contract=3,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=2,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=3,
-                #     contract=4,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=3,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=4,
-                #     contract=adp.DISCARD,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=4,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=5,
-                #     contract=adp.DISCARD,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=5,
-                # ),
-                # adp.AggLevel(
-                #     temporal=3,
-                #     spatial=6,
-                #     contract=adp.DISCARD,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=6,
-                # ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2.5, 3, 5, 10],
+
+            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2, 3],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
-                Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
-                Car.TYPE_TO_HIRE: {adp.DISCARD: adp.DISCARD},
+                Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
             },
             ConfigNetwork.LEVEL_CAR_TYPE: {
-                Car.TYPE_FLEET: {adp.DISCARD: Car.TYPE_FLEET},
-                Car.TYPE_HIRED: {adp.DISCARD: Car.TYPE_FLEET},
-                Car.TYPE_TO_HIRE: {adp.DISCARD: Car.TYPE_FLEET},
+                Car.TYPE_FLEET: {
+                    adp.DISAGGREGATE: Car.TYPE_FLEET,
+                    adp.DISCARD: Car.TYPE_FLEET
+                },
+                Car.TYPE_HIRED: {
+                    adp.DISAGGREGATE: Car.TYPE_HIRED,
+                    adp.DISCARD: Car.TYPE_FLEET
+                },
             },
             ConfigNetwork.LEVEL_CONTRACT_DURATION: {
                 Car.TYPE_FLEET: {adp.DISCARD: Car.INFINITE_CONTRACT_DURATION},
@@ -298,12 +230,7 @@ def get_sim_config(update_dict):
                     1: adp.CONTRACT_L1,
                     2: adp.CONTRACT_L2,
                     3: adp.CONTRACT_L3,
-                    4: adp.CONTRACT_L4,
-                    5: adp.CONTRACT_L5,
                     adp.DISCARD: Car.INFINITE_CONTRACT_DURATION,
-                },
-                Car.TYPE_TO_HIRE: {
-                    adp.DISCARD: Car.INFINITE_CONTRACT_DURATION
                 },
             },
             # From which region center levels cars are hired
@@ -345,7 +272,7 @@ def get_sim_config(update_dict):
             # HIRING ################################################# #
             # -------------------------------------------------------- #
             ConfigNetwork.CONTRACT_DURATION_LEVEL: 1,
-            ConfigNetwork.CONGESTION_PRICE: 1000,
+            ConfigNetwork.CONGESTION_PRICE: 0,
             # -------------------------------------------------------- #
             ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
             ConfigNetwork.MATCH_LEVEL: 2,
@@ -400,7 +327,6 @@ def alg_adp(
     step_delay=PlotTrack.STEP_DELAY,
     episodes=450,
     enable_charging=False,
-    is_myopic=False,
     # LOG ############################################################ #
     skip_steps=1,
     # HIRING ######################################################### #
@@ -418,8 +344,8 @@ def alg_adp(
     # Save total reward, total service rate, and weights after iteration
     save_overall_stats=True,
     # Update value functions (dictionary in progress.npy file)
-    # after each iteration
-    save_progress=True,
+    # after n iterations (default n=1)
+    save_progress=1,
     log_config_dict= {
         # la.LOG_DUALS: True,
         # la.LOG_FLEET_ACTIVITY: True,
@@ -438,7 +364,6 @@ def alg_adp(
     log_times=False,
     linearize_integer_model=False,
     use_artificial_duals=False,
-    use_duals=False,
 ):
 
     # Set tabu size (vehicles cannot visit nodes in tabu)
@@ -615,32 +540,39 @@ def alg_adp(
                 msg="post update",
             )
 
+            # print(
+            #     f"#{step:>3} - hired={len(amod.hired_cars)}"
+            #     f" - expired={len(amod.expired_contract_cars)}"
+            #     f" - available={len(amod.available_hired)}"
+            #     f" - favs={len(amod.step_favs.get(step, [])):>2}"
+            #     f" - trips={len(trips):>2}")
+
             if enable_hiring:
 
-                hired_cars = []
+                hired_cars = amod.step_favs.get(step, [])
 
-                if trips:
+                # if trips:
 
-                    hired_cars = hire_cars_trip_regions(
-                        amod, trips, contract_duration_h, step
-                    )
+                #     hired_cars = hire_cars_trip_regions(
+                #         amod, trips, contract_duration_h, step
+                #     )
 
-                    logger.debug(
-                        f"**** Hiring {len(hired_cars)} in the trip regions."
-                    )
+                #     logger.debug(
+                #         f"**** Hiring {len(hired_cars)} in the trip regions."
+                #     )
 
-                else:
+                # else:
 
-                    hired_cars = hire_cars_centers(
-                        amod,
-                        contract_duration_h,
-                        step,
-                        rc_level=config.level_rc,
-                    )
+                #     hired_cars = hire_cars_centers(
+                #         amod,
+                #         contract_duration_h,
+                #         step,
+                #         rc_level=config.level_rc,
+                #     )
 
-                    logger.debug(
-                        f"**** Hiring {len(hired_cars)} in region centers."
-                    )
+                #     logger.debug(
+                #         f"**** Hiring {len(hired_cars)} in region centers."
+                #     )
 
                 # Add hired fleet to model
                 amod.hired_cars.extend(hired_cars)
@@ -653,7 +585,7 @@ def alg_adp(
             # for p, count in count_car_point.items():
             #     if count > 5:
             #         print(f"{step} - link {p} has {count} cars")
-
+            # print(len(amod.cars), len(amod.available), len(amod.hired_cars), len(amod.available_hired))
             # Optimize
             revenue, serviced, rejected = service_trips(
                 # Amod environment with configuration file
@@ -668,8 +600,6 @@ def alg_adp(
                 universal_service=universal_service,
                 # Allow recharging
                 charge=enable_charging,
-                # If True, does not use learned information
-                myopic=is_myopic,
                 # # Save mip .lp and .log of iteration n
                 iteration=n,
                 log_mip=log_mip,
@@ -677,8 +607,42 @@ def alg_adp(
                 use_artificial_duals=use_artificial_duals,
                 # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
-                use_duals=use_duals,
+                car_type_hide=Car.TYPE_FLEET
             )
+
+            if amod.config.separate_fleets:
+                # print(f"Trips: {len(trips)} - Revenue: {revenue} - Serviced: {len(serviced)} - Rejected: {len(rejected)}")
+
+                # Optimize
+                revenue_fav, serviced_fav, rejected_fav = service_trips(
+                    # Amod environment with configuration file
+                    amod,
+                    # Trips to be matched
+                    rejected,
+                    # Service step (+1 trip placement step)
+                    step + 1,
+                    # Guarantee lowest pickup delay for a share of users
+                    # sq_guarantee=sq_guarantee,
+                    # All users are picked up
+                    universal_service=universal_service,
+                    # Allow recharging
+                    charge=enable_charging,
+                    # # Save mip .lp and .log of iteration n
+                    iteration=n,
+                    log_mip=log_mip,
+                    # Use hierarchical aggregation to update values
+                    use_artificial_duals=use_artificial_duals,
+                    # linearize_integer_model=linearize_integer_model,
+                    log_times=log_times,
+                    car_type_hide=Car.TYPE_FLEET
+                )
+
+                revenue += revenue_fav,
+                serviced += serviced_fav,
+                rejected = rejected_fav
+
+        
+            # print(f"Revenue FAV: {revenue_fav} - Serviced FAV: {len(serviced_fav)} - Rejected FAV: {len(rejected_fav)}")
 
             if amod.config.allow_user_backlogging:
 
@@ -709,20 +673,20 @@ def alg_adp(
                 step_log.compute_fleet_status(step+1)
 
             # Virtual hired cars are discarded
-            if enable_hiring:
+            # if enable_hiring:
 
-                logger.debug(
-                    f"Total hired: {len(amod.hired_cars):4} "
-                    f"(available={len(amod.available_hired)})"
-                )
+            #     logger.debug(
+            #         f"Total hired: {len(amod.hired_cars):4} "
+            #         f"(available={len(amod.available_hired)})"
+            #     )
 
-                amod.discard_excess_hired()
+            #     amod.discard_excess_hired()
 
-                logger.debug(
-                    f"Total hired: {len(amod.hired_cars):4} "
-                    f"(available={len(amod.available_hired)})"
-                    " AFTER DISCARDING"
-                )
+            #     logger.debug(
+            #         f"Total hired: {len(amod.hired_cars):4} "
+            #         f"(available={len(amod.available_hired)})"
+            #         " AFTER DISCARDING"
+            #     )
 
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
@@ -763,7 +727,7 @@ def alg_adp(
 
         logger.info(
             f"####### "
-            f"[Episode {n:>5}] "
+            f"[Episode {n+1:>5}] "
             f"- {episode_log.last_episode_stats()} "
             f"#######"
         )
@@ -795,10 +759,14 @@ if __name__ == "__main__":
     log_adp = "-log_adp" in args
     log_mip = "-log_mip" in args
     save_plots = "-save_plots" in args
-    save_progress = "-save_progress" in args
     save_df = "-save_df" in args
     log_times = "-log_times" in args
-    use_duals = "-use_duals" in args
+    use_duals = "-myopic" in args
+
+    try:
+        save_progress = int(args.index("-save_progress"))
+    except:
+        save_progress = 1
 
     try:
         iterations = args.index("-n")
@@ -813,6 +781,12 @@ if __name__ == "__main__":
         fleet_size = 100
 
     try:
+        myopic_i = args.index(f"-{ConfigNetwork.MYOPIC}")
+        myopic = bool(args[fleet_size_i + 1])
+    except:
+        myopic = False
+
+    try:
         log_level_i = args.index("-level")
         log_level_label = args[log_level_i + 1]
         log_level = la.levels[log_level_label]
@@ -820,37 +794,51 @@ if __name__ == "__main__":
         log_level = la.INFO
 
     print("###### STARTING EXPERIMENTS")
-    start_config = get_sim_config(
-        {
-            ConfigNetwork.TEST_LABEL: test_label,
-            ConfigNetwork.DISCOUNT_FACTOR: 1,
-            ConfigNetwork.PENALIZE_REBALANCE: True,
-            ConfigNetwork.FLEET_SIZE: fleet_size,
-            ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-            ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
-            ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-            ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
-            ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-            ConfigNetwork.TIME_INCREMENT: 1,
-            ConfigNetwork.DEMAND_SAMPLING: True,
-            ConfigNetwork.SQ_GUARANTEE: False,
-            ConfigNetwork.MAX_CARS_LINK: 5,
-            # 10 steps = 5 min
-            ConfigNetwork.TIME_MAX_CARS_LINK: 5,
-            ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
-            ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
-            # Controlling user matching
-            ConfigNetwork.MATCHING_DELAY: 15,
-            ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
-            ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-            # When cars start in the last visited point, the model takes
-            # a long time to figure out the best time
-            ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
-            ConfigNetwork.CAR_SIZE_TABU: 0,
-            ConfigNetwork.REACHABLE_NEIGHBORS: True,
-            ConfigNetwork.ADP_IGNORE_ZEROS: True,
-        }
-    )
+
+    instance_name = None # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
+    if instance_name:
+        print(f"Loading settings from \"{instance_name}\"")
+        start_config = ConfigNetwork.load(instance_name)
+    else:
+        start_config = get_sim_config(
+            {
+                ConfigNetwork.TEST_LABEL: test_label,
+                ConfigNetwork.DISCOUNT_FACTOR: 1,
+                ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.FLEET_SIZE: fleet_size,
+                ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+                ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
+                ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+                ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+                ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
+                ConfigNetwork.TIME_INCREMENT: 1,
+                ConfigNetwork.DEMAND_SAMPLING: True,
+                ConfigNetwork.SQ_GUARANTEE: False,
+                ConfigNetwork.MAX_CARS_LINK: 5,
+                # 10 steps = 5 min
+                ConfigNetwork.TIME_MAX_CARS_LINK: 5,
+                ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
+                ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
+                # Controlling user matching
+                ConfigNetwork.MATCHING_DELAY: 15,
+                ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+                ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+                # When cars start in the last visited point, the model takes
+                # a long time to figure out the best time
+                ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
+                ConfigNetwork.CAR_SIZE_TABU: 10,
+                ConfigNetwork.REACHABLE_NEIGHBORS: False,
+                ConfigNetwork.ADP_IGNORE_ZEROS: True,
+                ConfigNetwork.DEPOT_SHARE: None,
+                ConfigNetwork.FAV_DEPOT_LEVEL: 2,
+                ConfigNetwork.FAV_FLEET_SIZE: 0,
+                ConfigNetwork.SEPARATE_FLEETS: False,
+                ConfigNetwork.MYOPIC: myopic,
+                # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
+                # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
+                ConfigNetwork.PARKING_RATE_MIN: 0  # = rebalancing 1 min
+            }
+        )
 
     ClassedTrip.q_classes = dict(A=1.0, B=0.9)
     ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
@@ -887,7 +875,5 @@ if __name__ == "__main__":
         save_plots=save_plots,
         save_progress=save_progress,
         save_df=save_df,
-        is_myopic=False,
-        use_artificial_duals=start_config.use_artificial_duals,
-        use_duals=use_duals,
+        use_artificial_duals=start_config.use_artificial_duals
     )

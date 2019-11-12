@@ -2,6 +2,11 @@ import os
 import sys
 import json
 from datetime import datetime, date, timedelta
+from scipy.stats import gamma, norm, truncnorm
+import pandas as pd
+import numpy as np
+import random
+from collections import namedtuple
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -11,6 +16,7 @@ sys.path.append(root)
 TRIPS_FILE_ALL = "trips_2011-02-01.csv"
 TRIPS_FILE_4 = "32874_samples_01_feb_2011_NY.csv"
 NY_TRIPS_EXCERPT_DAY = root + f"/data/input/nyc/{TRIPS_FILE_ALL}"
+FAV_DATA_PATH = root + f"/data/input/"
 
 FOLDER_TUNING = root + "/data/input/tuning/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
@@ -33,13 +39,17 @@ RECHARGING = 1
 ASSIGN = 2
 CRUISING = 3
 REBALANCE = 4
+RETURN = 5
+SERVICING = 6
 
 status_label_dict = {
-    IDLE: "Idle",
+    IDLE: "Parked",
     RECHARGING: "Recharging",
     ASSIGN: "With passenger",
-    CRUISING: "Cruising",
+    CRUISING: "Driving to pick up",
     REBALANCE: "Rebalancing",
+    SERVICING: "Servicing passenger",
+    RETURN: "Return",
 }
 
 # Output folder
@@ -139,6 +149,7 @@ class Config:
     RECHARGE_BASE_FARE = "RECHARGE_BASE_FARE"
     RECHARGE_COST_DISTANCE = "RECHARGE_COST_DISTANCE"
     RECHARGE_RATE = "RECHARGE_RATE"
+    PARKING_RATE_MIN = "PARKING_RATE_MIN"
     COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
     TOTAL_TIME = "TOTAL_TIME"
@@ -195,6 +206,10 @@ class Config:
     MATCH_MAX_NEIGHBORS = "MATCH_MAX_NEIGHBORS"
     LEVEL_RC = "LEVEL_RC"
 
+
+    # Method
+    MYOPIC = "MYOPIC"
+
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
     DEMAND_TOTAL_HOURS = "DEMAND_TOTAL_HOURS"
@@ -223,6 +238,10 @@ class Config:
     CONGESTION_PRICE = "CONGESTION_PRICE"
     MEAN_CONTRACT_DURATION = "MEAN_CONTRACT_DURATION"
     MIN_CONTRACT_DURATION = "MIN_CONTRACT_DURATION"
+    FAV_FLEET_SIZE = "FAV_FLEET_SIZE"
+    DEPOT_SHARE = "DEPOT_SHARE"
+    FAV_DEPOT_LEVEL = "FAV_DEPOT_LEVEL"
+    SEPARATE_FLEETS = "SEPARATE_FLEETS"
     # Max. contract duration = MAX_TIME_PERIODS
 
     def __init__(self, config):
@@ -294,6 +313,14 @@ class Config:
             * self.config["RECHARGE_RATE"]
             * recharging_time_h
         )
+
+    def get_parking_cost(self):
+        """Return the cost of travelling 'distance' meters"""
+        return self.config[Config.RECHARGE_COST_DISTANCE] * self.time_increment*self.speed/60
+    
+    @property
+    def parking_cost_step(self):
+        return self.config[Config.PARKING_RATE_MIN] * self.time_increment
 
     def get_travel_cost(self, distance_km):
         """Return the cost of travelling 'distance' meters"""
@@ -398,7 +425,9 @@ class Config:
     def max_idle_step_count(self):
         return self.config["MAX_IDLE_STEP_COUNT"]
 
-
+    @property
+    def myopic(self):
+        return self.config[Config.MYOPIC]
     @property
     def time_increment(self):
         """Duration of the time steps in (min)"""
@@ -486,11 +515,27 @@ class Config:
         """Maximum number of trips (15min)"""
         return self.config["MAX_TRIPS"]
 
+    def get_steps_from_m(self, m):
+        return m/self.time_increment
+
+    def get_steps_from_h(self, hour):
+        return hour*60/self.time_increment
+
+    def get_step(self, hour):
+        return int(
+            self.offset_repositioning_steps
+            + (hour-self.demand_earliest_hour)*60/self.time_increment
+        )
+        
     @property
     def offset_repositioning_steps(self):
         """Number of time steps with no trips before 
         demand (for reposition)"""
         return int(self.config["OFFSET_REPOSITIONING_MIN"]/self.config["TIME_INCREMENT"])
+
+    @property
+    def reposition_h(self):
+        return self.config[Config.OFFSET_REPOSITIONING_MIN]/60.0
 
     @property
     def offset_termination_steps(self):
@@ -671,6 +716,13 @@ class Config:
     @property
     def demand_earliest_hour(self):
         return self.config[Config.DEMAND_EARLIEST_HOUR]
+    @property
+    def offset_termination_hour(self):
+        return  self.config[Config.OFFSET_TERMINATION_MIN]/60
+
+    @property
+    def latest_hour(self):
+        return self.demand_earliest_hour + self.demand_total_hours + self.offset_termination_hour
 
     @property
     def demand_resize_factor(self):
@@ -816,7 +868,9 @@ class ConfigStandard(Config):
 
         self.config["RECHARGE_THRESHOLD"] = 0.1  # 10%
         self.config["RECHARGE_BASE_FARE"] = 1  # dollar
-        self.config["RECHARGE_COST_DISTANCE"] = 0.1  # dollar
+        self.config[Config.RECHARGE_COST_DISTANCE] = 0.1  # dollar
+        # self.config[Config.PARKING_RATE_MIN] = 1.50/60
+        self.config[Config.PARKING_RATE_MIN] = 0  # = rebalancing 1 min
         self.config["RECHARGE_RATE"] = 300  # miles/hour
         self.config[
             Config.COST_RECHARGE_SINGLE_INCREMENT
@@ -905,14 +959,17 @@ class ConfigNetwork(ConfigStandard):
             config = dict()
 
         super().__init__(config)
-
+        # Colors
+        # https://stackoverflow.com/questions/22408237/named-colors-in-matplotlib
         self.color_fleet_status = {
             IDLE: "#24aafe",
             ASSIGN: "#53bc53",
+            SERVICING: "#53bc53",
             REBALANCE: "firebrick",
+            RETURN: "gray",
             RECHARGING: "#e55215",
-            CRUISING: "#e55215",
-            "Total": "black",
+            CRUISING: "blue",
+            "Total": "magenta",
         }
 
 
@@ -1008,7 +1065,8 @@ class ConfigNetwork(ConfigStandard):
         # Model
         self.config[Config.LINEARIZE_INTEGER_MODEL] = True
         self.config[Config.USE_ARTIFICIAL_DUALS] = False
-
+        self.config[Config.FAV_FLEET_SIZE] = 0
+        self.config[Config.SEPARATE_FLEETS] = False
         # self.update(config)
 
     # ---------------------------------------------------------------- #
@@ -1095,9 +1153,9 @@ class ConfigNetwork(ConfigStandard):
 
     @property
     def n_neighbors_explore(self):
-        """Number of closest region centers each region center can
-        access."""
-        return self.config["N_CLOSEST_NEIGHBORS_EXPLORE"]
+        """Region centers to explore when parked for more than
+        MAX_IDLE_STEP_COUNT."""
+        return self.config[Config.N_CLOSEST_NEIGHBORS_EXPLORE]
 
     @property
     def linearize_integer_model(self):
@@ -1157,6 +1215,83 @@ class ConfigNetwork(ConfigStandard):
     @property
     def node_count(self):
         return self.config[Config.NODE_COUNT]
+
+    @property
+    def fav_fleet_size(self):
+        return self.config[Config.FAV_FLEET_SIZE]
+
+    @property
+    def separate_fleets(self):
+        return self.config[Config.SEPARATE_FLEETS]
+
+    @property
+    def fav_depot_level(self):
+        return self.config[Config.FAV_DEPOT_LEVEL]
+
+    @property
+    def depot_share(self):
+        """Percentage of nodes which are depots"""
+        return self.config[Config.DEPOT_SHARE]
+
+    def get_ab(self, mean, std, clip_a, clip_b, period=0.5):
+
+        bins = int((clip_b-clip_a)*60/period)
+
+        a, b = (clip_a - mean) / std, (clip_b - mean) / std
+
+        return a, b, bins
+
+    def get_availability_pattern(self):
+
+        # (mean, std, clip_a, clip_b)
+        avail_features = (2, 1, 1, 4)
+
+        avail_a, avail_b, avail_bins = self.get_ab(
+            *avail_features,
+            period=self.time_increment
+        )
+        # print("    Contract duration:", avail_a, avail_b, avail_bins)
+        return avail_a, avail_b, avail_bins
+
+    def get_earliest_pattern(self):
+
+        # (mean, std, clip_a, clip_b)
+        earliest_features = (8, 1, 5, 9)
+
+        ear_a, ear_b, ear_bins = self.get_ab(
+            *(earliest_features[0:4]),
+            period=self.time_increment
+        )
+
+        # print("Earliest service time:", ear_a, ear_b, ear_bins)
+        return ear_a, ear_b, ear_bins
+
+    def earliest_features(self):
+        AggLevel = namedtuple(
+            "EarliestDistribution", "mean, std, clip_a, clip_b"
+        )
+
+    def get_earliest_time(self, n_favs):
+        # mean, std, clip_a, clip_b
+        earliest_features = (8, 1, 5, 9)
+
+        ear_a, ear_b, ear_bins = self.get_earliest_pattern()
+
+        # Earlist times of FAVs arriving in node n
+        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + earliest_features[0]
+
+        return earliest_time
+
+    def get_contract_duration(self, n_favs):
+        # mean, std, clip_a, clip_b
+        avail_features = (2, 1, 1, 4)
+
+        avail_a, avail_b, avail_bins = self.get_availability_pattern()
+
+        # Contract durations of FAVs arriving in node n
+        contract_duration = truncnorm.rvs(avail_a, avail_b, size=n_favs) + avail_features[0]
+
+        return contract_duration
 
     @property
     def edge_count(self):
@@ -1339,7 +1474,7 @@ class ConfigNetwork(ConfigStandard):
             f"{lin}"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"cars={self.config[Config.FLEET_SIZE]:04}({start})_"
+            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}({start})_"
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
@@ -1367,6 +1502,15 @@ class ConfigNetwork(ConfigStandard):
             c = ConfigNetwork(config)
             c.update(config)
         return c
+
+    @property
+    def path_depot_list(self):
+        path_depots = (
+            f"{FAV_DATA_PATH}fav_depots_{(self.depot_share if self.depot_share else 1):04.2f}_"
+            f"level_{(self.fav_depot_level if self.fav_depot_level else 0):02}.npy"
+        )
+
+        return path_depots
 
 
 def save_json(data, file_path=None, folder=None, file_name=None):

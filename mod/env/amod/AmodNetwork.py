@@ -93,26 +93,30 @@ class AmodNetwork(Amod):
 
     # @functools.lru_cache(maxsize=None)
     def get_zone_neighbors(self, center, explore=False):
-        """Get the ids of "n_neighbors" neighboring region centers
-        considering aggregation level around center.
+        """Get the ids of nodes in the closest (explore=True)
+        or farthest (explore=False) neighborhoods.
+
+        When a vehicle is stoped for more than MAX_IDLE_STEP_COUNT
+        steps, it is alowed to explore farther locations.
 
         Parameters
         ----------
-        center : id of region center
-            [description]
-        level : int, optional
-            [description], by default 0
-        n_neighbors : int, optional
-            [description], by default 4
+        center : int
+            Node id.
+        explore : bool, optional
+            If True, return the farthest neighbors, by default False
 
         Returns
         -------
-        [type]
-            [description]
+        set
+            Set of candidate nodes to rebalance.
         """
         targets = set()
         level_n_neighbors = self.config.n_neighbors
 
+        # If car is parked for more than MAX_IDLE_STEP_COUNT, it can
+        # explore (rebalance) to farther areas to scape low-demand
+        # areas.
         if explore:
             level_n_neighbors = self.config.n_neighbors_explore
 

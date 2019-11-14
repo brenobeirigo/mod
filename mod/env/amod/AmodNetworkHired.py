@@ -622,7 +622,25 @@ class AmodNetworkHired(AmodNetwork):
         # Save expired contract cars
         self.expired_contract_cars.extend(expired_contract)
 
-        # pprint(self.cars_location_tabu)
+        # Vehicles lear together fresh neighbors to explore
+        if self.config.car_size_tabu > 0:
+            new_attribute_rebalance = dict()
+            for p, reb in self.attribute_rebalance.items():
+                fresh_neighbors = reb - self.cars_location_tabu[p]
+                new_attribute_rebalance[p] = fresh_neighbors
+                
+                # Print tabu operations
+                # if len(self.cars_location_tabu[p]) > 1:
+                #     print(
+                #         f"{p:04}: neighbors({len(reb)})={reb}, "
+                #         f"tabu({len(self.cars_location_tabu[p])})="
+                #         f"{self.cars_location_tabu[p]}, "
+                #         f"fresh neighbors({len(new_attribute_rebalance[p])})="
+                #         f"{new_attribute_rebalance[p]}"
+                #     )
+            
+            self.attribute_rebalance = new_attribute_rebalance
+                # pprint(self.cars_location_tabu)
 
     def discard_excess_hired(self):
 

@@ -641,7 +641,6 @@ def alg_adp(
                 serviced += serviced_fav,
                 rejected = rejected_fav
 
-        
             # print(f"Revenue FAV: {revenue_fav} - Serviced FAV: {len(serviced_fav)} - Rejected FAV: {len(rejected_fav)}")
 
             if amod.config.allow_user_backlogging:
@@ -739,6 +738,14 @@ def alg_adp(
             # print("preview_decision:", amod.preview_decision.cache_info())
             # print("post_cost:", amod.post_cost.cache_info())
 
+        # Increasingly let cars to be idle
+        if config.idle_annealing is not None:
+            # If IDLE_ANNEALING grows by 0.25, after four iterations,
+            # we have IDLE_ANNEALING = 1, and cars can stay for one time
+            #  step.
+            config.config[ConfigNetwork.IDLE_ANNEALING] += 0.25 # 1/episodes
+
+        # pprint({k:v for k, v in amod.beta_ab.items() if v["a"]>2})
     # Plot overall performance (reward, service rate, and weights)
     episode_log.compute_learning()
 
@@ -804,7 +811,7 @@ if __name__ == "__main__":
             {
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
-                ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.PENALIZE_REBALANCE: False,
                 ConfigNetwork.FLEET_SIZE: fleet_size,
                 ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
                 ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
@@ -823,10 +830,13 @@ if __name__ == "__main__":
                 ConfigNetwork.MATCHING_DELAY: 15,
                 ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+                # If zero, cars increasingly gain the right of stay
+                # still. This obliges them to rebalance consistently.
+                ConfigNetwork.IDLE_ANNEALING: 0,
                 # When cars start in the last visited point, the model takes
                 # a long time to figure out the best time
                 ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
-                ConfigNetwork.CAR_SIZE_TABU: 10,
+                ConfigNetwork.CAR_SIZE_TABU: 0,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.ADP_IGNORE_ZEROS: True,
                 ConfigNetwork.DEPOT_SHARE: None,
@@ -843,7 +853,7 @@ if __name__ == "__main__":
     ClassedTrip.q_classes = dict(A=1.0, B=0.9)
     ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
     # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
-    ClassedTrip.min_max_time_class = dict(A=dict(min=1, max=3), B=dict(min=4,max=9))
+    ClassedTrip.min_max_time_class = dict(A=dict(min=1, max=3), B=dict(min=4, max=9))
     ClassedTrip.class_proportion = dict(A=0.0, B=1)
 
     # Toggle what is going to be logged

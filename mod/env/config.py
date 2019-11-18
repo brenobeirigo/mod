@@ -206,6 +206,8 @@ class Config:
     MATCH_MAX_NEIGHBORS = "MATCH_MAX_NEIGHBORS"
     LEVEL_RC = "LEVEL_RC"
 
+    IDLE_ANNEALING = "IDLE_ANNEALING"
+
 
     # Method
     MYOPIC = "MYOPIC"
@@ -725,6 +727,10 @@ class Config:
         return self.demand_earliest_hour + self.demand_total_hours + self.offset_termination_hour
 
     @property
+    def idle_annealing(self):
+        return self.config[Config.IDLE_ANNEALING]
+
+    @property
     def demand_resize_factor(self):
         return self.config[Config.DEMAND_RESIZE_FACTOR]
 
@@ -1241,6 +1247,7 @@ class ConfigNetwork(ConfigStandard):
 
         return a, b, bins
 
+    # TODO Regulate contract durations
     def get_availability_pattern(self):
 
         # (mean, std, clip_a, clip_b)
@@ -1488,6 +1495,7 @@ class ConfigNetwork(ConfigStandard):
             f"+{self.config[Config.OFFSET_REPOSITIONING_MIN]}m"
             f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h"
             f"+{self.config[Config.OFFSET_TERMINATION_MIN]}m]_"
+            f"match={self.config[Config.MATCHING_DELAY]:02}_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
             f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"

@@ -15,11 +15,42 @@ import functools
 from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decisions as du
 from copy import deepcopy
+import math
 
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
 random.seed(1)
 
+
+class BetaSampler:
+    def __init__(self, seed):
+        self.rnd = np.random.RandomState(seed)
+
+    def next_sample(self, a, b):
+        # a, b > 0
+        alpha = a + b
+        beta = 0.0
+        u1 = 0.0
+        u2 = 0.0
+        w = 0.0
+        v = 0.0
+        if min(a, b) <= 1.0:
+            beta = max(1 / a, 1 / b)
+        else:
+            beta = np.sqrt((alpha - 2.0) / (2 * a * b - alpha))
+        gamma = a + 1 / beta
+
+        while True:
+            u1 = self.rnd.random_sample()
+            u2 = self.rnd.random_sample()
+            v = beta * np.log(u1 / (1 - u1))
+            w = a * np.exp(v)
+            tmp = np.log(alpha / (b + w))
+            if alpha * tmp + (gamma * v) - 1.3862944 >= \
+                np.log(u1 * u1 * u2):
+                break
+        x = w / (b + w)
+        return x
 
 class AmodNetworkHired(AmodNetwork):
     def __init__(self, config, car_positions=[]):
@@ -60,7 +91,15 @@ class AmodNetworkHired(AmodNetwork):
         self.toggled_fleet = dict()
         self.toggled_fleet[Car.TYPE_FLEET] = None
         self.toggled_fleet[Car.TYPE_HIRED] = None
-        
+
+        # UCB
+        #self.t_pos_count = defaultdict(int)
+
+        # Thompson
+        self.beta_ab = defaultdict(lambda: dict(a=1, b=1))
+        self.beta_sampler = BetaSampler(1)
+        self.cur_step = 0
+
     def get_hired_step(self):
 
         if self.config.fav_fleet_size == 0:
@@ -97,6 +136,27 @@ class AmodNetworkHired(AmodNetwork):
             self.cost_func(d)
             + self.config.discount_factor * self.post_cost(t, d)[0]
         )
+
+    def total_cost_ucb(self, t, d):
+        cost = (
+            self.cost_func(d)
+            + self.config.discount_factor * self.post_cost(t, d)[0]
+        )
+        if du.ACTION != du.TRIP_DECISION:
+            # Number of times we have sampled action
+            n = self.t_pos_count[(t, d[du.POSITION], du.ACTION, du.DESTINATION)]
+
+            decay_factor = (
+                math.sqrt(2 * math.log(self.adp.n + 1)/(n+1))
+            )
+
+            # TODO define proper MAXCOST (<> 2.4)
+            upper_bound = cost + min(2.4, 2.4*decay_factor)
+        else:
+            # Picking up is always better
+            upper_bound = cost + 2.4
+
+        return upper_bound
 
     def toggle_fleet(self, car_type):
         """Disable/enable all vehicles of a car_type.
@@ -403,11 +463,15 @@ class AmodNetworkHired(AmodNetwork):
                 times,
             ) = decision
 
+
             if car_type == Car.TYPE_VIRTUAL:
                 continue
 
             # Track how many times a decision was taken
             decision_dict_count[action] += times
+
+            # Track summary decision for UCB
+            # self.t_pos_count[(t, point, action, d)] += times
 
             cars_with_attribute = a_cars_dict[
                 (point, battery, contract_duration, car_type, car_origin)
@@ -449,6 +513,12 @@ class AmodNetworkHired(AmodNetwork):
                         reward,
                     ) = self.rebalance(car, self.points[d])
 
+                    self.beta_ab[(t, point, d)]["a"] += times
+                    self.beta_ab[(t, point, d)]["b"] -= 1
+                    if self.beta_ab[(t, point, d)]["b"] <= 0:
+                        
+                        self.beta_ab[(t, point, d)]["b"] = 1
+
                     car.move(
                         total_duration,
                         total_duration_steps,
@@ -457,6 +527,8 @@ class AmodNetworkHired(AmodNetwork):
                         self.points[d],
                         return_trip=(action == du.RETURN_DECISION),
                     )
+
+                    
 
                 elif action == du.STAY_DECISION:
                     # Car settings are updated all together when time
@@ -763,7 +835,7 @@ class AmodNetworkHired(AmodNetwork):
         self.available_hired = []
         # self.post_cost.cache_clear()
         self.adp.weighted_values.clear()
-
+        self.cur_step = 0
     def get_fleet_stats(self):
 
         stats = super().get_fleet_stats()

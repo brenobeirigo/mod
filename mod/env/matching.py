@@ -555,6 +555,8 @@ def service_trips(
     float, list, list
         total contribution, serviced trips, rejected trips
     """
+    # Updating current time step in the environment
+    env.cur_step = time_step
 
     # Starting time and logs
     t1_total = time.time()

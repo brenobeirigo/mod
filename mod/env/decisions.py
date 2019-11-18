@@ -2,6 +2,7 @@ import itertools
 from collections import defaultdict
 from mod.env.car import HiredCar, VirtualCar
 import random
+import numpy as np
 
 # Decision codes
 
@@ -86,6 +87,7 @@ def rebalance_decision(car, neighbor):
 
 def rebalance_decisions(car, targets, env):
     rebalance_decisions = set()
+    prob_d = list()
     for t in targets:
         # Car cannot rebalance since it cannot go back to origin in time
         if isinstance(car, HiredCar) and not env.can_move(
@@ -95,7 +97,25 @@ def rebalance_decisions(car, targets, env):
 
         d_rebalance = rebalance_decision(car, t)
 
+        d_summary = (
+            env.cur_step,
+            d_rebalance[POSITION],
+            d_rebalance[DESTINATION],
+        )
+        a = env.beta_ab[(d_summary)]["a"]
+        b = env.beta_ab[(d_summary)]["b"]
+        prob = env.beta_sampler.next_sample(a, b)
+        prob_d.append((prob, d_rebalance, d_summary))
+
         # Cars know what decisions they generated
+        # rebalance_decisions.add(d_rebalance)
+    # TODO make it more efficient
+    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[
+        : max(1, int(0.2 * len(prob_d)))
+    ]
+
+    for _, d_rebalance, d_summary in selected:
+        env.beta_ab[(d_summary)]["b"] += 1
         rebalance_decisions.add(d_rebalance)
 
     return rebalance_decisions
@@ -169,17 +189,42 @@ def get_decisions(env, trips, min_battery_level=None):
     decisions = set()
     decisions_return = set()
     decision_class = defaultdict(list)
-    # Which positions are surrounding each car position
-    attribute_rebalance = dict()
 
     # ##################################################################
     # SORT CARS ########################################################
     # ##################################################################
-
+    from_location = defaultdict(int)
     for car in itertools.chain(env.available, env.available_hired):
-        # Stay ####################################################### #
-        d_stay = stay_decision(car)
-        decisions.add(d_stay)
+
+        # If idle_annealing is active (i.e., it is a number),
+        # cars can decide to stay only if they haven't been parked
+        # for idle_annealing steps.
+        # For example, if idle_annealing = 1, and a car idle_step_count
+        # is also 1, it can't park anymore.
+        # The idle_annealing grows with the iterations such that in the
+        # end of the experiment, cars are allowed to stay parked for
+        # longer periods.
+        # Notice that a car idle_step_count is zeroed after servicing
+        # customer or rebalancing.
+        if env.config.idle_annealing is not None:
+
+            # Can stay only when idle annealing is large.
+            if car.idle_step_count < env.config.idle_annealing:
+                # Stay ############################################### #
+                d_stay = stay_decision(car)
+                decisions.add(d_stay)
+        else:
+            # Stay ################################################### #
+            d_stay = stay_decision(car)
+            decisions.add(d_stay)
+
+        # TODO Logic for FAVs
+        if from_location[car.point.id] > 0:
+            continue
+
+        # This position will not be considered again (same for other PAVS)
+        # TODO it differs for FAVs
+        from_location[car.point.id] += 1
 
         # Vehicle knows nothing about future states, hence it rebalances
         if not env.config.myopic:
@@ -219,13 +264,19 @@ def get_decisions(env, trips, min_battery_level=None):
                 if car.tabu:
                     car.tabu.popleft()
 
+            # TODO this is here because of a lack or rebalancing options
+            # thompson selected is small 0.2
+            if len(d_rebalance) == 1:
+                d_stay = stay_decision(car)
+                decisions.add(d_stay)
+
             # Vehicles can stay idle for a maximum number of steps.
             # If they surpass this number, they can rebalance to farther
             # areas.
             if env.config.max_idle_step_count:
 
                 # Car can rebalance to farther locations besides the
-                # closest
+                # closest after staying still for idle_step_count steps
                 if car.idle_step_count >= env.config.max_idle_step_count:
                     farther = env.get_zone_neighbors(
                         car.point.id, explore=True

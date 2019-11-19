@@ -87,6 +87,20 @@ def rebalance_decision(car, neighbor):
 
 def rebalance_decisions(car, targets, env):
     rebalance_decisions = set()
+    for t in targets:
+        # Car cannot service trip because it cannot go back
+        # to origin in time
+        if isinstance(car, HiredCar) and not env.can_move(
+            car.point.id, car.point.id, t, car.depot.id, car.contract_duration
+        ):
+            continue
+
+        rebalance_decisions.add(rebalance_decision(car, t))
+    return rebalance_decisions
+
+
+def rebalance_decisions_thompson(car, targets, env):
+    rebalance_decisions = set()
     prob_d = list()
     for t in targets:
         # Car cannot rebalance since it cannot go back to origin in time
@@ -95,11 +109,7 @@ def rebalance_decisions(car, targets, env):
         ):
             continue
 
-        d_summary = (
-            env.cur_step,
-            car.point.id,
-            t,
-        )
+        d_summary = (env.cur_step, car.point.id, t)
         a = env.beta_ab[(d_summary)]["a"]
         b = env.beta_ab[(d_summary)]["b"]
         prob = env.beta_sampler.next_sample(a, b)
@@ -108,7 +118,9 @@ def rebalance_decisions(car, targets, env):
         # Cars know what decisions they generated
         # rebalance_decisions.add(d_rebalance)
     # TODO make it more efficient
-    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[0:env.config.max_targets]
+    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[
+        0 : env.config.max_targets
+    ]
 
     for _, t, d_summary in selected:
         env.beta_ab[(d_summary)]["b"] += 1
@@ -228,8 +240,10 @@ def get_decisions(env, trips, min_battery_level=None):
             # Rebalancing ################################################ #
 
             neighbors = env.attribute_rebalance[car.point.id]
-
-            d_rebalance = rebalance_decisions(car, neighbors, env)
+            if env.config.activate_thompson:
+                d_rebalance = rebalance_decisions_thompson(car, neighbors, env)
+            else:
+                d_rebalance = rebalance_decisions(car, neighbors, env)
 
             # Return trips are always available
             if isinstance(car, HiredCar):

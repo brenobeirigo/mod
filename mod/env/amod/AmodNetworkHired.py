@@ -100,6 +100,9 @@ class AmodNetworkHired(AmodNetwork):
         self.beta_sampler = BetaSampler(1)
         self.cur_step = 0
 
+        # Set of reachable neighbors from each car position
+        self.attribute_rebalance = dict()
+
     def get_hired_step(self):
 
         if self.config.fav_fleet_size == 0:
@@ -513,11 +516,13 @@ class AmodNetworkHired(AmodNetwork):
                         reward,
                     ) = self.rebalance(car, self.points[d])
 
-                    self.beta_ab[(t, point, d)]["a"] += times
-                    self.beta_ab[(t, point, d)]["b"] -= 1
-                    if self.beta_ab[(t, point, d)]["b"] <= 0:
-                        
-                        self.beta_ab[(t, point, d)]["b"] = 1
+                    if self.config.activate_thompson:
+                        # update beta distribution
+                        self.beta_ab[(t, point, d)]["a"] += times
+                        self.beta_ab[(t, point, d)]["b"] -= 1
+
+                        if self.beta_ab[(t, point, d)]["b"] <= 0:
+                            self.beta_ab[(t, point, d)]["b"] = 1
 
                     car.move(
                         total_duration,
@@ -585,8 +590,11 @@ class AmodNetworkHired(AmodNetwork):
         # List of cars per attribute
         self.attribute_cars_dict = defaultdict(list)
 
-        # Set of reachable neighbors from each car position
-        self.attribute_rebalance = dict()
+        # If rebalancing targets are not removed (due to tabu list)
+        # the dictionary can be used again
+        if self.config.car_size_tabu > 0:
+            # Set of reachable neighbors from each car position
+            self.attribute_rebalance = dict()
 
         # List of cars per location
         self.cars_location = defaultdict(list)

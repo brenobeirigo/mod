@@ -210,6 +210,7 @@ class Config:
 
     # Method
     MYOPIC = "MYOPIC"
+    ACTIVATE_THOMPSON = "ACTIVATE_THOMPSON"
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -1079,6 +1080,9 @@ class ConfigNetwork(ConfigStandard):
 
         self.config[Config.REACHABLE_NEIGHBORS] = False
         self.config[Config.MAX_TARGETS] = 1000
+        self.config[Config.ACTIVATE_THOMPSON] = False
+        self.config[Config.IDLE_ANNEALING] = None
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -1133,6 +1137,12 @@ class ConfigNetwork(ConfigStandard):
         """Whether method should use all reachable neighbors
         (within a time limit) instead of level neighbors"""
         return self.config[Config.REACHABLE_NEIGHBORS]
+
+    @property
+    def activate_thompson(self):
+        """Whether method should use all reachable neighbors
+        (within a time limit) instead of level neighbors"""
+        return self.config[Config.ACTIVATE_THOMPSON]
 
     @property
     def level_car_type_dict(self):
@@ -1455,6 +1465,8 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
 
+        idle_annealing = ("[X]" if self.idle_annealing is not None else "")
+
         levels = ", ".join([
             (
                 f"{self.config[Config.LEVEL_TIME_LIST][temporal]}-"
@@ -1486,8 +1498,11 @@ class ConfigNetwork(ConfigStandard):
 
         explore = (f"-[{reb_neigh_explore}][I({self.config[Config.MAX_IDLE_STEP_COUNT]:02})]" if self.config[Config.MAX_IDLE_STEP_COUNT] else "")
 
+        thomp = (f"[thompson={self.max_targets:02}]" if self.activate_thompson else "")
+
         return (
             f"{self.config[Config.TEST_LABEL]}_"
+            f"{idle_annealing}"
             f"{artificial}"
             f"{lin}"
             # f"{self.config[Config.NAME]}_"
@@ -1496,7 +1511,7 @@ class ConfigNetwork(ConfigStandard):
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=([{reb_neigh}]{explore}[{self.max_targets:02}][tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
+            f"rebal=([{reb_neigh}]{explore}{thomp}[tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"

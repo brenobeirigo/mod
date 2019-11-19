@@ -567,23 +567,14 @@ class AmodNetworkHired(AmodNetwork):
 
         return (total_reward, serviced, denied)
 
-    @functools.lru_cache(maxsize=None)
     def get_neighbors(self, car_id):
 
         # Rebalancing ################################################ #
         if self.config.reachable_neighbors:
-            n_neighbors = 8
-            neighbors = set(
-                random.sample(
-                    list(
-                        self.reachable_neighbors(
-                            car_id, 60, n_neighbors
-                        )
-                    ),
-                    n_neighbors,
-                )
-            )
 
+            neighbors = self.reachable_neighbors(
+                car_id, self.config.time_increment*60
+            )
         else:
             neighbors = self.get_zone_neighbors(car_id)
 
@@ -694,7 +685,7 @@ class AmodNetworkHired(AmodNetwork):
         # Save expired contract cars
         self.expired_contract_cars.extend(expired_contract)
 
-        # Vehicles lear together fresh neighbors to explore
+        # Vehicles learn together fresh neighbors to explore
         if self.config.car_size_tabu > 0:
             new_attribute_rebalance = dict()
             for p, reb in self.attribute_rebalance.items():

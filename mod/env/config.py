@@ -189,7 +189,6 @@ class Config:
     TIME_MAX_CARS_LINK = "TIME_MAX_CARS_LINK"
     LINEARIZE_INTEGER_MODEL = "LINEARIZE_INTEGER_MODEL"
     USE_ARTIFICIAL_DUALS = "USE_ARTIFICIAL_DUALS"
-
     # Mathing methods
 
     # Match cars with immediate neigbors at chosen level
@@ -245,6 +244,9 @@ class Config:
     FAV_DEPOT_LEVEL = "FAV_DEPOT_LEVEL"
     SEPARATE_FLEETS = "SEPARATE_FLEETS"
     # Max. contract duration = MAX_TIME_PERIODS
+
+    # Max. number of rebalancing targets
+    MAX_TARGETS = "MAX_TARGETS"
 
     def __init__(self, config):
 
@@ -331,7 +333,7 @@ class Config:
     def calculate_dist_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0
         return self.config["RECHARGE_RATE"] * recharging_time_h
-
+    
     def get_full_recharging_time(self, distance):
         """Get recharge time in relation to recharge distance
         according to recharge rate in miles/hour
@@ -1075,6 +1077,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.SEPARATE_FLEETS] = False
         # self.update(config)
 
+        self.config[Config.REACHABLE_NEIGHBORS] = False
+        self.config[Config.MAX_TARGETS] = 1000
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -1425,6 +1429,10 @@ class ConfigNetwork(ConfigStandard):
         return reb_neigh
 
     @property
+    def max_targets(self):
+        return self.config[Config.MAX_TARGETS]
+
+    @property
     def label(self, name=""):
 
         if self.config[Config.TUNE_LABEL] is not None:
@@ -1436,6 +1444,9 @@ class ConfigNetwork(ConfigStandard):
                 for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
+
+        if self.reachable_neighbors:
+            reb_neigh = f"reach_{self.time_increment:01}min"
 
         reb_neigh_explore = ", ".join(
             [
@@ -1485,7 +1496,7 @@ class ConfigNetwork(ConfigStandard):
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=([{reb_neigh}]{explore}[tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
+            f"rebal=([{reb_neigh}]{explore}[{self.max_targets:02}][tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"

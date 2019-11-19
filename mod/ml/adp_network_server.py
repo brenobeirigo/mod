@@ -276,6 +276,7 @@ def get_sim_config(update_dict):
             # -------------------------------------------------------- #
             ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
             ConfigNetwork.MATCH_LEVEL: 2,
+            ConfigNetwork.MAX_TARGETS: 1000
         }
     )
 
@@ -743,7 +744,7 @@ def alg_adp(
             # If IDLE_ANNEALING grows by 0.25, after four iterations,
             # we have IDLE_ANNEALING = 1, and cars can stay for one time
             #  step.
-            config.config[ConfigNetwork.IDLE_ANNEALING] += 1/episodes # 1/episodes
+            config.config[ConfigNetwork.IDLE_ANNEALING] += 1 # 1/episodes
 
         # pprint({k:v for k, v in amod.beta_ab.items() if v["a"]>2})
     # Plot overall performance (reward, service rate, and weights)
@@ -847,7 +848,7 @@ if __name__ == "__main__":
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
                 # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
-                ConfigNetwork.MAX_TARGETS: 8,
+                ConfigNetwork.MAX_TARGETS: 4
             }
         )
 

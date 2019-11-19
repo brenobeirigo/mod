@@ -95,27 +95,24 @@ def rebalance_decisions(car, targets, env):
         ):
             continue
 
-        d_rebalance = rebalance_decision(car, t)
-
         d_summary = (
             env.cur_step,
-            d_rebalance[POSITION],
-            d_rebalance[DESTINATION],
+            car.point.id,
+            t,
         )
         a = env.beta_ab[(d_summary)]["a"]
         b = env.beta_ab[(d_summary)]["b"]
         prob = env.beta_sampler.next_sample(a, b)
-        prob_d.append((prob, d_rebalance, d_summary))
+        prob_d.append((prob, t, d_summary))
 
         # Cars know what decisions they generated
         # rebalance_decisions.add(d_rebalance)
     # TODO make it more efficient
-    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[
-        : max(1, int(0.2 * len(prob_d)))
-    ]
+    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[0:env.config.max_targets]
 
-    for _, d_rebalance, d_summary in selected:
+    for _, t, d_summary in selected:
         env.beta_ab[(d_summary)]["b"] += 1
+        d_rebalance = rebalance_decision(car, t)
         rebalance_decisions.add(d_rebalance)
 
     return rebalance_decisions

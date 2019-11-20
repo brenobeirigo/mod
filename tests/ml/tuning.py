@@ -78,7 +78,7 @@ config_adp = {
     # universal_service=True,
     "log_config_dict": log_config,
     "log_mip": False,
-    "save_plots": False,
+    "save_plots": True,
     "save_progress": True,
     "linearize_integer_model": False,
     "use_artificial_duals": False,
@@ -174,12 +174,13 @@ if __name__ == "__main__":
         Config.DISCOUNT_FACTOR: [1],
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
-        Config.FLEET_SIZE: [300],
+        # Config.FLEET_SIZE: [300],
         Config.FLEET_START: [
             # conf.FLEET_START_LAST,
             # conf.FLEET_START_SAME,
             conf.FLEET_START_RANDOM
-        ],
+        ], 
+        ConfigNetwork.IDLE_ANNEALING: [0],
         # -------------------------------------------------------- #
         # DEMAND ################################################# #
         # -------------------------------------------------------- #
@@ -191,16 +192,15 @@ if __name__ == "__main__":
             True,
             # False
         ],
-        Config.DEMAND_RESIZE_FACTOR: [0.1],
+        # Config.DEMAND_RESIZE_FACTOR: [0.1],
         # Cars rebalance to up to #region centers at each level
         Config.N_CLOSEST_NEIGHBORS: [
-            ((0, 8),),
+            ((0, 8), (1, 8)),
             # ((0, 4),),
             # ((0, 8),(4, 4)),
             # ((0, 8),(4, 4), (5, 1))
         ],
         Config.MAX_CARS_LINK: [5],
-        Config.CAR_SIZE_TABU: [0, 10],
         # Config.MAX_CARS_LINK: [None, 5, 10],
         Config.AGGREGATION_LEVELS: [
             # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
@@ -329,42 +329,45 @@ if __name__ == "__main__":
     }
 
     shared_settings = {
-        ConfigNetwork.TEST_LABEL: "TABU",
-        ConfigNetwork.DISCOUNT_FACTOR: 1,
-        ConfigNetwork.PENALIZE_REBALANCE: True,
-        ConfigNetwork.FLEET_SIZE: 300,
-        ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-        ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
-        ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-        ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
-        ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-        ConfigNetwork.TIME_INCREMENT: 1,
-        ConfigNetwork.DEMAND_SAMPLING: True,
-        ConfigNetwork.SQ_GUARANTEE: False,
-        ConfigNetwork.MAX_CARS_LINK: 5,
-        # 10 steps = 5 min
-        ConfigNetwork.TIME_MAX_CARS_LINK: 5,
-        ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
-        ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
-        # Controlling user matching
-        ConfigNetwork.MATCHING_DELAY: 15,
-        ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
-        ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-        # When cars start in the last visited point, the model takes
-        # a long time to figure out the best time
-        ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
-        # ConfigNetwork.CAR_SIZE_TABU: 10,
-        ConfigNetwork.REACHABLE_NEIGHBORS: False,
-        ConfigNetwork.ADP_IGNORE_ZEROS: True,
-        ConfigNetwork.DEPOT_SHARE: None,
-        ConfigNetwork.FAV_DEPOT_LEVEL: 2,
-        ConfigNetwork.FAV_FLEET_SIZE: 0,
-        ConfigNetwork.SEPARATE_FLEETS: False,
-        ConfigNetwork.MYOPIC: False,
-        # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
-        # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
-        ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
-    }
+                ConfigNetwork.TEST_LABEL: test_label,
+                ConfigNetwork.DISCOUNT_FACTOR: 1,
+                ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.FLEET_SIZE: 300,
+                ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+                ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
+                ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+                ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+                ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
+                ConfigNetwork.TIME_INCREMENT: 1,
+                ConfigNetwork.DEMAND_SAMPLING: True,
+                ConfigNetwork.SQ_GUARANTEE: False,
+                ConfigNetwork.MAX_CARS_LINK: 5,
+                # 10 steps = 5 min
+                ConfigNetwork.TIME_MAX_CARS_LINK: 5,
+                ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
+                ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
+                # Controlling user matching
+                ConfigNetwork.MATCHING_DELAY: 15,
+                ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+                ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+                # If zero, cars increasingly gain the right of stay
+                # still. This obliges them to rebalance consistently.
+                ConfigNetwork.IDLE_ANNEALING: 0,
+                # When cars start in the last visited point, the model takes
+                # a long time to figure out the best time
+                ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
+                ConfigNetwork.CAR_SIZE_TABU: 0,
+                ConfigNetwork.REACHABLE_NEIGHBORS: False,
+                ConfigNetwork.ADP_IGNORE_ZEROS: True,
+                ConfigNetwork.DEPOT_SHARE: None,
+                ConfigNetwork.FAV_DEPOT_LEVEL: 2,
+                ConfigNetwork.FAV_FLEET_SIZE: 0,
+                ConfigNetwork.SEPARATE_FLEETS: False,
+                ConfigNetwork.MYOPIC: False,
+                # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
+                # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
+                ConfigNetwork.PARKING_RATE_MIN: 0  # = rebalancing 1 min
+            }
 
     # Creating folders to log episodes
     if not os.path.exists(conf.FOLDER_TUNING):

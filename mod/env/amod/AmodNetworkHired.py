@@ -101,7 +101,7 @@ class AmodNetworkHired(AmodNetwork):
         self.cur_step = 0
 
         # Set of reachable neighbors from each car position
-        self.attribute_rebalance = dict()
+        # self.attribute_rebalance = dict()
 
     def get_hired_step(self):
 
@@ -592,9 +592,10 @@ class AmodNetworkHired(AmodNetwork):
 
         # If rebalancing targets are not removed (due to tabu list)
         # the dictionary can be used again
-        if self.config.car_size_tabu > 0:
-            # Set of reachable neighbors from each car position
-            self.attribute_rebalance = dict()
+        
+        # if self.config.car_size_tabu > 0:
+        # Set of reachable neighbors from each car position
+        self.attribute_rebalance = dict()
 
         # List of cars per location
         self.cars_location = defaultdict(list)

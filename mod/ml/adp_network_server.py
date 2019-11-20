@@ -837,7 +837,7 @@ if __name__ == "__main__":
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
                 # still. This obliges them to rebalance consistently.
-                ConfigNetwork.IDLE_ANNEALING: True,
+                ConfigNetwork.IDLE_ANNEALING: None,
                 ConfigNetwork.ACTIVATE_THOMPSON: False,
                 ConfigNetwork.MAX_TARGETS: 8,
 
@@ -850,8 +850,8 @@ if __name__ == "__main__":
                 ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    (0, 8),
-                    (1, 8),
+                    # (0, 8),
+                    (2, 4),
                 ),
                 
                 # FLEET ############################################## #

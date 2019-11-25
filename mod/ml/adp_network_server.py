@@ -347,7 +347,7 @@ def alg_adp(
     # Update value functions (dictionary in progress.npy file)
     # after n iterations (default n=1)
     save_progress=1,
-    log_config_dict= {
+    log_config_dict={
         # la.LOG_DUALS: True,
         # la.LOG_FLEET_ACTIVITY: True,
         # la.LOG_VALUE_UPDATE: True,
@@ -672,22 +672,6 @@ def alg_adp(
                 # What each car is doing when trips are arriving?
                 step_log.compute_fleet_status(step+1)
 
-            # Virtual hired cars are discarded
-            # if enable_hiring:
-
-            #     logger.debug(
-            #         f"Total hired: {len(amod.hired_cars):4} "
-            #         f"(available={len(amod.available_hired)})"
-            #     )
-
-            #     amod.discard_excess_hired()
-
-            #     logger.debug(
-            #         f"Total hired: {len(amod.hired_cars):4} "
-            #         f"(available={len(amod.available_hired)})"
-            #         " AFTER DISCARDING"
-            #     )
-
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #
@@ -769,6 +753,7 @@ if __name__ == "__main__":
     save_df = "-save_df" in args
     log_times = "-log_times" in args
     use_duals = "-myopic" in args
+    policy_random = "-random" in args
 
     try:
         save_progress = int(args.index("-save_progress"))
@@ -788,8 +773,12 @@ if __name__ == "__main__":
         fleet_size = 100
 
     try:
-        myopic_i = args.index(f"-{ConfigNetwork.MYOPIC}")
-        myopic = bool(args[fleet_size_i + 1])
+        policy_random = args.index(f"-{ConfigNetwork.POLICY_RANDOM}".lower())
+    except:
+        policy_random = False
+
+    try:
+        myopic = args.index(f"-{ConfigNetwork.MYOPIC}".lower())
     except:
         myopic = False
 
@@ -829,6 +818,9 @@ if __name__ == "__main__":
 
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.MYOPIC: myopic,
+                # Rebalance costs are ignored by MIP but included when
+                # realizing the model
+                ConfigNetwork.POLICY_RANDOM: policy_random,
                 ConfigNetwork.ADP_IGNORE_ZEROS: True,
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
@@ -837,9 +829,10 @@ if __name__ == "__main__":
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
                 # still. This obliges them to rebalance consistently.
+                # If None, disabled.
                 ConfigNetwork.IDLE_ANNEALING: None,
                 ConfigNetwork.ACTIVATE_THOMPSON: False,
-                ConfigNetwork.MAX_TARGETS: 8,
+                ConfigNetwork.MAX_TARGETS: 6,
 
                 # When cars start in the last visited point, the model takes
                 # a long time to figure out the best time
@@ -850,8 +843,11 @@ if __name__ == "__main__":
                 ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    # (0, 8),
+                    #(0, 8),
+                    (1, 8),
                     (2, 4),
+                    # (3, 4),
+                    
                 ),
                 
                 # FLEET ############################################## #

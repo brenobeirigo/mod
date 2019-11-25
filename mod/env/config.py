@@ -210,6 +210,7 @@ class Config:
 
     # Method
     MYOPIC = "MYOPIC"
+    POLICY_RANDOM = "POLICY_RANDOM"
     ACTIVATE_THOMPSON = "ACTIVATE_THOMPSON"
 
     # DEMAND
@@ -433,6 +434,11 @@ class Config:
     @property
     def myopic(self):
         return self.config[Config.MYOPIC]
+
+    @property
+    def policy_random(self):
+        return self.config[Config.POLICY_RANDOM]
+    
     @property
     def time_increment(self):
         """Duration of the time steps in (min)"""
@@ -1083,6 +1089,9 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.ACTIVATE_THOMPSON] = False
         self.config[Config.IDLE_ANNEALING] = None
 
+        self.config[Config.MYOPIC] = False
+        self.config[Config.POLICY_RANDOM] = False
+
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -1500,8 +1509,14 @@ class ConfigNetwork(ConfigStandard):
 
         thomp = (f"[thompson={self.max_targets:02}]" if self.activate_thompson else "")
 
+        myopic = (f"[MY]_" if self.myopic else "")
+
+        policy_random = (f"[RA]_" if self.policy_random else "")
+
         return (
             f"{self.config[Config.TEST_LABEL]}_"
+            f"{myopic}"
+            f"{policy_random}"
             f"{idle_annealing}"
             f"{artificial}"
             f"{lin}"

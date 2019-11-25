@@ -699,10 +699,11 @@ def service_trips(
     t1_setup_costs = time.time()
 
     # If myopic, do not include post decision costs
-    if env.config.myopic:
+    # If random, discard rebalance costs
+    if env.config.myopic or env.config.policy_random:
 
         contribution = quicksum(
-            env.cost_func(d) * x_var[d]
+            env.cost_func(d, ignore_rebalance_costs=True) * x_var[d]
             for d in x_var
         )
 
@@ -804,7 +805,7 @@ def service_trips(
         logger.debug(denied_count_dict)
 
         # Update shadow prices to be used in the next iterations
-        if not env.config.myopic:
+        if not env.config.myopic and not env.config.policy_random:
 
             try:
 

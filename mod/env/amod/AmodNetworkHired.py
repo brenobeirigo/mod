@@ -199,7 +199,7 @@ class AmodNetworkHired(AmodNetwork):
                     self.cars, self.available = self.toggled_fleet[car_type]
 
     # @functools.lru_cache(maxsize=None)
-    def cost_func(self, decision):
+    def cost_func(self, decision, ignore_rebalance_costs=False):
         """Return decision cost.
 
         Parameters
@@ -280,19 +280,21 @@ class AmodNetworkHired(AmodNetwork):
             return -cost
 
         elif decision[du.ACTION] in [du.REBALANCE_DECISION, du.RETURN_DECISION]:
+            if ignore_rebalance_costs:
+                return 0
+            else:
+                # From trip's origin to trip'scar_type
+                dist_trip = self.get_distance(
+                    self.points[decision[du.ORIGIN]],
+                    self.points[decision[du.DESTINATION]],
+                )
 
-            # From trip's origin to trip'scar_type
-            dist_trip = self.get_distance(
-                self.points[decision[du.ORIGIN]],
-                self.points[decision[du.DESTINATION]],
-            )
+                # Travel cost
+                cost = self.config.get_travel_cost(dist_trip)
 
-            # Travel cost
-            cost = self.config.get_travel_cost(dist_trip)
-
-            reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
-            # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
-            return reb_cost
+                reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
+                # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
+                return reb_cost
 
     def can_move(self, pos, waypoint, target, start, remaining_hiring_slots):
         pos, waypoint, target, start = (

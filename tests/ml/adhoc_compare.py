@@ -45,7 +45,8 @@ if __name__ == "__main__":
     # test_label = "rebalance"
     # test_label = "pavfav"
     # test_label = "exploration"
-    test_label = "flood"
+    # test_label = "flood"
+    test_label = "policy"
 
     adhoc_compare["penalize"] = [
         "baseline_R_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([0-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10",
@@ -82,6 +83,13 @@ if __name__ == "__main__":
         "8 x RC1 + 4 x RC5 + 2 x RC10",
     ]
 
+    adhoc_compare["policy"] = [
+        "myopic_[MY]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        "myopic_[RA]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+    ]
+    adhoc_compare_labels["policy"] = ["Myopic", "Random rebalance", "VFA"]
+
     # Rebalance
     # adhoc_compare["flood"] = [
     #     "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
@@ -98,14 +106,14 @@ if __name__ == "__main__":
     # ]
 
     adhoc_compare["flood"] = [
-        #"only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        # "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "far_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(02)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(10)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
     ]
 
     adhoc_compare_labels["flood"] = [
-        #"unlimited",
+        # "unlimited",
         "2",
         "5",
         "10",
@@ -166,6 +174,18 @@ if __name__ == "__main__":
         "#cab2d6",
     ]
 
+    colors["policy"] = [
+        "k",
+        "g",
+        "r",
+        "b",
+        "magenta",
+        "gold",
+        "gray",
+        "pink",
+        "#cab2d6",
+    ]
+
     colors["pavfav"] = ["k", "r"]
 
     colors["flood"] = ["r", "k", "g", "r"]
@@ -189,17 +209,20 @@ if __name__ == "__main__":
     linewidth["penalize"] = [1, 1, 1, 1, 1, 1, 1]
     # linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
     linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
+    linewidth["policy"] = [1, 1, 1, 1, 1, 1, 1]
     markers["rebalance"] = [None, "o", "x", "D"]
+    markers["policy"] = [None, "o", "x", "D"]
 
     linewidth["pavfav"] = [1, 1, 1, 1, 1, 1, 1]
     markers["pavfav"] = [None, "o", "x"]
+
     linewidth["flood"] = [1, 1, 1, 1, 1, 1, 1]
     markers["flood"] = ["x", None, "o"]
 
     linewidth["exploration"] = [1, 1, 1, 1, 1, 1, 1]
     # markers["exploration"] = [None, "o", "x"]
 
-    colors["outro"] = [
+    colors_default = [
         "k",
         "g",
         "r",
@@ -210,6 +233,7 @@ if __name__ == "__main__":
         "#ff7f00",
         "#cab2d6",
     ]
+
     SL = "Users serviced"
     OF = "Profit($)"
     window = 30
@@ -277,8 +301,10 @@ if __name__ == "__main__":
                     label, sum_label, data = label_data
                     axs[i].plot(
                         data,
-                        color=colors[test_label][j],
-                        linewidth=linewidth[test_label][j],
+                        color=colors.get(test_label, colors_default)[j],
+                        linewidth=linewidth.get(
+                            test_label, [1] * len(label_data)
+                        )[j],
                         # marker=markers.get(test_label, markers_default)[j],
                         alpha=0.25,
                         label="",
@@ -290,8 +316,10 @@ if __name__ == "__main__":
                 mavg = movingaverage(data, window)
                 axs[i].plot(
                     mavg,
-                    color=colors[test_label][j],
-                    linewidth=linewidth[test_label][j],
+                    color=colors.get(test_label, colors_default)[j],
+                    linewidth=linewidth.get(test_label, [1] * len(label_data))[
+                        j
+                    ],
                     marker=markers.get(test_label, markers_default)[j],
                     fillstyle="none",
                     markevery=25,

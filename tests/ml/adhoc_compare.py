@@ -85,10 +85,17 @@ if __name__ == "__main__":
 
     adhoc_compare["policy"] = [
         "myopic_[MY]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
-        "myopic_[RA]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        # "myopic_[RA]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        "annealing_hire_LIN_cars=0300-0200(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+
     ]
-    adhoc_compare_labels["policy"] = ["Myopic", "Random rebalance", "VFA"]
+    adhoc_compare_labels["policy"] = [
+        "Myopic",
+        # "Random rebalance",
+        "VFA (300 PAVs)",
+        "VFA (300 PAVs + 200 FAVs)",
+    ]
 
     # Rebalance
     # adhoc_compare["flood"] = [
@@ -176,15 +183,10 @@ if __name__ == "__main__":
 
     colors["policy"] = [
         "k",
-        "g",
         "r",
-        "b",
-        "magenta",
-        "gold",
-        "gray",
-        "pink",
-        "#cab2d6",
+        "g",
     ]
+    markers["policy"] = [None, "x", "D"]
 
     colors["pavfav"] = ["k", "r"]
 
@@ -209,9 +211,8 @@ if __name__ == "__main__":
     linewidth["penalize"] = [1, 1, 1, 1, 1, 1, 1]
     # linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
     linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
-    linewidth["policy"] = [1, 1, 1, 1, 1, 1, 1]
+    # linewidth["policy"] = [1, 1, 1, 1, 1, 1, 1]
     markers["rebalance"] = [None, "o", "x", "D"]
-    markers["policy"] = [None, "o", "x", "D"]
 
     linewidth["pavfav"] = [1, 1, 1, 1, 1, 1, 1]
     markers["pavfav"] = [None, "o", "x"]
@@ -234,6 +235,9 @@ if __name__ == "__main__":
         "#cab2d6",
     ]
 
+    legend_pos = dict()
+    legend_pos["policy"] = "center right"
+
     SL = "Users serviced"
     OF = "Profit($)"
     window = 30
@@ -241,7 +245,7 @@ if __name__ == "__main__":
     markers_default = [None] * len(adhoc_compare[test_label])
     # markers = [None, "o", "*", "x", "|", None]
 
-    shadow = False
+    shadow = True
     dpi = 1200
     try:
         d = dict()
@@ -276,8 +280,16 @@ if __name__ == "__main__":
 
         yticks = dict()
         yticks_labels = dict()
-        yticks[OF] = np.linspace(15000, 18500, 8)
-        yticks[SL] = np.linspace(0.7, 0.9, 5)
+        # yticks[OF] = np.linspace(15000, 18500, 8)
+        # yticks[SL] = np.linspace(0.7, 0.9, 5)
+
+        # Policy
+        # yticks[OF] = np.linspace(13000, 19000, 13)
+        # yticks[SL] = np.linspace(0.5, 0.95, 10)
+
+        yticks[OF] = np.linspace(13000, 19000, 7)
+        yticks[SL] = np.linspace(0.5, 0.95, 8)
+
         yticks_labels[SL] = [f"{s:3.0%}" for s in yticks[SL]]
         yticks_labels[OF] = [f"{p:,.0f}" for p in yticks[OF]]
         yticks["Time(s)"] = np.linspace(0, 300, 5)
@@ -287,10 +299,10 @@ if __name__ == "__main__":
         df_outcome.to_csv("outcome_tuning.csv", index=False)
 
         sns.set(style="ticks")
-        # sns.set_context("talk")
-        sns.set_context("paper")
+        sns.set_context("talk")
+        #sns.set_context("paper")
         np.set_printoptions(precision=3)
-        fig, axs = plt.subplots(1, len(d_plot), figsize=(6 * len(d_plot), 4))
+        fig, axs = plt.subplots(1, len(d_plot), figsize=(8 * len(d_plot), 6))
 
         for i, cat_label_data in enumerate(d_plot.items()):
 
@@ -303,7 +315,7 @@ if __name__ == "__main__":
                         data,
                         color=colors.get(test_label, colors_default)[j],
                         linewidth=linewidth.get(
-                            test_label, [1] * len(label_data)
+                            test_label, [2] * len(label_data)
                         )[j],
                         # marker=markers.get(test_label, markers_default)[j],
                         alpha=0.25,
@@ -338,7 +350,7 @@ if __name__ == "__main__":
                 axs[i].set_yticklabels(yticks_labels[cat])
 
         plt.legend(
-            loc="lower right",
+            loc=legend_pos.get(test_label,"lower right"),
             frameon=False,
             bbox_to_anchor=(1, 0, 0, 1),  # (0.5, -0.15),
             ncol=1,

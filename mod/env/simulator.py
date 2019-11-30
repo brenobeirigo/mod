@@ -301,7 +301,7 @@ class PlotTrack:
                     self.plot_step, format="%I:%M %p"
                 )
                 self.p.title.text = (
-                    f"Episode: {self.plot_episode:>5} - "
+                    # f"Iteration: {self.plot_episode:>5} - "
                     f"Time: {current_time} - "
                     f"Step: {self.plot_step:>5}/{self.config.time_steps:>5}"
                 )

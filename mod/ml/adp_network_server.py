@@ -523,6 +523,13 @@ def alg_adp(
             # TIME INCREMENT HAS PASSED ############################## #
             # ######################################################## #
 
+            if enable_hiring:
+                hired_cars = amod.step_favs.get(step, [])
+
+                # Add hired fleet to model
+                amod.hired_cars.extend(hired_cars)
+                amod.available_hired.extend(hired_cars)
+
             # Loop cars and update their current status as well as the
             # the list of available vehicles (change available and
             # available_hired)
@@ -547,37 +554,6 @@ def alg_adp(
             #     f" - available={len(amod.available_hired)}"
             #     f" - favs={len(amod.step_favs.get(step, [])):>2}"
             #     f" - trips={len(trips):>2}")
-
-            if enable_hiring:
-
-                hired_cars = amod.step_favs.get(step, [])
-
-                # if trips:
-
-                #     hired_cars = hire_cars_trip_regions(
-                #         amod, trips, contract_duration_h, step
-                #     )
-
-                #     logger.debug(
-                #         f"**** Hiring {len(hired_cars)} in the trip regions."
-                #     )
-
-                # else:
-
-                #     hired_cars = hire_cars_centers(
-                #         amod,
-                #         contract_duration_h,
-                #         step,
-                #         rc_level=config.level_rc,
-                #     )
-
-                #     logger.debug(
-                #         f"**** Hiring {len(hired_cars)} in region centers."
-                #     )
-
-                # Add hired fleet to model
-                amod.hired_cars.extend(hired_cars)
-                amod.available_hired.extend(hired_cars)
 
             # count_car_point = defaultdict(int)
             # for c in amod.cars:
@@ -635,7 +611,8 @@ def alg_adp(
                     use_artificial_duals=use_artificial_duals,
                     # linearize_integer_model=linearize_integer_model,
                     log_times=log_times,
-                    car_type_hide=Car.TYPE_FLEET
+                    car_type_hide=Car.TYPE_FLEET,
+                    save_progress=1,
                 )
 
                 revenue += revenue_fav,
@@ -757,8 +734,14 @@ if __name__ == "__main__":
 
     try:
         save_progress = int(args.index("-save_progress"))
+        try:
+            save_progress = int(args[save_progress + 1])
+        except:
+            save_progress = 1
+        print(f"Saving progress every {save_progress} iteration.")
     except:
-        save_progress = 1
+        print("Progress will not be saved!")
+        save_progress = None
 
     try:
         iterations = args.index("-n")
@@ -856,12 +839,13 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
-                ConfigNetwork.DEPOT_SHARE: None,
-                ConfigNetwork.FAV_DEPOT_LEVEL: 2,
-                ConfigNetwork.FAV_FLEET_SIZE: 0,
+                ConfigNetwork.DEPOT_SHARE: 1,
+                ConfigNetwork.FAV_DEPOT_LEVEL: None,
+                ConfigNetwork.FAV_FLEET_SIZE: 200,
                 ConfigNetwork.SEPARATE_FLEETS: False,
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
-                # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
+                # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60
+                # ,  # = rebalancing 1 min
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
                 
             }

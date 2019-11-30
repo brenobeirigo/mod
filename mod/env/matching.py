@@ -524,7 +524,8 @@ def service_trips(
     universal_service=False,
     use_artificial_duals=True,
     log_times=True,
-    car_type_hide=None
+    car_type_hide=None,
+    save_progress=1,
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -805,7 +806,7 @@ def service_trips(
         logger.debug(denied_count_dict)
 
         # Update shadow prices to be used in the next iterations
-        if not env.config.myopic and not env.config.policy_random:
+        if not env.config.myopic and not env.config.policy_random and save_progress > 0:
 
             try:
 

@@ -24,7 +24,9 @@ TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
         # "trips_2011-01-04-enriched.csv"
-        "tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv"
+        "tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv",
+        # "tripdata_ids_2011-04-19_000000_2011-04-19_235959.csv",
+        # "tripdata_ids_2011-12-06_000000_2011-12-06_235959.csv",
         # "trips_2011-02-01.csv",
         # "trips_2011-02-08.csv",
         # "trips_2011-02-15.csv",
@@ -1495,6 +1497,15 @@ class ConfigNetwork(ConfigStandard):
             )
         )
 
+        # Set the initial stations of FAVs
+        stations = ""
+        if self.fav_fleet_size > 0:
+            if self.depot_share:
+                stations = f"[S{self.depot_share:3.2f}]"
+            elif self.fav_depot_level:
+                stations = f"[S{self.fav_depot_level:3.2f}]"
+        
+
         max_link = (
             f'[L({self.max_cars_link:02})]' if self.max_cars_link else ''
         )
@@ -1522,7 +1533,7 @@ class ConfigNetwork(ConfigStandard):
             f"{lin}"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}({start})_"
+            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}{stations}({start})_"
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"

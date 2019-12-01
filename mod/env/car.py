@@ -47,13 +47,10 @@ class Car:
         CRUISING: "Driving to pick up",
         REBALANCE: "Repositioning",
         RETURN: "Returning",
-        SERVICING: "Servicing passenger"
+        SERVICING: "Servicing passenger",
     }
 
-    type_label_dict = {
-        TYPE_FLEET: "AV",
-        TYPE_HIRED: "FV",
-    }
+    type_label_dict = {TYPE_FLEET: "AV", TYPE_HIRED: "FV"}
 
     status_list = [
         IDLE,
@@ -204,7 +201,7 @@ class Car:
         distance_traveled,
         cost,
         destination,
-        return_trip=False
+        return_trip=False,
     ):
         """Update car settings after being matched with a passenger.
 
@@ -223,7 +220,7 @@ class Car:
         """
         # Car will not move back to the last places it has visited
         self.tabu.append(self.point.id)
-        
+
         # self.idle_step_count+=1
         self.idle_step_count = 0
 
@@ -458,7 +455,7 @@ class ElectricCar(Car):
             distance_traveled,
             revenue,
             destination,
-            return_trip=return_trip
+            return_trip=return_trip,
         )
 
     @property
@@ -614,14 +611,14 @@ class HiredCar(Car):
         )
 
     def __repr__(self):
-        return f"HiredCar{{id={self.id:02}, " f"point={self.point}}}"
+        return f"HiredCar{{id={self.id:02}, point={self.point}, origin={self.origin}}}"
 
     @property
     def label(self):
         return f"H{self.id:04}"
 
     def __str__(self):
-        return f"H{self.id}[{self.contract_duration}] - {self.point}"
+        return f"H{self.id}[{self.contract_duration}] - {self.point}({self.origin})"
 
 
 class HiredElectricCar(ElectricCar):
@@ -636,7 +633,9 @@ class HiredElectricCar(ElectricCar):
         duration_level=15,
     ):
         super().__init__(o, battery_level_max, battery_level_miles_max)
-        self.contract_duration = int(contract_duration_h * (60 // duration_level))
+        self.contract_duration = int(
+            contract_duration_h * (60 // duration_level)
+        )
         self.depot = o
         self.type = Car.TYPE_HIRED
         self.started_contract = False

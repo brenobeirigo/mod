@@ -161,7 +161,8 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
 
 
 def max_cars_node_constrs(
-        m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[]):
+    m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[]
+):
     """Restrict the number of cars arriving at each node.
 
     Parameters
@@ -194,8 +195,7 @@ def max_cars_node_constrs(
         if pos not in unrestricted:
 
             n_cars_link = max(
-                0,
-                max_cars_node - len(vehicles_arriving_at[pos])
+                0, max_cars_node - len(vehicles_arriving_at[pos])
             )
 
             flood_avoidance_constrs[pos] = m.addConstr(
@@ -243,8 +243,11 @@ def return_to_station_constrs(m, x_var, decision_return):
     """
 
     for d in decision_return:
-        m.addConstr(x_var[d] == 1,
-        f'RETURN_DEPOT_[{d[du.POSITION]},{d[du.CAR_ORIGIN]}]')
+        m.addConstr(
+            x_var[d] == 1,
+            f"RETURN_DEPOT_[{d[du.POSITION]},{d[du.CAR_ORIGIN]}]",
+        )
+
 
 # #################################################################### #
 # UTILS ############################################################## #
@@ -342,7 +345,7 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
     for pos, battery, contract_duration, car_type, car_origin in flow_cars:
 
         if car_type == Car.TYPE_VIRTUAL:
-                print("deu merda22")
+            print("deu merda22")
 
         try:
             constr = m.getConstrByName(
@@ -373,7 +376,10 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
 
         if car_type == Car.TYPE_VIRTUAL:
             car_type = Car.TYPE_FLEET
-            print((pos, battery, contract_duration, car_type, car_origin), shadow_price)
+            print(
+                (pos, battery, contract_duration, car_type, car_origin),
+                shadow_price,
+            )
 
         duals[
             (pos, battery, contract_duration, car_type, car_origin)
@@ -611,7 +617,9 @@ def service_trips(
     attribute_trips_dict = defaultdict(list)
 
     # How many trips in each region
-    count_trips_region = defaultdict(lambda: defaultdict(lambda: {'o': 0, 'd': 0}))
+    count_trips_region = defaultdict(
+        lambda: defaultdict(lambda: {"o": 0, "d": 0})
+    )
 
     # Create a dictionary associate
     for trip in trips:
@@ -630,7 +638,7 @@ def service_trips(
 
     # print("### Count car region")
     # pprint(env.count_car_region)
-    
+
     # print("\n### Count trip region")
     # pprint(count_trips_region)
 
@@ -653,7 +661,6 @@ def service_trips(
         trips
         # max_battery_level=env.config.battery_levels,
     )
-
 
     # virtual_decisions = du.get_virtual_decisions(env, trips)
 
@@ -682,10 +689,7 @@ def service_trips(
 
     # Create variables
     x_var = m.addVars(
-        tuplelist(decision_cars),
-        name="x",
-        vtype=GRB.CONTINUOUS,
-        lb=0
+        tuplelist(decision_cars), name="x", vtype=GRB.CONTINUOUS, lb=0
     )
 
     # ##################################################################
@@ -712,8 +716,7 @@ def service_trips(
         # Model has learned shadow costs from previous iterations and
         # can use them to determine post decision costs.
         contribution = quicksum(
-            env.total_cost(time_step, d) * x_var[d]
-            for d in x_var
+            env.total_cost(time_step, d) * x_var[d] for d in x_var
         )
 
     m.setObjective(contribution, GRB.MAXIMIZE)
@@ -755,16 +758,22 @@ def service_trips(
 
         for d in x_var:
 
+            # FAVs inbound to their origin are not considered
+            if d[du.CAR_TYPE] == Car.TYPE_HIRED:
+                if d[du.CAR_ORIGIN] == d[du.DESTINATION]:
+                    continue
+
             # Cars arriving at destination
             decisions_destination[d[du.DESTINATION]] += x_var[d]
 
         # Set up constraint
+        # TODO previously env.depots were unrestricted
         max_cars_node_constr = max_cars_node_constrs(
             m,
             decisions_destination,
-            env.cars_location,
+            env.cars_inbound_to,
             max_cars_node=env.config.max_cars_link,
-            unrestricted=env.depots,
+            unrestricted=[],
         )
 
     t_setup_constraints = time.time() - t1_setup_constraints
@@ -806,7 +815,11 @@ def service_trips(
         logger.debug(denied_count_dict)
 
         # Update shadow prices to be used in the next iterations
-        if not env.config.myopic and not env.config.policy_random and save_progress > 0:
+        if (
+            not env.config.myopic
+            and not env.config.policy_random
+            and save_progress > 0
+        ):
 
             try:
 
@@ -817,7 +830,7 @@ def service_trips(
                     m,
                     flow_cars_dict,
                     ignore_zeros=env.config.adp_ignore_zeros,
-                    logger=logger
+                    logger=logger,
                 )
 
                 t_duals = time.time() - t1_duals
@@ -834,8 +847,7 @@ def service_trips(
 
             except Exception as e:
                 logger.debug(
-                    f"Can't extract duals. Exception: '{e}'.",
-                    exc_info=True,
+                    f"Can't extract duals. Exception: '{e}'.", exc_info=True
                 )
 
         t1_realize_decision = time.time()

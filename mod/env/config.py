@@ -1511,7 +1511,7 @@ class ConfigNetwork(ConfigStandard):
             if self.depot_share:
                 stations = f"[S{self.depot_share:3.2f}]"
             elif self.fav_depot_level:
-                stations = f"[S{self.fav_depot_level:3.2f}]"
+                stations = f"[S{self.fav_depot_level}]"
         
             max_contract = ("[M]" if self.config[Config.MAX_CONTRACT_DURATION] else "")
 

@@ -7,6 +7,7 @@ from collections import defaultdict
 from pprint import pprint
 import numpy as np
 import json
+
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
@@ -42,23 +43,15 @@ def move(arrival_t, current_t, lin, next_lin):
     base_lin = np.zeros(len(lin))
     ones = np.ones(len(lin) - current_t)
     sub_range_ones = np.arange(current_t, len(lin))
-    np.put(
-        base_lin,
-        sub_range_ones,
-        ones
-    )
-    lin-=base_lin
-    
+    np.put(base_lin, sub_range_ones, ones)
+    lin -= base_lin
+
     # Add
     base_next_lin = np.zeros(len(next_lin))
     ones = np.ones(len(next_lin) - arrival_t)
     add_range_ones = np.arange(arrival_t, len(lin))
-    np.put(
-        base_next_lin,
-        add_range_ones,
-        ones
-    )
-    next_lin+=base_next_lin
+    np.put(base_next_lin, add_range_ones, ones)
+    next_lin += base_next_lin
 
 
 def get_sim_config(update_dict):
@@ -119,20 +112,13 @@ def get_sim_config(update_dict):
             ConfigNetwork.PENALIZE_REBALANCE: True,
             # Cars rebalance to up to #region centers at each level
             # CAUTION! Change max_neighbors in tenv application if > 4
-            ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                (0, 8),
-                (1, 8),
-            ),
+            ConfigNetwork.N_CLOSEST_NEIGHBORS: ((0, 8), (1, 8)),
             # Only used when max idle step count is not None
-            ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: (
-                (2, 16),
-                (3, 16)
-            ),
+            ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: ((2, 16), (3, 16)),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
             ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 300, 600],
             # Aggregation (temporal, spatial, contract, car type)
-
             # # FAVs and PAVS BEST HIERARCHICAL AGGREGATION
             # ConfigNetwork.AGGREGATION_LEVELS: [
             #     adp.AggLevel(
@@ -176,10 +162,8 @@ def get_sim_config(update_dict):
             #         car_origin=adp.DISCARD,
             #     ),
             # ],
-
             # #### ONLY PAVs - BEST PERFORMANCE HiERARCHICAL AGGREGATION
             ConfigNetwork.AGGREGATION_LEVELS: [
-
                 adp.AggLevel(
                     temporal=1,
                     spatial=adp.DISAGGREGATE,
@@ -188,7 +172,6 @@ def get_sim_config(update_dict):
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISCARD,
                 ),
-
                 adp.AggLevel(
                     temporal=3,
                     spatial=2,
@@ -197,7 +180,6 @@ def get_sim_config(update_dict):
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISCARD,
                 ),
-
                 adp.AggLevel(
                     temporal=3,
                     spatial=3,
@@ -207,7 +189,6 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
             ],
-
             ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2, 3],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
@@ -216,11 +197,11 @@ def get_sim_config(update_dict):
             ConfigNetwork.LEVEL_CAR_TYPE: {
                 Car.TYPE_FLEET: {
                     adp.DISAGGREGATE: Car.TYPE_FLEET,
-                    adp.DISCARD: Car.TYPE_FLEET
+                    adp.DISCARD: Car.TYPE_FLEET,
                 },
                 Car.TYPE_HIRED: {
                     adp.DISAGGREGATE: Car.TYPE_HIRED,
-                    adp.DISCARD: Car.TYPE_FLEET
+                    adp.DISCARD: Car.TYPE_FLEET,
                 },
             },
             ConfigNetwork.LEVEL_CONTRACT_DURATION: {
@@ -276,7 +257,7 @@ def get_sim_config(update_dict):
             # -------------------------------------------------------- #
             ConfigNetwork.MATCH_METHOD: ConfigNetwork.MATCH_DISTANCE,
             ConfigNetwork.MATCH_LEVEL: 2,
-            ConfigNetwork.MAX_TARGETS: 1000
+            ConfigNetwork.MAX_TARGETS: 1000,
         }
     )
 
@@ -370,7 +351,7 @@ def alg_adp(
     # Set tabu size (vehicles cannot visit nodes in tabu)
     Car.SIZE_TABU = config.car_size_tabu
 
-    print(f"Saving experimental settings at: \"{config.exp_settings}\"")
+    print(f'Saving experimental settings at: "{config.exp_settings}"')
     config.save()
 
     # ---------------------------------------------------------------- #
@@ -510,7 +491,7 @@ def alg_adp(
             )
 
             for t in trips:
-                logger.debug(f'  - {t}')
+                logger.debug(f"  - {t}")
 
             if plot_track:
                 # Update optimization time step
@@ -535,9 +516,12 @@ def alg_adp(
             # available_hired)
             amod.update_fleet_status(step + 1)
 
+            # Show the top highest vehicle count per position
+            # amod.show_count_vehicles_top(step, 5)
+
             logger.debug("\n## Car attributes:")
             for c in amod.cars:
-                logger.debug(f'{c} - {c.attribute}')
+                logger.debug(f"{c} - {c.attribute}")
             # What each vehicle is doing after update?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
@@ -584,7 +568,7 @@ def alg_adp(
                 use_artificial_duals=use_artificial_duals,
                 # linearize_integer_model=linearize_integer_model,
                 log_times=log_times,
-                car_type_hide=Car.TYPE_FLEET
+                car_type_hide=Car.TYPE_FLEET,
             )
 
             if amod.config.separate_fleets:
@@ -615,8 +599,8 @@ def alg_adp(
                     save_progress=1,
                 )
 
-                revenue += revenue_fav,
-                serviced += serviced_fav,
+                revenue += (revenue_fav,)
+                serviced += (serviced_fav,)
                 rejected = rejected_fav
 
             # print(f"Revenue FAV: {revenue_fav} - Serviced FAV: {len(serviced_fav)} - Rejected FAV: {len(rejected_fav)}")
@@ -636,7 +620,7 @@ def alg_adp(
             # What each vehicle is doing?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
-                int((step+1)/config.time_max_cars_link),
+                int((step + 1) / config.time_max_cars_link),
                 skip_steps,
                 step_log,
                 filter_status=[],
@@ -647,7 +631,7 @@ def alg_adp(
                 logger.debug("  - Computing fleet status...")
                 # Compute fleet status after making decision in step - 1
                 # What each car is doing when trips are arriving?
-                step_log.compute_fleet_status(step+1)
+                step_log.compute_fleet_status(step + 1)
 
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
@@ -774,16 +758,17 @@ if __name__ == "__main__":
 
     print("###### STARTING EXPERIMENTS")
 
-    instance_name = None # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
+    instance_name = (
+        None
+    )  # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
     if instance_name:
-        print(f"Loading settings from \"{instance_name}\"")
+        print(f'Loading settings from "{instance_name}"')
         start_config = ConfigNetwork.load(instance_name)
     else:
         start_config = get_sim_config(
             {
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
-                
                 ConfigNetwork.FLEET_SIZE: fleet_size,
                 # DEMAND ############################################# #
                 ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
@@ -793,12 +778,10 @@ if __name__ == "__main__":
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
                 ConfigNetwork.TIME_INCREMENT: 1,
                 ConfigNetwork.DEMAND_SAMPLING: True,
-
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
                 ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
                 ConfigNetwork.SQ_GUARANTEE: False,
-
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.MYOPIC: myopic,
                 # Rebalance costs are ignored by MIP but included when
@@ -807,7 +790,6 @@ if __name__ == "__main__":
                 ConfigNetwork.ADP_IGNORE_ZEROS: True,
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
-                
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
@@ -816,7 +798,6 @@ if __name__ == "__main__":
                 ConfigNetwork.IDLE_ANNEALING: None,
                 ConfigNetwork.ACTIVATE_THOMPSON: False,
                 ConfigNetwork.MAX_TARGETS: 6,
-
                 # When cars start in the last visited point, the model takes
                 # a long time to figure out the best time
                 ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
@@ -826,35 +807,35 @@ if __name__ == "__main__":
                 ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    #(0, 8),
+                    # (0, 8),
                     (1, 8),
                     (2, 4),
                     # (3, 4),
-                    
                 ),
-                
                 # FLEET ############################################## #
                 # Car operation
                 ConfigNetwork.MAX_CARS_LINK: 5,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
-                ConfigNetwork.DEPOT_SHARE: 1,
+                ConfigNetwork.DEPOT_SHARE: 0.001,
                 ConfigNetwork.FAV_DEPOT_LEVEL: None,
                 ConfigNetwork.FAV_FLEET_SIZE: 200,
                 ConfigNetwork.SEPARATE_FLEETS: False,
+                ConfigNetwork.MAX_CONTRACT_DURATION: True,
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
                 # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60
                 # ,  # = rebalancing 1 min
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
-                
             }
         )
 
     ClassedTrip.q_classes = dict(A=1.0, B=0.9)
     ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
     # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
-    ClassedTrip.min_max_time_class = dict(A=dict(min=1, max=3), B=dict(min=4, max=9))
+    ClassedTrip.min_max_time_class = dict(
+        A=dict(min=1, max=3), B=dict(min=4, max=9)
+    )
     ClassedTrip.class_proportion = dict(A=0.0, B=1)
 
     # Toggle what is going to be logged
@@ -886,5 +867,5 @@ if __name__ == "__main__":
         save_plots=save_plots,
         save_progress=save_progress,
         save_df=save_df,
-        use_artificial_duals=start_config.use_artificial_duals
+        use_artificial_duals=start_config.use_artificial_duals,
     )

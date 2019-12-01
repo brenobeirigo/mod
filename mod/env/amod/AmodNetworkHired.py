@@ -108,7 +108,7 @@ class AmodNetworkHired(AmodNetwork):
         if self.config.fav_fleet_size == 0:
             return []
 
-        step_hire = self.get_fav_info()
+        step_hire = self.get_fav_info(max_contract_duration=self.config.max_contract_duration)
 
         # np.save(
         #     f"{FAV_DATA_PATH}step_fav_fleet.npy",
@@ -600,7 +600,14 @@ class AmodNetworkHired(AmodNetwork):
         self.attribute_rebalance = dict()
 
         # List of cars per location
-        self.cars_location = defaultdict(list)
+        self.cars_location = defaultdict(lambda:defaultdict(list))
+
+        # List of hired cars inbound to their on station
+        self.cars_stationed = defaultdict(list)
+
+        # List of cars inbound to a position. Do not account for FAVs
+        # inbound to their stations.
+        self.cars_inbound_to = defaultdict(list)
 
         # Vehicles stopped at location do not visit tabu list
         self.cars_location_tabu = defaultdict(set)
@@ -619,6 +626,9 @@ class AmodNetworkHired(AmodNetwork):
             # --trips----trips------trips-----trips------trips-----
             car.update(time_step, time_increment=self.config.time_increment)
 
+            # Inbound location of car
+            self.cars_location[car.point.id][car.type].append(car)
+
             # Discard busy vehicles
             if not car.busy:
                 available.append(car)
@@ -634,7 +644,7 @@ class AmodNetworkHired(AmodNetwork):
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
             else:
                 # Busy cars arriving at each location
-                self.cars_location[car.point.id].append(car)
+                self.cars_inbound_to[car.point.id].append(car)
 
             # # Car count per region center
             # for g in range(len(self.config.level_dist_list)):
@@ -654,6 +664,12 @@ class AmodNetworkHired(AmodNetwork):
             # t ----- t+1 ----- t+2 ----- t+3 ----- t+4 ------- t+5
             # --trips----trips------trips-----trips------trips-----
             car.update(time_step, time_increment=self.config.time_increment)
+
+            # Inbound location of car
+            self.cars_location[car.point.id][car.type].append(car)
+
+            if car.point.id == car.origin.id:
+                self.cars_stationed[car.point.id].append(car)
 
             # Car has started the contract
             # if car.started_contract:
@@ -679,8 +695,10 @@ class AmodNetworkHired(AmodNetwork):
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
             
             else:
-                # Busy cars arriving at each location
-                self.cars_location[car.point.id].append(car)
+                # Only account for FAVs moving to positions different
+                # than their own stations
+                if car.point.id != car.origin.id:
+                    self.cars_inbound_to[car.point.id].append(car)
 
             # # Car count per region center
             # for g in range(len(self.config.level_dist_list)):
@@ -714,7 +732,46 @@ class AmodNetworkHired(AmodNetwork):
                 #     )
             
             self.attribute_rebalance = new_attribute_rebalance
-                # pprint(self.cars_location_tabu)
+            # pprint(self.cars_location_tabu)
+
+    def show_count_vehicles_top(self, step, n):
+            count_tuples = [
+                (
+                    pos,
+                    len(type_car[Car.TYPE_FLEET]),
+                    len(type_car[Car.TYPE_HIRED]),
+                    len(type_car[Car.TYPE_FLEET]) + len(type_car[Car.TYPE_HIRED]),
+                )
+                for pos, type_car in self.cars_location.items()
+            ]
+
+            count_pav = sorted(
+                count_tuples, reverse=True, key=lambda x: (x[1], x[2], x[3])
+            )[:10]
+
+            count_fav = sorted(
+                count_tuples, reverse=True, key=lambda x: (x[2], x[1], x[3])
+            )[:10]
+
+            count_total = sorted(
+                count_tuples, reverse=True, key=lambda x: (x[3], x[1], x[2])
+            )[:10]
+
+            count_location_stationed = sorted(
+                [
+                    len(cars) + len(self.cars_stationed.get(pos, []))
+                    for pos, cars in self.cars_location.items()
+                ][:n],
+                reverse=True,
+            )
+
+            print(
+                f"{step} -     PAV={count_pav}\n"
+                f"{step} -     FAV={count_fav}\n"
+                f"{step} -   Total={count_total}\n"
+                f"{step} - PAV-FAV={count_location_stationed}\n"
+            )
+            pprint(self.cars_stationed)
 
     def discard_excess_hired(self):
 

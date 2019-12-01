@@ -243,6 +243,7 @@ class Config:
     CONGESTION_PRICE = "CONGESTION_PRICE"
     MEAN_CONTRACT_DURATION = "MEAN_CONTRACT_DURATION"
     MIN_CONTRACT_DURATION = "MIN_CONTRACT_DURATION"
+    MAX_CONTRACT_DURATION = "MAX_CONTRACT_DURATION"
     FAV_FLEET_SIZE = "FAV_FLEET_SIZE"
     DEPOT_SHARE = "DEPOT_SHARE"
     FAV_DEPOT_LEVEL = "FAV_DEPOT_LEVEL"
@@ -1062,6 +1063,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.CONGESTION_PRICE] = 10
         self.config[Config.MIN_CONTRACT_DURATION] = 0.5 # 30 min
         self.config[Config.MEAN_CONTRACT_DURATION] = 2 # 2 hours
+        self.config[Config.MAX_CONTRACT_DURATION] = True
 
         # LEARNING ################################################### #
         self.config[Config.DISCOUNT_FACTOR] = 1
@@ -1387,6 +1389,11 @@ class ConfigNetwork(ConfigStandard):
     def min_contract_duration(self):
         """Minimum available time necessary to work for the platform"""
         return self.config[Config.MIN_CONTRACT_DURATION]
+    
+    @property
+    def max_contract_duration(self):
+        """Return True, if FAVs stay until the end of the experiment"""
+        return self.config[Config.MAX_CONTRACT_DURATION]
 
     @property
     def contract_duration_level(self):
@@ -1499,12 +1506,14 @@ class ConfigNetwork(ConfigStandard):
 
         # Set the initial stations of FAVs
         stations = ""
+        max_contract = ""
         if self.fav_fleet_size > 0:
             if self.depot_share:
                 stations = f"[S{self.depot_share:3.2f}]"
             elif self.fav_depot_level:
                 stations = f"[S{self.fav_depot_level:3.2f}]"
         
+            max_contract = ("[M]" if self.config[Config.MAX_CONTRACT_DURATION] else "")
 
         max_link = (
             f'[L({self.max_cars_link:02})]' if self.max_cars_link else ''
@@ -1533,7 +1542,7 @@ class ConfigNetwork(ConfigStandard):
             f"{lin}"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}{stations}({start})_"
+            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}{stations}{max_contract}({start})_"
             f"t={self.config[Config.TIME_INCREMENT]}_"
             #f"{self.config[Config.BATTERY_LEVELS]:04}_"
             f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"

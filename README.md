@@ -39,6 +39,10 @@ Execution (only save progress):
 
     python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -save_progress 10
 
+Hiring:
+
+    python mod\ml\adp_network_server.py hiring -FLEET_SIZE 300 -n 500 -save_progress 10 -save_plots -hire
+
 Batch file (`.bat`):
 
     call C:\Users\LocalAdmin\Anaconda3\Scripts\activate env_slevels

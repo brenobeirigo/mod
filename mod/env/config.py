@@ -16,10 +16,12 @@ sys.path.append(root)
 TRIPS_FILE_ALL = "trips_2011-02-01.csv"
 TRIPS_FILE_4 = "32874_samples_01_feb_2011_NY.csv"
 NY_TRIPS_EXCERPT_DAY = root + f"/data/input/nyc/{TRIPS_FILE_ALL}"
-FAV_DATA_PATH = root + f"/data/input/"
 
+FAV_DATA_PATH = root + f"/data/input/"
 FOLDER_TUNING = root + "/data/input/tuning/"
+FOLDER_OD_DATA = root + "/data/input/od_data/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
+
 TRIP_FILES = [
     f'{FOLDER_NYC_TRIPS}{t}'
     for t in [
@@ -33,7 +35,6 @@ TRIP_FILES = [
         # "trips_2011-02-22.csv",
     ]
 ]
-
 
 # Car statuses
 IDLE = 0
@@ -256,6 +257,10 @@ class Config:
     def __init__(self, config):
 
         self.config = config
+
+        # Creates directories
+        if not os.path.exists(FOLDER_OD_DATA):
+            os.makedirs(FOLDER_OD_DATA)
 
     # ################################################################ #
     # ## Area ######################################################## #
@@ -575,6 +580,20 @@ class Config:
         total = base + distance_fare
         # print(f'{base:6.2f} + {distance_fare:6.2f} = {total:6.2f}')
         return total
+    
+    def get_path_od_fares(self, extension="npy"):
+        """Path of saved fares per sq_class, o, d"""
+        base_fares = "_".join(
+            [
+                f"{sq}_{base:.2f}"
+                for sq, base in self.config[Config.TRIP_BASE_FARE].items()
+            ]
+        )
+        return FOLDER_OD_DATA + f"od_base_{base_fares}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
+    
+    def get_path_od_costs(self, extension="npy"):
+        """Path of saved costs per o, d"""
+        return FOLDER_OD_DATA + f"od_costs_km_{self.config[Config.RECHARGE_COST_DISTANCE]:.2f}.{extension}"
 
     def update(self, dict_update):
 

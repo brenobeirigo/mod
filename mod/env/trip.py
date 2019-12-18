@@ -22,6 +22,7 @@ class Trip:
         Trip.trip_count += 1
         self.picked_by = None
         self.dropoff_time = None
+        self.pk_delay = None
 
     def attribute(self, level):
         return (self.o.id_level(level), self.d.id_level(level))
@@ -84,8 +85,8 @@ class ClassedTrip(Trip):
         self.max_delay = ClassedTrip.min_max_time_class[sq_class]["max"]
 
         # Min/Max delays discounting announcement
-        self.min_delay_from_placement = self.min_delay - self.elapsed_sec / 60
-        self.max_delay_from_placement = self.max_delay - self.elapsed_sec / 60
+        self.min_delay_from_placement = self.min_delay - (60 - self.elapsed_sec) / 60
+        self.max_delay_from_placement = self.max_delay - (60 - self.elapsed_sec) / 60
 
         # Level demanded in best case scenario
         self.sq1_level = ClassedTrip.sq_level_class[sq_class][0]

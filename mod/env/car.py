@@ -128,6 +128,7 @@ class Car:
                 (
                     f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
                     f"(pk_step={self.trip.pk_step:>5}, "
+                    f"pk_delay={self.trip.pk_delay:>6.2f}, "
                     f"dropoff={self.trip.dropoff_time:>6.2f}, "
                     f"placement={self.trip.placement}, "
                     f"elapsed={self.trip.elapsed_sec:>3}, "
@@ -307,6 +308,9 @@ class Car:
             self.status = Car.CRUISING
 
         self.trip.pk_step = self.step + pk_step
+
+        # How long to pick up the user
+        self.trip.pk_delay = pk_duration
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step
@@ -537,7 +541,9 @@ class ElectricCar(Car):
             trip = (
                 (
                     f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
-                    f"(pk_step={self.trip.pk_step:>5}, dropoff={self.trip.dropoff_time:>6.2f})"
+                    f"(pk_step={self.trip.pk_step:>5}, "
+                    f"pk_delay={self.trip.pk_delay:>6.2f}, "
+                    f"dropoff={self.trip.dropoff_time:>6.2f})"
                 )
                 if self.trip is not None
                 else ""

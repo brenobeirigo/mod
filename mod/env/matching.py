@@ -562,6 +562,17 @@ def service_trips(
     float, list, list
         total contribution, serviced trips, rejected trips
     """
+
+    if log_times:
+        t_decisions = 0
+        t_duals = 0
+        t_realize_decision = 0
+        t_update = 0
+        t_setup_costs = 0
+        t_setup_constraints = 0
+        t_optimize = 0
+        t_total = 0
+
     # Updating current time step in the environment
     env.cur_step = time_step
 
@@ -901,7 +912,6 @@ def service_trips(
                     "realize_decision": [t_realize_decision],
                     "update_vf": [t_update],
                     "setup_costs": [t_setup_costs],
-                    "setup_costs_post": [t_setup_costs_post],
                     "setup_constraints": [t_setup_constraints],
                     "optimize": [t_optimize],
                     "total": [t_total],

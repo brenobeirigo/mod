@@ -7,7 +7,7 @@ from collections import defaultdict
 from pprint import pprint
 import numpy as np
 import json
-
+import itertools
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
@@ -237,9 +237,29 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_CENTER_LEVEL: 0,
             # Demand scenario
             ConfigNetwork.DEMAND_SCENARIO: conf.SCENARIO_NYC,
+            ConfigNetwork.TRIP_REJECTION_PENALTY: {
+                "A": 4.8,
+                "B": 2.4,
+            },
             ConfigNetwork.TRIP_BASE_FARE: {
-                tp.ClassedTrip.SQ_CLASS_1: 2.4,
-                tp.ClassedTrip.SQ_CLASS_2: 2.4,
+                "A": 4.8,
+                "B": 2.4,
+            },
+            ConfigNetwork.TRIP_DISTANCE_RATE_KM: {
+                "A": 1,
+                "B": 1,
+            },
+            ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
+                "A": 5,
+                "B": 5,
+            },
+            ConfigNetwork.TRIP_MAX_PICKUP_DELAY: {
+                "A": 5,
+                "B": 10,
+            },
+            ConfigNetwork.TRIP_CLASS_PROPORTION: {
+                "A": 0,
+                "B": 1,
             },
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
@@ -347,7 +367,6 @@ def alg_adp(
     linearize_integer_model=False,
     use_artificial_duals=False,
 ):
-
     # Set tabu size (vehicles cannot visit nodes in tabu)
     Car.SIZE_TABU = config.car_size_tabu
 
@@ -358,7 +377,7 @@ def alg_adp(
     # Episodes ####################################################### #
     # ---------------------------------------------------------------- #
 
-    amod = AmodNetworkHired(config)
+    amod = AmodNetworkHired(config, online=True)
     episode_log = EpisodeLog(config=config, adp=amod.adp)
     if plot_track:
         plot_track.set_env(amod)
@@ -409,6 +428,12 @@ def alg_adp(
 
     # Loop all episodes, pick up trips, and learn where they are
     for n in range(episode_log.n, episodes):
+
+        t_update = 0
+        t_mip = 0
+        t_log = 0
+        t_save_plots = 0
+        t_add_record = 0
 
         if config.demand_scenario == conf.SCENARIO_UNBALANCED:
 
@@ -473,8 +498,11 @@ def alg_adp(
 
         outstanding = list()
 
+        # Trips from this iteration (make sure it can be used again)
+        it_step_trip_list = deepcopy(step_trip_list)
+
         # Iterate through all steps and match requests to cars
-        for step, trips in enumerate(deepcopy(step_trip_list)):
+        for step, trips in enumerate(it_step_trip_list):
 
             # Add trips from last step (when user backlogging is enabled)
             trips.extend(outstanding)
@@ -490,8 +518,10 @@ def alg_adp(
                 "###########################################"
             )
 
+            t1 = time.time()
             for t in trips:
                 logger.debug(f"  - {t}")
+            t_log += time.time() - t1
 
             if plot_track:
                 # Update optimization time step
@@ -514,13 +544,17 @@ def alg_adp(
             # Loop cars and update their current status as well as the
             # the list of available vehicles (change available and
             # available_hired)
+            t1 = time.time()
             amod.update_fleet_status(step + 1)
-
+            t_update += time.time() - t1
+            
             # Show the top highest vehicle count per position
             # amod.show_count_vehicles_top(step, 5)
 
+            t1 = time.time()
             logger.debug("\n## Car attributes:")
-            for c in amod.cars:
+            # Log both fleets
+            for c in itertools.chain(amod.cars, amod.hired_cars):
                 logger.debug(f"{c} - {c.attribute}")
             # What each vehicle is doing after update?
             la.log_fleet_activity(
@@ -531,6 +565,7 @@ def alg_adp(
                 filter_status=[],
                 msg="post update",
             )
+            t_log += time.time() - t1
 
             # print(
             #     f"#{step:>3} - hired={len(amod.hired_cars)}"
@@ -548,6 +583,11 @@ def alg_adp(
             #         print(f"{step} - link {p} has {count} cars")
             # print(len(amod.cars), len(amod.available), len(amod.hired_cars), len(amod.available_hired))
             # Optimize
+
+            # for tt in trips:
+            #     print(tt.info())
+    
+            t1 = time.time()
             revenue, serviced, rejected = service_trips(
                 # Amod environment with configuration file
                 amod,
@@ -616,7 +656,9 @@ def alg_adp(
                         outstanding.append(r)
 
                 rejected = expired
+            t_mip += time.time() - t1
 
+            t1 = time.time()
             # What each vehicle is doing?
             la.log_fleet_activity(
                 config.log_path(amod.adp.n),
@@ -626,17 +668,22 @@ def alg_adp(
                 filter_status=[],
                 msg="after decision",
             )
+            t_log += time.time() - t1
 
+            t1 = time.time()
             if save_plots or save_df:
                 logger.debug("  - Computing fleet status...")
                 # Compute fleet status after making decision in step - 1
                 # What each car is doing when trips are arriving?
                 step_log.compute_fleet_status(step + 1)
+            t_save_plots += time.time() - t1
 
+            t1 = time.time()
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #
             step_log.add_record(revenue, serviced, rejected)
+            t_add_record += time.time() - t1
 
             # -------------------------------------------------------- #
             # Plotting fleet activity ################################ #
@@ -650,6 +697,14 @@ def alg_adp(
 
                 time.sleep(step_delay)
 
+            # print(step, "weighted value:", amod.adp.get_weighted_value.cache_info())
+            # print(step, "preview decision:", amod.preview_decision.cache_info())
+            # print(step, "preview decision:", amod.preview_move.cache_info())
+            # print("aaaaaaaaaaaaaaaaaaa")
+            # amod.adp.get_weighted_value.cache_clear()
+            # self.post_cost.cache_clear()
+
+
         amod.update_fleet_status(step + 1)
 
         # -------------------------------------------------------------#
@@ -658,14 +713,17 @@ def alg_adp(
 
         logger.debug("  - Computing iteration...")
 
+        t1 = time.time()
         episode_log.compute_episode(
             step_log,
+            it_step_trip_list,
             time.time() - start_time,
             save_df=save_df,
             plots=save_plots,
             save_learning=save_progress,
             save_overall_stats=save_overall_stats,
         )
+        t_epi = t1 = time.time() - t1
 
         # Clean weight track
         amod.adp.reset_weight_track()
@@ -673,7 +731,7 @@ def alg_adp(
         logger.info(
             f"####### "
             f"[Episode {n+1:>5}] "
-            f"- {episode_log.last_episode_stats()} "
+            f"- {episode_log.last_episode_stats()} serviced={step_log.serviced}, rejected={step_log.rejected}, total={step_log.total} t(episode={t_epi:.2f}, t_log={t_log:.2f}, t_mip={t_mip:.2f}, t_save_plots={t_save_plots:.2f}, t_up={t_update:.2f}, , t_add_record={t_add_record:.2f})"
             f"#######"
         )
 
@@ -782,6 +840,38 @@ if __name__ == "__main__":
                 ConfigNetwork.MATCHING_DELAY: 15,
                 ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
                 ConfigNetwork.SQ_GUARANTEE: False,
+                # ConfigNetwork.TRIP_REJECTION_PENALTY: {
+                #     "A": 4.8,
+                #     "B": 2.4,
+                # },
+                ConfigNetwork.TRIP_REJECTION_PENALTY: {
+                    "A": 0,
+                    "B": 0,
+                },
+                ConfigNetwork.TRIP_BASE_FARE: {
+                    "A": 4.8,
+                    "B": 2.4,
+                },
+                ConfigNetwork.TRIP_DISTANCE_RATE_KM: {
+                    "A": 1,
+                    "B": 1,
+                },
+                # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
+                #     "A": 5,
+                #     "B": 5,
+                # },
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
+                    "A": 0,
+                    "B": 0,
+                },
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: {
+                    "A": 5,
+                    "B": 10,
+                },
+                ConfigNetwork.TRIP_CLASS_PROPORTION: {
+                    "A": 0,
+                    "B": 1,
+                },
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.MYOPIC: myopic,
                 # Rebalance costs are ignored by MIP but included when
@@ -808,7 +898,7 @@ if __name__ == "__main__":
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                     # (0, 8),
-                    (1, 8),
+                    (1, 4),
                     (2, 4),
                     # (3, 4),
                 ),
@@ -818,9 +908,9 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
-                ConfigNetwork.DEPOT_SHARE: 0.001,
+                ConfigNetwork.DEPOT_SHARE: None,
                 ConfigNetwork.FAV_DEPOT_LEVEL: None,
-                ConfigNetwork.FAV_FLEET_SIZE: 200,
+                ConfigNetwork.FAV_FLEET_SIZE: 0,
                 ConfigNetwork.SEPARATE_FLEETS: False,
                 ConfigNetwork.MAX_CONTRACT_DURATION: True,
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
@@ -829,14 +919,6 @@ if __name__ == "__main__":
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
             }
         )
-
-    ClassedTrip.q_classes = dict(A=1.0, B=0.9)
-    ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
-    # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
-    ClassedTrip.min_max_time_class = dict(
-        A=dict(min=1, max=3), B=dict(min=4, max=9)
-    )
-    ClassedTrip.class_proportion = dict(A=0.0, B=1)
 
     # Toggle what is going to be logged
     log_config = {

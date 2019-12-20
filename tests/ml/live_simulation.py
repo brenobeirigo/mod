@@ -83,13 +83,5 @@ start_config = alg.get_sim_config(
     }
 )
 
-ClassedTrip.q_classes = dict(A=1.0, B=0.9)
-ClassedTrip.sq_level_class = dict(A=[0, 0], B=[0, 0])
-# min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
-ClassedTrip.min_max_time_class = dict(
-    A=dict(min=1, max=3), B=dict(min=4, max=9)
-)
-ClassedTrip.class_proportion = dict(A=0.0, B=1)
-
 run_plot = PlotTrack(start_config)
 run_plot.start_animation(alg.alg_adp)

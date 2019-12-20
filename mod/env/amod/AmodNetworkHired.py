@@ -46,14 +46,14 @@ class BetaSampler:
             v = beta * np.log(u1 / (1 - u1))
             w = a * np.exp(v)
             tmp = np.log(alpha / (b + w))
-            if alpha * tmp + (gamma * v) - 1.3862944 >= \
-                np.log(u1 * u1 * u2):
+            if alpha * tmp + (gamma * v) - 1.3862944 >= np.log(u1 * u1 * u2):
                 break
         x = w / (b + w)
         return x
 
+
 class AmodNetworkHired(AmodNetwork):
-    def __init__(self, config, car_positions=[]):
+    def __init__(self, config, car_positions=[], online=False):
         """Street network Amod environment with third-party hired fleet
 
         Parameters
@@ -64,6 +64,8 @@ class AmodNetworkHired(AmodNetwork):
             Simulation settings
         car_positions : list, optional
             Cars can start from predefined positions, by default []
+        online: boolean, optional
+            If True, calculate costs on the fly, otherwise load costs
         """
 
         super().__init__(config, car_positions=car_positions)
@@ -93,22 +95,152 @@ class AmodNetworkHired(AmodNetwork):
         self.toggled_fleet[Car.TYPE_HIRED] = None
 
         # UCB
-        #self.t_pos_count = defaultdict(int)
+        # self.t_pos_count = defaultdict(int)
 
         # Thompson
         self.beta_ab = defaultdict(lambda: dict(a=1, b=1))
         self.beta_sampler = BetaSampler(1)
         self.cur_step = 0
 
-        # Set of reachable neighbors from each car position
-        # self.attribute_rebalance = dict()
+        # Is data calculated on-the-fly?
+        if online:
+            self.revenue = self.online_revenue
+            self.cost = self.online_costs
+            self.penalty = self.online_penalty
+        else:
+            self.load_od_data()
+            self.revenue = self.loaded_revenue
+            self.cost = self.loaded_costs
+            self.penalty = self.loaded_penalty
+
+    def online_penalty(self, car_o, trip_o, sq):
+
+        # If tolerance is zero, there is no delay penalty
+        tolerance = self.config.trip_tolerance_delay[sq]
+        if tolerance == 0:
+            return 0
+
+        # Include time increment because it covers the worst case
+        # scenario (user waiting since the beginning of the round)
+        max_time = self.config.trip_max_pickup_delay[sq] - self.config.time_increment
+
+        distance = nw.get_distance(car_o, trip_o)
+        travel_time = self.get_travel_time(distance, unit="min")
+
+        
+        if travel_time > max_time + tolerance:
+            return None
+        delay = max(0, travel_time - max_time)
+        base_fare = self.config.trip_base_fare[sq]
+        penalty = base_fare / tolerance * delay
+        # print(
+        #     "sq={}, distance={:6.2f}, travel_time={:6.2f}, max_time={:6.2f}, tolerance={:6.2f}, delay={:6.2f}, max_time + tolerance={:6.2f}, base_fare={:6.2f}, penalty={:6.2f}".format(
+        #         sq,
+        #         distance,
+        #         travel_time,
+        #         max_time,
+        #         tolerance,
+        #         delay,
+        #         max_time + tolerance,
+        #         base_fare,
+        #         penalty,
+        #     )
+        # )
+        return penalty
+
+    def load_od_data(self):
+
+        print("Loading od data...")
+        # Use the AmoD info to create travel_cost_array
+        try:
+
+            self.od_costs_dict = np.load(
+                self.config.get_path_od_costs(), allow_pickle=True
+            )
+            print(f' - Loaded costs from "{self.config.get_path_od_costs()}"')
+
+            self.od_fares_dict = np.load(
+                self.config.get_path_od_fares(), allow_pickle=True
+            ).item()
+            print(f' - Loaded fares from "{self.config.get_path_od_fares()}"')
+
+            self.od_penalties_dict = np.load(
+                self.config.get_path_od_penalties(), allow_pickle=True
+            ).item()
+            print(f' - Loaded fares from "{self.config.get_path_od_penalties()}"')
+            # self.sqod_revenue_dict = np.load("aod.npy", allow_pickle=True)
+        except:
+            n_nodes = len(nw.tenv.distance_matrix)
+            od_costs_dict = np.zeros((n_nodes, n_nodes))
+            od_fares_dict = defaultdict(lambda: np.zeros((n_nodes, n_nodes)))
+            od_penalties_dict = defaultdict(lambda: np.zeros((n_nodes, n_nodes)))
+            rebalancing_targets = np.zeros(())
+            for o in self.points:
+                for d in self.points:
+                    dist_trip = nw.get_distance(o.id, d.id)
+
+                    # Travel cost
+                    cost = self.config.get_travel_cost(dist_trip)
+                    od_costs_dict[o.id][d.id] = cost
+
+                    # Save the fare for each class
+                    for sq in self.config.trip_base_fare.keys():
+                        od_fares_dict[sq][o.id][d.id] = self.config.calculate_fare(
+                            dist_trip, sq_class=sq
+                        )
+                        od_penalties_dict[sq][o.id][d.id] = self.online_penalty(
+                            o.id, d.id, sq
+                        )
+
+            print(f"Saving OD costs at '{self.config.get_path_od_costs()}'...")
+            np.save(self.config.get_path_od_costs(), od_costs_dict)
+
+            print(
+                f"Saving OD fares for each class at '{self.config.get_path_od_fares()}'..."
+            )
+            np.save(self.config.get_path_od_fares(), dict(od_fares_dict))
+
+            print(
+                f"Saving OD penalties for each class at '{self.config.get_path_od_penalties()}'..."
+            )
+            np.save(self.config.get_path_od_penalties(), dict(od_penalties_dict))
+
+            self.od_costs_dict = od_costs_dict
+            self.od_fares_dict = od_fares_dict
+            self.od_penalties_dict = od_penalties_dict
+
+    def online_revenue(self, o, d, sq):
+        # From trip's origin to trip's destination
+        dist_trip = nw.get_distance(o, d)
+        # Base fare + distance cost
+        revenue = self.config.calculate_fare(dist_trip, sq_class=sq)
+        return revenue
+
+    def loaded_revenue(self, o, d, sq):
+        return self.od_fares_dict[sq][o][d]
+
+    def loaded_penalty(self, o, d, sq):
+        return self.od_penalties_dict[sq][o][d]
+
+    def online_costs(self, o, d):
+        """Calculate costs online using data from configuration"""
+
+        distance_km = nw.get_distance(o, d)
+        cost = self.config.get_travel_cost(distance_km)
+
+        return cost
+
+    def loaded_costs(self, o, d):
+        return self.od_costs_dict[o][d]
 
     def get_hired_step(self):
 
         if self.config.fav_fleet_size == 0:
             return []
 
-        step_hire = self.get_fav_info(max_contract_duration=self.config.max_contract_duration)
+        step_hire = self.get_fav_info(
+            max_contract_duration=self.config.max_contract_duration
+        )
 
         # np.save(
         #     f"{FAV_DATA_PATH}step_fav_fleet.npy",
@@ -122,7 +254,12 @@ class AmodNetworkHired(AmodNetwork):
                     self.points[depot_id],
                     contract_duration_h,
                     current_step=step,
-                    current_arrival=(self.config.reposition_h + earliest_h - self.config.demand_earliest_hour) * 60,
+                    current_arrival=(
+                        self.config.reposition_h
+                        + earliest_h
+                        - self.config.demand_earliest_hour
+                    )
+                    * 60,
                     duration_level=self.config.contract_duration_level,
                 )
                 for depot_id, earliest_h, contract_duration_h, deadline_h in car_info
@@ -135,26 +272,18 @@ class AmodNetworkHired(AmodNetwork):
         return hired_cars
 
     def total_cost(self, t, d):
-        return (
-            self.cost_func(d)
-            + self.config.discount_factor * self.post_cost(t, d)[0]
-        )
+        return self.cost_func(d) + self.config.discount_factor * self.post_cost(t, d)[0]
 
     def total_cost_ucb(self, t, d):
-        cost = (
-            self.cost_func(d)
-            + self.config.discount_factor * self.post_cost(t, d)[0]
-        )
+        cost = self.cost_func(d) + self.config.discount_factor * self.post_cost(t, d)[0]
         if du.ACTION != du.TRIP_DECISION:
             # Number of times we have sampled action
             n = self.t_pos_count[(t, d[du.POSITION], du.ACTION, du.DESTINATION)]
 
-            decay_factor = (
-                math.sqrt(2 * math.log(self.adp.n + 1)/(n+1))
-            )
+            decay_factor = math.sqrt(2 * math.log(self.adp.n + 1) / (n + 1))
 
             # TODO define proper MAXCOST (<> 2.4)
-            upper_bound = cost + min(2.4, 2.4*decay_factor)
+            upper_bound = cost + min(2.4, 2.4 * decay_factor)
         else:
             # Picking up is always better
             upper_bound = cost + 2.4
@@ -185,7 +314,7 @@ class AmodNetworkHired(AmodNetwork):
             # If None, remove cars of type = car_type
             if not self.toggled_fleet[car_type]:
                 if car_type == Car.TYPE_FLEET:
-                    self.toggled_fleet[car_type] = self.hired_cars, self.available_hired
+                    self.toggled_fleet[car_type] = (self.hired_cars, self.available_hired)
                     self.hired_cars, self.available_hired = [], []
                 else:
                     self.toggled_fleet[car_type] = self.cars, self.available
@@ -237,7 +366,7 @@ class AmodNetworkHired(AmodNetwork):
             RETURN_FACTOR = 2
             # Car is parking somewhere different than its parking lot
             if decision[du.DESTINATION] != decision[du.ORIGIN]:
-                COST_STAY = 2*self.config.recharge_cost_distance
+                COST_STAY = 2 * self.config.recharge_cost_distance
 
         if decision[du.ACTION] == du.STAY_DECISION:
             # Stay
@@ -245,24 +374,23 @@ class AmodNetworkHired(AmodNetwork):
 
         elif decision[du.ACTION] == du.TRIP_DECISION:
 
-            # From car's position to trip's origin
-            distance_pickup = self.get_distance(
-                self.points[decision[du.POSITION]],
-                self.points[decision[du.ORIGIN]],
+            # From car's position to trip's origin, and OD
+            cost_pickup = self.cost(decision[du.POSITION], decision[du.ORIGIN])
+
+            penalty_pk = self.penalty(
+                decision[du.POSITION],
+                decision[du.ORIGIN],
+                decision[du.SQ_CLASS]
             )
 
-            # From trip's origin to trip's destination
-            dist_trip = self.get_distance(
-                self.points[decision[du.ORIGIN]],
-                self.points[decision[du.DESTINATION]],
-            )
+            cost_trip = self.cost(decision[du.ORIGIN], decision[du.DESTINATION])
 
             # Travel cost
-            cost = self.config.get_travel_cost(distance_pickup + dist_trip)
+            cost = cost_pickup + cost_trip - penalty_pk
 
             # Base fare + distance cost
-            revenue = self.config.calculate_fare(
-                dist_trip, sq_class=decision[du.SQ_CLASS]
+            revenue = self.revenue(
+                decision[du.ORIGIN], decision[du.DESTINATION], decision[du.SQ_CLASS]
             )
 
             contribution = PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE
@@ -283,14 +411,9 @@ class AmodNetworkHired(AmodNetwork):
             if ignore_rebalance_costs:
                 return 0
             else:
-                # From trip's origin to trip'scar_type
-                dist_trip = self.get_distance(
-                    self.points[decision[du.ORIGIN]],
-                    self.points[decision[du.DESTINATION]],
-                )
 
-                # Travel cost
-                cost = self.config.get_travel_cost(dist_trip)
+                # From trip's origin to trip's destination
+                cost = self.cost(decision[du.ORIGIN], decision[du.DESTINATION])
 
                 reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
                 # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
@@ -333,17 +456,24 @@ class AmodNetworkHired(AmodNetwork):
             if self.config.fav_depot_level:
 
                 # Node id list
-                N = list(set([self.points[p].id_level(self.config.fav_depot_level) for p in range(self.config.node_count)]))
+                N = list(
+                    set(
+                        [
+                            self.points[p].id_level(self.config.fav_depot_level)
+                            for p in range(self.config.node_count)
+                        ]
+                    )
+                )
             else:
                 N = list(np.arange(self.config.node_count))
 
             # If only a share of the nodes is used
             if self.config.depot_share:
-                n_depots = int(self.config.depot_share*len(N))
+                n_depots = int(self.config.depot_share * len(N))
 
                 # If share is lower than 1 (i.e., there are not depots),
                 # the entire set is considered.
-                if  n_depots <= 1:
+                if n_depots <= 1:
                     n_depots = len(N)
 
             else:
@@ -372,7 +502,7 @@ class AmodNetworkHired(AmodNetwork):
 
         # Assign favs to depots randomly
         while unassigned_favs > 0:
-            fav_count_depot[random.randint(0, len(P)-1)] += 1
+            fav_count_depot[random.randint(0, len(P) - 1)] += 1
             unassigned_favs -= 1
 
         return fav_count_depot
@@ -468,7 +598,6 @@ class AmodNetworkHired(AmodNetwork):
                 times,
             ) = decision
 
-
             if car_type == Car.TYPE_VIRTUAL:
                 continue
 
@@ -535,8 +664,6 @@ class AmodNetworkHired(AmodNetwork):
                         return_trip=(action == du.RETURN_DECISION),
                     )
 
-                    
-
                 elif action == du.STAY_DECISION:
                     # Car settings are updated all together when time
                     # step finishes
@@ -579,9 +706,7 @@ class AmodNetworkHired(AmodNetwork):
         # Rebalancing ################################################ #
         if self.config.reachable_neighbors:
 
-            neighbors = self.reachable_neighbors(
-                car_id, self.config.time_increment*60
-            )
+            neighbors = self.reachable_neighbors(car_id, self.config.time_increment * 60)
         else:
             neighbors = self.get_zone_neighbors(car_id)
 
@@ -594,13 +719,13 @@ class AmodNetworkHired(AmodNetwork):
 
         # If rebalancing targets are not removed (due to tabu list)
         # the dictionary can be used again
-        
+
         # if self.config.car_size_tabu > 0:
         # Set of reachable neighbors from each car position
         self.attribute_rebalance = dict()
 
         # List of cars per location
-        self.cars_location = defaultdict(lambda:defaultdict(list))
+        self.cars_location = defaultdict(lambda: defaultdict(list))
 
         # List of hired cars inbound to their on station
         self.cars_stationed = defaultdict(list)
@@ -637,7 +762,9 @@ class AmodNetworkHired(AmodNetwork):
 
                 # Get accessible neighbors from each car position
                 if car.point.id not in self.attribute_rebalance:
-                    self.attribute_rebalance[car.point.id] = self.get_neighbors(car.point.id)
+                    self.attribute_rebalance[car.point.id] = self.get_neighbors(
+                        car.point.id
+                    )
 
                 # Get union set of tabu locations to visit
                 if self.config.car_size_tabu > 0:
@@ -689,11 +816,13 @@ class AmodNetworkHired(AmodNetwork):
 
                 # Get accessible neighbors from each car position
                 if car.point.id not in self.attribute_rebalance:
-                    self.attribute_rebalance[car.point.id] = self.get_neighbors(car.point.id)
+                    self.attribute_rebalance[car.point.id] = self.get_neighbors(
+                        car.point.id
+                    )
 
                 if self.config.car_size_tabu > 0:
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
-            
+
             else:
                 # Only account for FAVs moving to positions different
                 # than their own stations
@@ -720,7 +849,7 @@ class AmodNetworkHired(AmodNetwork):
             for p, reb in self.attribute_rebalance.items():
                 fresh_neighbors = reb - self.cars_location_tabu[p]
                 new_attribute_rebalance[p] = fresh_neighbors
-                
+
                 # Print tabu operations
                 # if len(self.cars_location_tabu[p]) > 1:
                 #     print(
@@ -730,48 +859,48 @@ class AmodNetworkHired(AmodNetwork):
                 #         f"fresh neighbors({len(new_attribute_rebalance[p])})="
                 #         f"{new_attribute_rebalance[p]}"
                 #     )
-            
+
             self.attribute_rebalance = new_attribute_rebalance
             # pprint(self.cars_location_tabu)
 
     def show_count_vehicles_top(self, step, n):
-            count_tuples = [
-                (
-                    pos,
-                    len(type_car[Car.TYPE_FLEET]),
-                    len(type_car[Car.TYPE_HIRED]),
-                    len(type_car[Car.TYPE_FLEET]) + len(type_car[Car.TYPE_HIRED]),
-                )
-                for pos, type_car in self.cars_location.items()
-            ]
-
-            count_pav = sorted(
-                count_tuples, reverse=True, key=lambda x: (x[1], x[2], x[3])
-            )[:10]
-
-            count_fav = sorted(
-                count_tuples, reverse=True, key=lambda x: (x[2], x[1], x[3])
-            )[:10]
-
-            count_total = sorted(
-                count_tuples, reverse=True, key=lambda x: (x[3], x[1], x[2])
-            )[:10]
-
-            count_location_stationed = sorted(
-                [
-                    len(cars) + len(self.cars_stationed.get(pos, []))
-                    for pos, cars in self.cars_location.items()
-                ][:n],
-                reverse=True,
+        count_tuples = [
+            (
+                pos,
+                len(type_car[Car.TYPE_FLEET]),
+                len(type_car[Car.TYPE_HIRED]),
+                len(type_car[Car.TYPE_FLEET]) + len(type_car[Car.TYPE_HIRED]),
             )
+            for pos, type_car in self.cars_location.items()
+        ]
 
-            print(
-                f"{step} -     PAV={count_pav}\n"
-                f"{step} -     FAV={count_fav}\n"
-                f"{step} -   Total={count_total}\n"
-                f"{step} - PAV-FAV={count_location_stationed}\n"
-            )
-            pprint(self.cars_stationed)
+        count_pav = sorted(count_tuples, reverse=True, key=lambda x: (x[1], x[2], x[3]))[
+            :10
+        ]
+
+        count_fav = sorted(count_tuples, reverse=True, key=lambda x: (x[2], x[1], x[3]))[
+            :10
+        ]
+
+        count_total = sorted(
+            count_tuples, reverse=True, key=lambda x: (x[3], x[1], x[2])
+        )[:10]
+
+        count_location_stationed = sorted(
+            [
+                len(cars) + len(self.cars_stationed.get(pos, []))
+                for pos, cars in self.cars_location.items()
+            ][:n],
+            reverse=True,
+        )
+
+        print(
+            f"{step} -     PAV={count_pav}\n"
+            f"{step} -     FAV={count_fav}\n"
+            f"{step} -   Total={count_total}\n"
+            f"{step} - PAV-FAV={count_location_stationed}\n"
+        )
+        pprint(self.cars_stationed)
 
     def discard_excess_hired(self):
 
@@ -845,18 +974,9 @@ class AmodNetworkHired(AmodNetwork):
 
         # Contract duration is altered only for hired cars
         if car_type == Car.TYPE_HIRED:
-            contract_duration -= int(
-                duration / self.config.contract_duration_level
-            )
+            contract_duration -= int(duration / self.config.contract_duration_level)
 
-        return (
-            time_step,
-            point,
-            battery_post,
-            contract_duration,
-            type_post,
-            car_origin,
-        )
+        return (time_step, point, battery_post, contract_duration, type_post, car_origin)
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -883,7 +1003,7 @@ class AmodNetworkHired(AmodNetwork):
                 status_count[c.status] += 1
                 fav_status_count[c.status] += 1
 
-        return status_count, pav_status_count, fav_status_count, total_battery_level
+        return (status_count, pav_status_count, fav_status_count, total_battery_level)
 
     def reset(self):
 
@@ -895,6 +1015,7 @@ class AmodNetworkHired(AmodNetwork):
         # self.post_cost.cache_clear()
         self.adp.weighted_values.clear()
         self.cur_step = 0
+
     def get_fleet_stats(self):
 
         stats = super().get_fleet_stats()
@@ -951,10 +1072,7 @@ class AmodNetworkHired(AmodNetwork):
         estimate = self.adp.get_weighted_value(post_state)
 
         # Penalize long rebalancing decisions
-        if (
-            decision[0] == du.REBALANCE_DECISION
-            and self.config.penalize_rebalance
-        ):
+        if decision[0] == du.REBALANCE_DECISION and self.config.penalize_rebalance:
 
             avg_busy_stay = 0
 
@@ -972,9 +1090,7 @@ class AmodNetworkHired(AmodNetwork):
                     # Target attribute if decision was taken
                     stay_post_state = self.preview_decision(busy_reb_t, stay)
 
-                    estimate_stay = self.adp.get_weighted_value(
-                        stay_post_state
-                    )
+                    estimate_stay = self.adp.get_weighted_value(stay_post_state)
 
                     avg_busy_stay += estimate_stay
 

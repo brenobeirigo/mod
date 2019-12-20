@@ -237,6 +237,7 @@ class Config:
     DEMAND_CLASSED = "DEMAND_CLASSED"
     ALLOW_USER_BACKLOGGING = "ALLOW_USER_BACKLOGGING"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
+    TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -441,6 +442,10 @@ class Config:
     def trip_cost_fare(self):
         """Trip cost per mile in dollars"""
         return self.config["TRIP_COST_DISTANCE"]
+
+    @property
+    def trip_rejection_penalty(self):
+        return self.config[Config.TRIP_REJECTION_PENALTY]
 
     @property
     def pickup_zone_range(self):
@@ -1141,6 +1146,10 @@ class ConfigNetwork(ConfigStandard):
 
         # USERS ###################################################### #
         self.config[Config.TRIP_BASE_FARE] = {
+            Config.SQ_CLASS_1: 4.8,
+            Config.SQ_CLASS_2: 2.4,
+        }
+        self.config[Config.TRIP_REJECTION_PENALTY] = {
             Config.SQ_CLASS_1: 4.8,
             Config.SQ_CLASS_2: 2.4,
         }

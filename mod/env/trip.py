@@ -45,15 +45,6 @@ class Trip:
 
 
 class ClassedTrip(Trip):
-    SQ_CLASS_1 = "A"
-    SQ_CLASS_2 = "B"
-
-    sq_classes = dict(A=1.0, B=0.9)
-    sq_level_class = dict(A=[0, 0], B=[0, 0])
-    # min_max_time_class = dict(A=dict(min=3, max=3), B=dict(min=3, max=6))
-    min_max_time_class = dict(A=dict(min=4, max=4), B=dict(min=4, max=9))
-    class_proportion = dict(A=0.0, B=1)
-
     def __str__(self):
         return (
             f"[{self.time:04}({self.placement})]"
@@ -61,15 +52,17 @@ class ClassedTrip(Trip):
             f" - remaining: {self.max_delay_from_placement:>6.2f} min"
         )
 
-
-    @classmethod
-    def get_levels(cls):
-        class_levels = set()
-        for levels in cls.sq_level_class.values():
-            class_levels.update(levels)
-        return class_levels
-
-    def __init__(self, o, d, time, sq_class, elapsed_sec=0, placement=None):
+    def __init__(
+        self,
+        o,
+        d,
+        time,
+        sq_class,
+        elapsed_sec=0,
+        placement=None,
+        max_delay=10,
+        tolerance=5,
+    ):
         super().__init__(o, d, time)
         self.sq_class = sq_class
 
@@ -81,30 +74,17 @@ class ClassedTrip(Trip):
         self.placement = placement
 
         # Min/Max class delays
-        self.min_delay = ClassedTrip.min_max_time_class[sq_class]["min"]
-        self.max_delay = ClassedTrip.min_max_time_class[sq_class]["max"]
+        self.max_delay = max_delay
+        self.tolerance = tolerance
 
         # Min/Max delays discounting announcement
-        self.min_delay_from_placement = self.min_delay - (60 - self.elapsed_sec) / 60
-        self.max_delay_from_placement = self.max_delay - (60 - self.elapsed_sec) / 60
-
-        # Level demanded in best case scenario
-        self.sq1_level = ClassedTrip.sq_level_class[sq_class][0]
-
-        # Level demanded in worst case scenario
-        self.sq2_level = ClassedTrip.sq_level_class[sq_class][1]
-
-        # Region center id of best case pickup scenario
-        self.id_sq1_level = self.o.id_level(self.sq1_level)
-
-        # Region center id of worst case pickup scenario
-        self.id_sq2_level = self.o.id_level(self.sq2_level)
+        self.max_delay_from_placement = (
+            self.max_delay - (60 - self.elapsed_sec) / 60
+        )
 
     def update_delay(self, period_min):
         self.max_delay_from_placement -= period_min
-        self.min_delay_from_placement -= period_min
         return self.max_delay_from_placement
-
 
     @property
     def attribute(self, level=0):
@@ -122,6 +102,22 @@ class ClassedTrip(Trip):
             f"d={self.d.level_ids},"
             f"sq={self.sq_class},"
             f"time={self.time:03}}}"
+        )
+
+    def info(self):
+
+        return (
+            f"Trip{{"
+            f"id={self.id:03},"
+            f"o={self.o.level_ids},"
+            f"d={self.d.level_ids},"
+            f"sq={self.sq_class},"
+            f"time={self.time:03},"
+            f"pk_delay={self.pk_delay},"
+            f"max_delay={self.max_delay:6.2f},"
+            f"from_placement={self.max_delay_from_placement:6.2f},"
+            f"tolerance={self.tolerance:6.2f},"
+            f"elapsed={self.elapsed_sec:6.2f}}}"
         )
 
 
@@ -172,6 +168,9 @@ def get_ny_demand(config, tripdata_path, points):
         step_trip_list = get_trips(
             points,
             step_trip_od_list,
+            config.trip_class_proportion,
+            config.trip_max_pickup_delay,
+            config.trip_tolerance_delay,
             offset_start=config.offset_repositioning_steps,
             offset_end=config.offset_termination_steps,
             classed=config.demand_is_classed,
@@ -206,7 +205,7 @@ def get_trip_count_step(
 
     if max_steps:
         trip_count_step = trip_count_step[
-            earliest_step : earliest_step + max_steps
+            earliest_step: earliest_step + max_steps
         ]
 
     return trip_count_step
@@ -237,7 +236,7 @@ def get_step_trip_list(
     -------
     list if trip info list
         List of trip tuples (time, count, o, d) occuring in each time
-        step. 
+        step.
     """
 
     # Processed trip data (list of trips) is saved in a .npy file
@@ -256,8 +255,8 @@ def get_step_trip_list(
         step_trip_list = np.load(path_npy)
         print(f"Trip list loaded (took {time.time() - t1:10.6f} seconds)")
 
-    except:
-        print(f"Loading .npy failed. Processing trip data...")
+    except Exception as e:
+        print(f"Loading .npy failed. Exception:'{e}'. Processing trip data...")
         t1 = time.time()
         df = pd.read_csv(path, index_col="pickup_datetime", parse_dates=True)
 
@@ -344,6 +343,7 @@ def get_random_trips(
     time_step,
     min_trips,
     max_trips,
+    class_proportion,
     origins=None,
     destinations=None,
     classed=False,
@@ -381,11 +381,10 @@ def get_random_trips(
                         o,
                         d,
                         time_step,
-                        (
-                            ClassedTrip.SQ_CLASS_1
-                            if random.random()
-                            < ClassedTrip.class_proportion["A"]
-                            else ClassedTrip.SQ_CLASS_2
+                        random.choices(
+                            population=list(class_proportion.keys()),
+                            weights=list(class_proportion.values()),
+                            k=1,
                         ),
                     )
                 )
@@ -397,7 +396,13 @@ def get_random_trips(
 
 
 def get_trip_list_step(
-    points, n_steps, min_trips, max_trips, offset_start=0, offset_end=0
+    points,
+    n_steps,
+    min_trips,
+    max_trips,
+    class_proportion,
+    offset_start=0,
+    offset_end=0,
 ):
 
     # Populate first steps with empty lists
@@ -406,7 +411,9 @@ def get_trip_list_step(
     if min_trips and max_trips:
         step_trip_list.extend(
             [
-                get_random_trips(points, t, min_trips, max_trips)
+                get_random_trips(
+                    points, t, min_trips, max_trips, class_proportion
+                )
                 for t in n_steps
             ]
         )
@@ -420,6 +427,7 @@ def get_trip_list_step(
 def get_trips_random_ods(
     points,
     step_trip_count,
+    class_proportion,
     offset_start=0,
     offset_end=0,
     origins=None,
@@ -437,6 +445,7 @@ def get_trips_random_ods(
                 t,
                 n_trips,
                 n_trips,
+                class_proportion,
                 origins=origins,
                 destinations=destinations,
                 classed=classed,
@@ -454,6 +463,9 @@ def get_trips_random_ods(
 def get_trips(
     points,
     step_trips,
+    class_proportion,
+    max_delay,
+    tolerance,
     offset_start=0,
     offset_end=0,
     classed=False,
@@ -464,24 +476,30 @@ def get_trips(
     step_trip_list = [[]] * offset_start
 
     for step, trips in enumerate(step_trips):
-        step_trip_list.append(
-            [
-                ClassedTrip(
-                    points[o],
-                    points[d],
-                    offset_start + step,
-                    (
-                        ClassedTrip.SQ_CLASS_1
-                        if random.random() <= ClassedTrip.class_proportion["A"]
-                        else ClassedTrip.SQ_CLASS_2
-                    ),
-                    elapsed_sec=elapsed_sec,
-                    placement=time,
+        trip_list = list()
+        for time, elapsed_sec, count, o, d in trips:
+            # Only add a new trip "resize_factor" percent of the time
+            if random.random() < resize_factor:
+                # Choose a class according to a probability
+                random_class = random.choices(
+                    population=list(class_proportion.keys()),
+                    weights=list(class_proportion.values()),
+                    k=1,
+                )[0]
+
+                trip_list.append(
+                    ClassedTrip(
+                        points[o],
+                        points[d],
+                        offset_start + step,
+                        random_class,
+                        elapsed_sec=elapsed_sec,
+                        placement=time,
+                        max_delay=max_delay[random_class],
+                        tolerance=tolerance[random_class],
+                    )
                 )
-                for time, elapsed_sec, count, o, d in trips
-                if random.random() < resize_factor
-            ]
-        )
+        step_trip_list.append(trip_list)
 
     # Populate last steps with empty lists
     step_trip_list.extend([[]] * offset_end)

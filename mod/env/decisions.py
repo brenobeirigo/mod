@@ -321,29 +321,34 @@ def get_decisions(env, trips, min_battery_level=None):
             # Time to reach trip origin
             travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
+            # TODO here we have an approximation. Precise matching uses
+            # env.config.time_increment
+
             # Can the car reach the trip origin?
-            if travel_time <= min(
-                env.config.matching_delay, trip.max_delay_from_placement
+            if (
+                travel_time
+                <= trip.max_delay - env.config.time_increment + trip.tolerance
             ):
 
                 # Setup decisions
                 d = trip_decision(car, trip)
                 decisions.add(d)
 
-                # Car can fulfill the shortest delay
-                if travel_time <= min(
-                    env.config.matching_delay, trip.min_delay_from_placement
-                ):
+                # TODO think about entire class sq penalties
+                # # Car can fulfill the shortest delay
+                # if travel_time <= min(
+                #     env.config.matching_delay, trip.min_delay_from_placement
+                # ):
 
-                    # ---------------------------------------- #
-                    # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #
-                    # ---------------------------------------- #
+                #     # ---------------------------------------- #
+                #     # DECISIONS ASSOCIATED TO EACH SQ CLASS ## #
+                #     # ---------------------------------------- #
 
-                    # There might be repeated decisions
-                    # associated to the same class since
-                    # several trips can depart from the same
-                    # place.
+                #     # There might be repeated decisions
+                #     # associated to the same class since
+                #     # several trips can depart from the same
+                #     # place.
 
-                    decision_class[trip.sq_class].append(d)
+                #     decision_class[trip.sq_class].append(d)
 
     return decisions, decisions_return, decision_class

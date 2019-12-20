@@ -4,6 +4,8 @@ import mod.env.adp.adp as adp
 import mod.util.log_util as la
 from pprint import pprint
 import functools
+# TODO Test trie
+# import pygtrie
 
 np.set_printoptions(precision=4)
 
@@ -55,6 +57,7 @@ class AdpHired(adp.Adp):
         # level and time steps
 
         self.values = [
+            # pygtrie.Trie()
             defaultdict(lambda: [0, 0, 0, 0, 1, 1])
             for g in range(len(self.aggregation_levels))
         ]
@@ -80,17 +83,10 @@ class AdpHired(adp.Adp):
         v = np.zeros(len(self.aggregation_levels))
         # v[VF] = 10
         return v
-    # # @functools.lru_cache(maxsize=None)
+
     def get_weighted_value(self, disaggregate):
 
-        value_estimation, weight_vector = self.weighted_values.get(
-            disaggregate, (0, self.get_initial_weight_vector())
-        )
-        if value_estimation > 0:
-            self.update_weight_track(
-                weight_vector, key=disaggregate[adp.CARTYPE]
-            )
-            return value_estimation
+        value_estimation, weight_vector = 0, self.get_initial_weight_vector()
 
         # Calculate value estimation based on hierarchical aggregation
         # weight_vector = np.zeros(len(self.aggregation_levels))
@@ -126,18 +122,11 @@ class AdpHired(adp.Adp):
                 np.prod([weight_vector, value_vector], axis=0)
             )
 
+            # TODO How heavy is this?
             self.update_weight_track(
                 weight_vector, key=disaggregate[adp.CARTYPE]
             )
 
-            # la.log_weights(
-            #     self.config.log_path(self.n),
-            #     (t, pos, battery, contract_duration, car_type, car_origin),
-            #     weight_vector,
-            #     value_vector,
-            #     value_estimation,
-            # )
-        self.weighted_values[disaggregate] = (value_estimation, weight_vector)
         return value_estimation
 
     def update_values_smoothed(self, step, duals):
@@ -147,15 +136,21 @@ class AdpHired(adp.Adp):
         # of these duals
         # level_update_list = defaultdict(list)
         level_update = defaultdict(lambda: np.zeros(2))
-
+        # lo = la.get_logger(self.config.log_path(self.n))
+        # lo.debug("############# Update values smoothed")
         for a, v_ta_sampled in duals.items():
 
             disaggregate = (step,) + a
+            # lo.debug(f"## {disaggregate} - Sample: {v_ta_sampled}")
 
             # Append duals to all superior hierachical states
             for g in range(len(self.aggregation_levels)):
 
                 a_g = self.get_state(g, disaggregate)
+
+                # # trie must be started
+                # if a_g not in self.values[g]:
+                #     self.values[g][a_g] = np.array([0, 0, 0, 0, 1, 1])
 
                 # Value is later used to update a_g
                 # level_update_list[(g, a_g)].append(v_ta_sampled)
@@ -182,6 +177,8 @@ class AdpHired(adp.Adp):
                     self.stepsize,
                     self.values[g][a_g][VARIANCE_G],
                 )
+
+                # lo.debug(f"  - {g_a} - Sample: {level_update[g_a]}")
 
         # Loop states (including disaggregate), average all values that
         # aggregate up to ta_g, and smooth average to previous value
@@ -211,9 +208,7 @@ class AdpHired(adp.Adp):
             )
 
         # Log how duals are updated
-        la.log_update_values(
-            self.config.log_path(self.n), step, self.values
-        )
+        la.log_update_values(self.config.log_path(self.n), step, self.values)
 
     def get_weight(self, g, a, vf_0):
 
@@ -334,6 +329,7 @@ class AdpHired(adp.Adp):
 
         self.n = progress.get("episodes", list())
         self.reward = progress.get("reward", list())
+        self.pk_delay = progress.get("pk_delay", list())
         self.service_rate = progress.get("service_rate", list())
         self.weights = progress.get("weights", list())
         self.values = [
@@ -353,6 +349,7 @@ class AdpHired(adp.Adp):
             f"(max={max(self.reward):15,.2f})"
             f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
             f"(max={max(self.service_rate):15.2%})"
+            f"\n - Last pickup delay: {self.pk_delay[self.n-1]} "
             f"\n -   Count per level:           {count_level}"
         )
 

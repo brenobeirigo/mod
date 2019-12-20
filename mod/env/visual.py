@@ -68,13 +68,19 @@ class EpisodeLog:
         # If config is not None, then the experiments should be saved
         if self.config:
             self.output_path = conf.FOLDER_OUTPUT + self.config.label
+            self.output_folder_delay = self.output_path + "/time/"
             self.output_folder_fleet = self.output_path + "/fleet/"
             self.output_folder_service = self.output_path + "/service/"
             self.output_folder_adp_logs = self.output_path + "/adp_logs/"
+            self.folder_delay_data = self.output_folder_delay + "data/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
             self.folder_demand_status_data = self.output_folder_service + "data/"
 
             # Creating folders to log episodes
+            if not os.path.exists(self.output_folder_delay):
+                os.makedirs(self.output_folder_delay)
+                os.makedirs(self.folder_delay_data)
+
             if not os.path.exists(self.output_folder_fleet):
                 os.makedirs(self.output_folder_fleet)
                 os.makedirs(self.folder_fleet_status_data)
@@ -148,9 +154,22 @@ class EpisodeLog:
             a = dict()
             for k, v in self.adp.weights.items():
                 a[k] = v[-1]
+            
+            stats_str = []
+            for sq, stats in self.adp.pk_delay[-1].items():
+                label_values = ", ".join(
+                    [
+                        f"{label}={v:2.2f}" if isinstance(v, float) else f"{label}={v:>5}"
+                        for label, v in stats.items()
+                    ]
+                )
+                stats_str.append(f"{sq}[{label_values}]")
+            sq_delay_stats = ", ".join(stats_str)
+            delay_info = f"delays=({sq_delay_stats})"
             return (
                 f"({self.adp.reward[-1]:15,.2f},"
-                f" {self.adp.service_rate[-1]:6.2%}) "
+                f" {self.adp.service_rate[-1]:6.2%},"
+                f" {delay_info}), "
                 f"Agg. level weights = {a}"
             )
         except:
@@ -180,9 +199,48 @@ class EpisodeLog:
             dpi=150,
         )
 
+    def plot_trip_delays(
+        self,
+        rejected,
+        serviced,
+        file_path=None,
+        file_format="png",
+        dpi=150,
+    ):
+
+        sns.set_context("paper", font_scale=1.4)
+
+        total_trips = 0
+        for sq, delays in serviced.items():
+            n_serviced = len(delays)
+            n_rejected = rejected[sq]
+            total = n_rejected + n_serviced
+            total_trips += total
+
+            plt.hist(delays, label=f"{sq}(S={n_serviced:>5}, R={n_rejected:>5}) {n_serviced/total:6.2%}")
+
+        plt.title(f"{total_trips}")
+        plt.xlabel("Delay (min)")
+        
+        # Configure y axis
+        plt.ylabel("#Trips")
+        plt.legend(
+            loc="center left",
+            frameon=False,
+            bbox_to_anchor=(1, 0, 0.5, 1), #(0.5, -0.15),
+            ncol=1,
+        )
+
+        if file_path:
+            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+        else:
+            plt.show()
+        plt.close()
+
     def compute_episode(
         self,
         step_log,
+        it_step_trip_list,
         processing_time,
         plots=True,
         save_df=True,
@@ -190,6 +248,31 @@ class EpisodeLog:
         save_after_iteration=1,
         save_overall_stats=True
     ):
+
+        ### Process trip data ######################################## #
+        trip_delays = defaultdict(list)
+        trip_rejections = defaultdict(int)
+        total_trips = defaultdict(int)
+        for t in it.chain(*it_step_trip_list):
+            total_trips[t.sq_class] += 1
+            # If None -> Trip was rejected
+            if t.pk_delay is not None:
+                trip_delays[t.sq_class].append(t.pk_delay)
+            else:
+                trip_rejections[t.sq_class] += 1
+
+        delays_stats = dict()
+
+        for sq, delays in trip_delays.items():
+            delays_stats[sq] = dict(
+                mean=np.mean(delays),
+                median=np.median(delays),
+                serviced=len(delays),
+                rejected=trip_rejections[sq],
+                sl=len(delays)/total_trips[sq],
+            )
+
+        self.adp.pk_delay.append(delays_stats)
 
         # Increment number of episodes
         self.adp.n += 1
@@ -214,6 +297,16 @@ class EpisodeLog:
             #     file_format="png",
             #     dpi=150,
             # )
+
+            
+            if total_trips:
+                self.plot_trip_delays(
+                    trip_rejections,
+                    trip_delays,
+                    file_path=self.output_folder_delay + f"{self.adp.n:04}",
+                    file_format="png",
+                    dpi=150
+                )
 
             if step_log.env.config.fleet_size > 0:
                 step_log.plot_fleet_status(
@@ -259,6 +352,12 @@ class EpisodeLog:
 
         if save_overall_stats:
             df_stats = step_log.get_step_stats()
+
+            # Add user stats
+            for sq, stats in self.adp.pk_delay[-1].items():
+                for label, v in stats.items():
+                    df_stats[f"{sq}_{label}"] = v
+
             df_stats["time"] = pd.Series([processing_time])
             stats_file = self.output_path + "/overall_stats.csv"
             df_stats.to_csv(
@@ -308,6 +407,7 @@ class EpisodeLog:
                     "episodes": self.adp.n,
                     "reward": self.adp.reward,
                     "service_rate": self.adp.service_rate,
+                    "pk_delay": self.adp.pk_delay,
                     "progress": self.adp.current_data,
                     "weights": self.adp.weights,
                 },
@@ -403,6 +503,7 @@ class StepLog:
         self.serviced_list = list()
         self.rejected_list = list()
         self.total_list = list()
+        self.all_trips = set()
         self.car_statuses = defaultdict(list)
         self.pav_statuses = defaultdict(list)
         self.fav_statuses = defaultdict(list)
@@ -439,6 +540,18 @@ class StepLog:
     @property
     def total_reward(self):
         return sum(self.reward_list)
+
+    @property
+    def serviced(self):
+        return sum(self.serviced_list)
+    
+    @property
+    def rejected(self):
+        return sum(self.rejected_list)
+    
+    @property
+    def total(self):
+        return sum(self.total_list)
 
     @property
     def service_rate(self):

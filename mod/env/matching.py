@@ -437,7 +437,7 @@ def get_artificial_duals(env, time_step, attribute_trips_dict):
         Current time step (used to calculate post decision costs)
     attribute_trips_dict : dict(list)
         List of trips per od pair
-    
+
     Returns
     -------
     dict(float)
@@ -627,10 +627,14 @@ def service_trips(
     # List of trips per OD
     attribute_trips_dict = defaultdict(list)
 
+    # List of trips per OD
+    attribute_trips_sq_dict = defaultdict(list)
+
+    # TODO Car productivity
     # How many trips in each region
-    count_trips_region = defaultdict(
-        lambda: defaultdict(lambda: {"o": 0, "d": 0})
-    )
+    # count_trips_region = defaultdict(
+    #     lambda: defaultdict(lambda: {"o": 0, "d": 0})
+    # )
 
     # Create a dictionary associate
     for trip in trips:
@@ -640,6 +644,9 @@ def service_trips(
 
         # Group trips with the same ods
         attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
+
+        # Group trips with the same ods
+        attribute_trips_sq_dict[trip.attribute].append(trip)
 
         # TODO Rebalance based on car productivity (trips/cars/area)
         # Trip count per region center
@@ -730,7 +737,26 @@ def service_trips(
             env.total_cost(time_step, d) * x_var[d] for d in x_var
         )
 
-    m.setObjective(contribution, GRB.MAXIMIZE)
+    penalty = 0
+    # pprint(attribute_trips_sq_dict)
+    if env.config.trip_rejection_penalty is not None:
+        penalty = quicksum(
+            (
+                env.config.trip_rejection_penalty[sq]
+                * (
+                    len(tp_list)
+                    - x_var.sum(
+                        du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, sq
+                    )
+                )
+            )
+            for (o, d, sq), tp_list in attribute_trips_sq_dict.items()
+        )
+
+    # for (o, d, sq), tp_list in attribute_trips_sq_dict.items():
+    #     print((o, d, sq), len(tp_list), env.config.trip_rejection_penalty[sq], x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, sq))
+
+    m.setObjective(contribution - penalty, GRB.MAXIMIZE)
 
     t_setup_costs = time.time() - t1_setup_costs
 
@@ -893,11 +919,20 @@ def service_trips(
             time_dict["update_artificial"] = [
                 time.time() - t1_update_vf_artificial
             ]
+        
+        # The penalties must be discounted from the contribution
+        applied_penalties = sum(
+            [
+                env.config.trip_rejection_penalty[t_r.sq_class]
+                for t_r in rejected
+            ]
+        )
+        final_obj = reward-applied_penalties
 
         logger.debug(
-            "### Objective Function (costs and post costs) - "
-            f"{m.objVal:6.2f} X {reward:6.2f}"
-            " - Decision's total reward (costs)"
+            f"### Objective Function (costs and post costs) - {m.objVal:6.2f} "
+            f"X {final_obj:6.2f} ({reward:.2f} -  {applied_penalties:.2f})"
+            " - Decision's total reward (costs - penalties)"
         )
 
         t_total = time.time() - t1_total
@@ -930,7 +965,7 @@ def service_trips(
         # Enable fleet
         env.toggle_fleet(car_type_hide)
 
-        return reward, serviced, rejected
+        return final_obj, serviced, rejected
 
     elif (
         m.status != GRB.Status.INF_OR_UNBD

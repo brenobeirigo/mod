@@ -169,7 +169,6 @@ class Config:
     OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
     TIME_PERIODS = "TIME_PERIODS"
 
-
     USE_SHORT_PATH = "USE_SHORT_PATH"
 
     # FLEET ECONOMICS
@@ -308,9 +307,7 @@ class Config:
     @property
     def min_battery_level(self):
         """Trip base fare in dollars"""
-        return (
-            self.config["RECHARGE_THRESHOLD"] * self.config["BATTERY_LEVELS"]
-        )
+        return self.config["RECHARGE_THRESHOLD"] * self.config["BATTERY_LEVELS"]
 
     @property
     def recharge_cost_distance(self):
@@ -376,9 +373,7 @@ class Config:
 
         minutes_recharging = hours_recharging * 60
 
-        time_steps_recharging = (
-            minutes_recharging / self.config["TIME_INCREMENT"]
-        )
+        time_steps_recharging = minutes_recharging / self.config["TIME_INCREMENT"]
 
         # print(
         #     f'RECHARGING(miles:{distance:>3.2f}'
@@ -588,8 +583,7 @@ class Config:
         """Number of time steps with no trips before 
         demand (for reposition)"""
         return int(
-            self.config["OFFSET_REPOSITIONING_MIN"]
-            / self.config["TIME_INCREMENT"]
+            self.config["OFFSET_REPOSITIONING_MIN"] / self.config["TIME_INCREMENT"]
         )
 
     @property
@@ -601,8 +595,7 @@ class Config:
         """Number of time steps with no trips after demand (so
         that all passengers can be delivered)"""
         return int(
-            self.config["OFFSET_TERMINATION_MIN"]
-            / self.config["TIME_INCREMENT"]
+            self.config["OFFSET_TERMINATION_MIN"] / self.config["TIME_INCREMENT"]
         )
 
     def resize_zones(self, factor):
@@ -610,9 +603,7 @@ class Config:
         self.config["ZONE_WIDTH"] = int(self.config["ZONE_WIDTH"] * factor)
         self.config["ROWS"] = int(self.config["ROWS"] * factor)
         self.config["COLS"] = int(self.config["COLS"] * factor)
-        self.config["VALID_ZONES"] = int(
-            self.config["VALID_ZONES"] * (factor * factor)
-        )
+        self.config["VALID_ZONES"] = int(self.config["VALID_ZONES"] * (factor * factor))
 
     def __str__(self):
         return self.config.__str__()
@@ -639,11 +630,18 @@ class Config:
 
     @property
     def sl_config_label(self):
+
         """Path of saved fares per sq_class, o, d"""
         sl_config_label = "_".join(
             [
-                f"{sq}_{base:.2f}_{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.2f}_{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.2f}"
-                for sq, base, in self.config[Config.TRIP_BASE_FARE].items()
+                (
+                    f"{sq}_{base:.2f}_"
+                    f"{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.2f}_"
+                    f"{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.2f}_"
+                    f"{self.config[Config.TRIP_REJECTION_PENALTY][sq]:.2f}_"
+                    f"{self.config[Config.TRIP_CLASS_PROPORTION][sq]:.2f}"
+                )
+                for sq, base in self.config[Config.TRIP_BASE_FARE].items()
             ]
         )
 
@@ -651,9 +649,15 @@ class Config:
 
     def get_path_od_penalties(self, extension="npy"):
         """Path of saved fares per sq_class, o, d"""
+        sl_config_label = "_".join(
+            [
+                f"{sq}_{base:.2f}_{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.2f}_{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.2f}"
+                for sq, base, in self.config[Config.TRIP_BASE_FARE].items()
+            ]
+        )
         return (
             FOLDER_OD_DATA
-            + f"od_penalties_{self.sl_config_label}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
+            + f"od_penalties_{sl_config_label}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
         )
 
     def get_path_od_costs(self, extension="npy"):
@@ -685,6 +689,32 @@ class Config:
             dict_update[Config.AGGREGATION_LEVELS] = tuple(
                 dict_update[Config.AGGREGATION_LEVELS]
             )
+
+        if Config.TRIP_MAX_PICKUP_DELAY in dict_update:
+            dict_update[Config.TRIP_MAX_PICKUP_DELAY] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_MAX_PICKUP_DELAY]
+            }
+        if Config.TRIP_DISTANCE_RATE_KM in dict_update:
+            dict_update[Config.TRIP_DISTANCE_RATE_KM] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_DISTANCE_RATE_KM]
+            }
+        if Config.TRIP_TOLERANCE_DELAY_MIN in dict_update:
+            dict_update[Config.TRIP_TOLERANCE_DELAY_MIN] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_TOLERANCE_DELAY_MIN]
+            }
+        if Config.TRIP_CLASS_PROPORTION in dict_update:
+            dict_update[Config.TRIP_CLASS_PROPORTION] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_CLASS_PROPORTION]
+            }
+        if Config.TRIP_REJECTION_PENALTY in dict_update:
+            dict_update[Config.TRIP_REJECTION_PENALTY] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_REJECTION_PENALTY]
+            }
+        if Config.TRIP_BASE_FARE in dict_update:
+            dict_update[Config.TRIP_BASE_FARE] = {
+                kv[0]: kv[1] for kv in dict_update[Config.TRIP_BASE_FARE]
+            }
+
 
         self.config.update(dict_update)
 
@@ -731,8 +761,7 @@ class Config:
         )
 
         self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
-            self.config["BATTERY_SIZE_DISTANCE"]
-            / self.config["BATTERY_LEVELS"]
+            self.config["BATTERY_SIZE_DISTANCE"] / self.config["BATTERY_LEVELS"]
         )
 
         self.config[
@@ -868,10 +897,7 @@ class Config:
     def get_time(self, steps, format="%H:%M"):
         """Return time corresponding to the steps elapsed since the
         the first time step"""
-        t = (
-            self.demand_earliest_datetime
-            + steps * self.time_increment_timedelta
-        )
+        t = self.demand_earliest_datetime + steps * self.time_increment_timedelta
         return t.strftime(format)
 
 
@@ -911,8 +937,7 @@ class ConfigStandard(Config):
         )
 
         self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
-            self.config["BATTERY_SIZE_DISTANCE"]
-            / self.config["BATTERY_LEVELS"]
+            self.config["BATTERY_SIZE_DISTANCE"] / self.config["BATTERY_LEVELS"]
         )
 
         # How many miles each level has?
@@ -956,10 +981,7 @@ class ConfigStandard(Config):
 
         # Total number of time periods
         self.config["TIME_PERIODS_TERMINATION"] = int(
-            (
-                self.config["OFFSET_REPOSITIONING_MIN"]
-                + self.config["TOTAL_TIME"] * 60
-            )
+            (self.config["OFFSET_REPOSITIONING_MIN"] + self.config["TOTAL_TIME"] * 60)
             / self.config["TIME_INCREMENT"]
         )
 
@@ -1112,9 +1134,7 @@ class ConfigNetwork(ConfigStandard):
 
         # List of time aggregation (min) starting with the disaggregate
         # level, that is, the time increment
-        self.config[Config.LEVEL_TIME_LIST] = [
-            self.config[Config.TIME_INCREMENT]
-        ]
+        self.config[Config.LEVEL_TIME_LIST] = [self.config[Config.TIME_INCREMENT]]
 
         # Battery ######################################################
 
@@ -1126,8 +1146,7 @@ class ConfigNetwork(ConfigStandard):
         )
 
         self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
-            self.config["BATTERY_SIZE_DISTANCE"]
-            / self.config["BATTERY_LEVELS"]
+            self.config["BATTERY_SIZE_DISTANCE"] / self.config["BATTERY_LEVELS"]
         )
 
         # Time #########################################################
@@ -1233,7 +1252,6 @@ class ConfigNetwork(ConfigStandard):
 
         self.config[Config.MYOPIC] = False
         self.config[Config.POLICY_RANDOM] = False
-
 
         # Names
         self.config[Config.USE_SHORT_PATH] = False
@@ -1366,10 +1384,7 @@ class ConfigNetwork(ConfigStandard):
 
     @property
     def match_max_neighbors(self):
-        return (
-            self.config[Config.MATCH_MAX_NEIGHBORS]
-            == Config.MATCH_MAX_NEIGHBORS
-        )
+        return self.config[Config.MATCH_MAX_NEIGHBORS] == Config.MATCH_MAX_NEIGHBORS
 
     @property
     def level_rc(self):
@@ -1442,9 +1457,7 @@ class ConfigNetwork(ConfigStandard):
         return ear_a, ear_b, ear_bins
 
     def earliest_features(self):
-        AggLevel = namedtuple(
-            "EarliestDistribution", "mean, std, clip_a, clip_b"
-        )
+        AggLevel = namedtuple("EarliestDistribution", "mean, std, clip_a, clip_b")
 
     def get_earliest_time(self, n_favs):
         # mean, std, clip_a, clip_b
@@ -1453,9 +1466,7 @@ class ConfigNetwork(ConfigStandard):
         ear_a, ear_b, ear_bins = self.get_earliest_pattern()
 
         # Earlist times of FAVs arriving in node n
-        earliest_time = (
-            truncnorm.rvs(ear_a, ear_b, size=n_favs) + earliest_features[0]
-        )
+        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + earliest_features[0]
 
         return earliest_time
 
@@ -1606,9 +1617,7 @@ class ConfigNetwork(ConfigStandard):
         reb_neigh = ", ".join(
             [
                 f"{level}-{n_neighbors}"
-                for level, n_neighbors in self.config[
-                    Config.N_CLOSEST_NEIGHBORS
-                ]
+                for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
         return reb_neigh
@@ -1626,9 +1635,7 @@ class ConfigNetwork(ConfigStandard):
         reb_neigh = ", ".join(
             [
                 f"{level}-{n_neighbors}"
-                for level, n_neighbors in self.config[
-                    Config.N_CLOSEST_NEIGHBORS
-                ]
+                for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
 
@@ -1684,21 +1691,13 @@ class ConfigNetwork(ConfigStandard):
             elif self.fav_depot_level:
                 stations = f"[S{self.fav_depot_level}]"
 
-            max_contract = (
-                "[M]" if self.config[Config.MAX_CONTRACT_DURATION] else ""
-            )
+            max_contract = "[M]" if self.config[Config.MAX_CONTRACT_DURATION] else ""
 
-        max_link = (
-            f"[L({self.max_cars_link:02})]" if self.max_cars_link else ""
-        )
+        max_link = f"[L({self.max_cars_link:02})]" if self.max_cars_link else ""
 
         penalize = f"[P]" if self.penalize_rebalance else ""
 
-        lin = (
-            "LIN_INT_"
-            if self.config[Config.LINEARIZE_INTEGER_MODEL]
-            else "LIN_"
-        )
+        lin = "LIN_INT_" if self.config[Config.LINEARIZE_INTEGER_MODEL] else "LIN_"
 
         artificial = "[A]_" if self.config[Config.USE_ARTIFICIAL_DUALS] else ""
 
@@ -1708,11 +1707,7 @@ class ConfigNetwork(ConfigStandard):
             else ""
         )
 
-        thomp = (
-            f"[thompson={self.max_targets:02}]"
-            if self.activate_thompson
-            else ""
-        )
+        thomp = f"[thompson={self.max_targets:02}]" if self.activate_thompson else ""
 
         myopic = f"[MY]_" if self.myopic else ""
 

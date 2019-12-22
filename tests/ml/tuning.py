@@ -86,9 +86,7 @@ config_adp = {
 }
 
 
-def test_all(
-    tuning_labels, tuning_params, update_dict, all_settings, exp_list
-):
+def test_all(tuning_labels, tuning_params, update_dict, all_settings, exp_list):
 
     try:
 
@@ -106,13 +104,7 @@ def test_all(
             else:
                 update_dict = {**update_dict, **{param: e}}
 
-            test_all(
-                tuning_labels,
-                tuning_params,
-                update_dict,
-                all_settings,
-                exp_list,
-            )
+            test_all(tuning_labels, tuning_params, deepcopy(update_dict), all_settings, exp_list)
 
     except:
 
@@ -170,204 +162,129 @@ if __name__ == "__main__":
     )
 
     tuning_params = {
-        Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        Config.DISCOUNT_FACTOR: [1],
-        Config.STEPSIZE_CONSTANT: [0.1],
-        Config.HARMONIC_STEPSIZE: [1],
-        # Config.FLEET_SIZE: [300],
-        Config.FLEET_START: [
-            # conf.FLEET_START_LAST,
-            # conf.FLEET_START_SAME,
-            conf.FLEET_START_RANDOM
-        ], 
-        ConfigNetwork.IDLE_ANNEALING: [0],
-        # -------------------------------------------------------- #
-        # DEMAND ################################################# #
-        # -------------------------------------------------------- #
-        "DEMAND_TW": [
-            {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
-            # {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
+        # Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
+        # Config.DISCOUNT_FACTOR: [1],
+        # Config.STEPSIZE_CONSTANT: [0.1],
+        # Config.HARMONIC_STEPSIZE: [1],
+        # # Config.FLEET_SIZE: [300],
+        # Config.FLEET_START: [
+        #     # conf.FLEET_START_LAST,
+        #     # conf.FLEET_START_SAME,
+        #     conf.FLEET_START_RANDOM
+        # ],
+        # ConfigNetwork.IDLE_ANNEALING: [0],
+        # # -------------------------------------------------------- #
+        # # DEMAND ################################################# #
+        # # -------------------------------------------------------- #
+        # "DEMAND_TW": [
+        #     {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
+        #     # {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
+        # ],
+        # Config.DEMAND_SAMPLING: [
+        #     True,
+        #     # False
+        # ],
+        # # Config.DEMAND_RESIZE_FACTOR: [0.1],
+        # # Cars rebalance to up to #region centers at each level
+        # Config.N_CLOSEST_NEIGHBORS: [
+        #     ((0, 8), (1, 8)),
+        #     # ((0, 4),),
+        #     # ((0, 8),(4, 4)),
+        #     # ((0, 8),(4, 4), (5, 1))
+        # ],
+        # Config.MAX_CARS_LINK: [5],
+        # # Config.MAX_CARS_LINK: [None, 5, 10],
+        # Config.AGGREGATION_LEVELS: [
+        #     # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
+        #     # [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
+        #     [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
+        # ],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [
+            (("A", 0), ("B", 0)),
+            (("A", 4.8), ("B", 2.4)),
         ],
-        Config.DEMAND_SAMPLING: [
-            True,
-            # False
+        "TOLERANCE_MAX_PICKUP": [
+            {
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 15)),
+            },
+            {
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            },
         ],
-        # Config.DEMAND_RESIZE_FACTOR: [0.1],
-        # Cars rebalance to up to #region centers at each level
-        Config.N_CLOSEST_NEIGHBORS: [
-            ((0, 8), (1, 8)),
-            # ((0, 4),),
-            # ((0, 8),(4, 4)),
-            # ((0, 8),(4, 4), (5, 1))
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [
+            (("A", 1), ("B", 0)),
+            (("A", 0), ("B", 1)),
         ],
-        Config.MAX_CARS_LINK: [5],
-        # Config.MAX_CARS_LINK: [None, 5, 10],
-        Config.AGGREGATION_LEVELS: [
-            # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
-            # [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
-            [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
-            # [(1, 0, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
-            # [(1, 0, 0, 0, 0, 0), (1, 1, 0, 0, 0, 0), (1, 2, 0, 0, 0, 0), (1, 3, 0, 0, 0, 0)],
-            # [
-            #     (3, 0, 0, 0, 0, 0),
-            #     (3, 1, 0, 0, 0, 0),
-            #     (3, 2, 0, 0, 0, 0),
-            #     (3, 3, 0, 0, 0, 0),
-            # ]
-            # [(5, 0, 0, 0, 0, 0), (5, 4, 0, 0, 0, 0), (5, 5, 0, 0, 0, 0)],
-            # [(6, 0, 0, 0, 0, 0), (6, 4, 0, 0, 0, 0), (6, 5, 0, 0, 0, 0)],
-            # [(7, 0, 0, 0, 0, 0), (7, 4, 0, 0, 0, 0), (7, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
-            # [(3, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
-            # [(4, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (0, 1, 0, 0, 0, 0),
-            #     (0, 4, 0, 0, 0, 0),
-            #     (0, 6, 0, 0, 0, 0),
-            # ],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (0, 4, 0, 0, 0, 0),
-            #     (0, 5, 0, 0, 0, 0),
-            #     (0, 6, 0, 0, 0, 0),
-            # ],
-            # ############# 0.5 minutes
-            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (0, 1, 0, 0, 0, 0),
-            #     (0, 4, 0, 0, 0, 0),
-            #     (0, 6, 0, 0, 0, 0),
-            # ],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (0, 4, 0, 0, 0, 0),
-            #     (0, 5, 0, 0, 0, 0),
-            #     (0, 6, 0, 0, 0, 0),
-            # ],
-            # # ############# 1 all minutes
-            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
-            # [(1, 0, 0, 0, 0, 0), (1, 4, 0, 0, 0, 0), (1, 5, 0, 0, 0, 0)],
-            # [
-            #     (1, 0, 0, 0, 0, 0),
-            #     (1, 1, 0, 0, 0, 0),
-            #     (1, 4, 0, 0, 0, 0),
-            #     (1, 6, 0, 0, 0, 0),
-            # ],
-            # [
-            #     (1, 0, 0, 0, 0, 0),
-            #     (1, 4, 0, 0, 0, 0),
-            #     (1, 5, 0, 0, 0, 0),
-            #     (1, 6, 0, 0, 0, 0),
-            # ],
-            # # ############# 3 minutes
-            # [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (3, 4, 0, 0, 0, 0), (3, 6, 0, 0, 0, 0)],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (3, 1, 0, 0, 0, 0),
-            #     (3, 4, 0, 0, 0, 0),
-            #     (3, 6, 0, 0, 0, 0),
-            # ],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (3, 4, 0, 0, 0, 0),
-            #     (3, 5, 0, 0, 0, 0),
-            #     (3, 6, 0, 0, 0, 0),
-            # ],
-            # # ############# 5 minutes
-            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 5, 0, 0, 0, 0)],
-            # [(0, 0, 0, 0, 0, 0), (4, 4, 0, 0, 0, 0), (4, 6, 0, 0, 0, 0)],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (4, 1, 0, 0, 0, 0),
-            #     (4, 4, 0, 0, 0, 0),
-            #     (4, 6, 0, 0, 0, 0),
-            # ],
-            # [
-            #     (0, 0, 0, 0, 0, 0),
-            #     (4, 4, 0, 0, 0, 0),
-            #     (4, 5, 0, 0, 0, 0),
-            #     (4, 6, 0, 0, 0, 0),
-            # ],
-        ]
-        # list(power_set),
-        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),(0, 9, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),(0, 9, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 9, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0), (0, 9, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0)],
-        #     [
-        #         (0, 0, 0, 0, 0, 0),
-        #         (0, 1, 0, 0, 0, 0),
-        #         (0, 2, 0, 0, 0, 0),
-        #         (0, 3, 0, 0, 0, 0),
-        #         (0, 4, 0, 0, 0, 0),
-        #         (0, 5, 0, 0, 0, 0),
-        #         (0, 6, 0, 0, 0, 0),
-        #     ],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0), (0, 10, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0), (0, 10, 0, 0, 0, 0), (0, 11, 0, 0, 0, 0)],
-        #     [(0, 0, 0, 0, 0, 0), (0, 1, 0, 0, 0, 0), (0, 2, 0, 0, 0, 0), (0, 3, 0, 0, 0, 0), (0, 4, 0, 0, 0, 0), (0, 5, 0, 0, 0, 0), (0, 6, 0, 0, 0, 0),  (0, 7, 0, 0, 0, 0),  (0, 8, 0, 0, 0, 0),  (0, 9, 0, 0, 0, 0)],
-        # ]
+        # list(power_set)
     }
 
     shared_settings = {
-                ConfigNetwork.TEST_LABEL: test_label,
-                ConfigNetwork.DISCOUNT_FACTOR: 1,
-                ConfigNetwork.PENALIZE_REBALANCE: True,
-                ConfigNetwork.FLEET_SIZE: 300,
-                ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-                ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
-                ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-                ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
-                ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-                ConfigNetwork.TIME_INCREMENT: 1,
-                ConfigNetwork.DEMAND_SAMPLING: True,
-                ConfigNetwork.SQ_GUARANTEE: False,
-                ConfigNetwork.MAX_CARS_LINK: 5,
-                # 10 steps = 5 min
-                ConfigNetwork.TIME_MAX_CARS_LINK: 5,
-                ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
-                ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
-                # Controlling user matching
-                ConfigNetwork.MATCHING_DELAY: 15,
-                ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
-                ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-                # If zero, cars increasingly gain the right of stay
-                # still. This obliges them to rebalance consistently.
-                ConfigNetwork.IDLE_ANNEALING: 0,
-                # When cars start in the last visited point, the model takes
-                # a long time to figure out the best time
-                ConfigNetwork.FLEET_START: conf.FLEET_START_LAST,
-                ConfigNetwork.CAR_SIZE_TABU: 0,
-                ConfigNetwork.REACHABLE_NEIGHBORS: False,
-                ConfigNetwork.ADP_IGNORE_ZEROS: True,
-                ConfigNetwork.DEPOT_SHARE: None,
-                ConfigNetwork.FAV_DEPOT_LEVEL: 2,
-                ConfigNetwork.FAV_FLEET_SIZE: 0,
-                ConfigNetwork.SEPARATE_FLEETS: False,
-                ConfigNetwork.MYOPIC: False,
-                # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
-                # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60,  # = rebalancing 1 min
-                ConfigNetwork.PARKING_RATE_MIN: 0  # = rebalancing 1 min
-            }
+        ConfigNetwork.TEST_LABEL: test_label,
+        ConfigNetwork.DISCOUNT_FACTOR: 1,
+        ConfigNetwork.FLEET_SIZE: 300,
+        # DEMAND ############################################# #
+        ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
+        ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
+        ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
+        ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+        ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
+        ConfigNetwork.TIME_INCREMENT: 1,
+        ConfigNetwork.DEMAND_SAMPLING: True,
+        # Service quality
+        ConfigNetwork.MATCHING_DELAY: 15,
+        ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+        ConfigNetwork.SQ_GUARANTEE: False,
+        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+        ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
+        ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+        ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
+        # ADP EXECUTION ###################################### #
+        ConfigNetwork.MYOPIC: False,
+        # Rebalance costs are ignored by MIP but included when
+        # realizing the model
+        ConfigNetwork.POLICY_RANDOM: False,
+        ConfigNetwork.ADP_IGNORE_ZEROS: True,
+        ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
+        ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
+        # EXPLORATION ######################################## #
+        # ANNEALING + THOMPSON
+        # If zero, cars increasingly gain the right of stay
+        # still. This obliges them to rebalance consistently.
+        # If None, disabled.
+        ConfigNetwork.IDLE_ANNEALING: None,
+        ConfigNetwork.ACTIVATE_THOMPSON: False,
+        ConfigNetwork.MAX_TARGETS: 6,
+        # When cars start in the last visited point, the model takes
+        # a long time to figure out the best time
+        ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
+        ConfigNetwork.CAR_SIZE_TABU: 0,
+        # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
+        # is False
+        ConfigNetwork.PENALIZE_REBALANCE: True,
+        ConfigNetwork.REACHABLE_NEIGHBORS: False,
+        # FLEET ############################################## #
+        # Car operation
+        ConfigNetwork.MAX_CARS_LINK: 5,
+        ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
+        ConfigNetwork.TIME_MAX_CARS_LINK: 5,
+        # FAV configuration
+        ConfigNetwork.DEPOT_SHARE: None,
+        ConfigNetwork.FAV_DEPOT_LEVEL: None,
+        ConfigNetwork.FAV_FLEET_SIZE: 0,
+        ConfigNetwork.SEPARATE_FLEETS: False,
+        ConfigNetwork.MAX_CONTRACT_DURATION: True,
+        # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
+        # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60
+        # ,  # = rebalancing 1 min
+        ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
+        # Saving
+        ConfigNetwork.USE_SHORT_PATH: False,
+    }
 
     # Creating folders to log episodes
     if not os.path.exists(conf.FOLDER_TUNING):
@@ -405,6 +322,7 @@ if __name__ == "__main__":
 
     try:
         d = dict()
+        print("XP LIST", len(exp_list))
         for exp in exp_list:
             path_all_stats = conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv"
             df = pd.read_csv(path_all_stats)

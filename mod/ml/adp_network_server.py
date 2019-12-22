@@ -237,30 +237,30 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_CENTER_LEVEL: 0,
             # Demand scenario
             ConfigNetwork.DEMAND_SCENARIO: conf.SCENARIO_NYC,
-            ConfigNetwork.TRIP_REJECTION_PENALTY: {
-                "A": 4.8,
-                "B": 2.4,
-            },
-            ConfigNetwork.TRIP_BASE_FARE: {
-                "A": 4.8,
-                "B": 2.4,
-            },
-            ConfigNetwork.TRIP_DISTANCE_RATE_KM: {
-                "A": 1,
-                "B": 1,
-            },
-            ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
-                "A": 5,
-                "B": 5,
-            },
-            ConfigNetwork.TRIP_MAX_PICKUP_DELAY: {
-                "A": 5,
-                "B": 10,
-            },
-            ConfigNetwork.TRIP_CLASS_PROPORTION: {
-                "A": 0,
-                "B": 1,
-            },
+            ConfigNetwork.TRIP_REJECTION_PENALTY: (
+                ("A", 0),
+                ("B", 0),
+            ),
+            ConfigNetwork.TRIP_BASE_FARE: (
+                ("A", 4.8),
+                ("B", 2.4),
+            ),
+            ConfigNetwork.TRIP_DISTANCE_RATE_KM: (
+                ("A", 1),
+                ("B", 1),
+            ),
+            ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
+                ("A", 5),
+                ("B", 5),
+            ),
+            ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
+                ("A", 5),
+                ("B", 10),
+            ),
+            ConfigNetwork.TRIP_CLASS_PROPORTION: (
+                ("A", 0),
+                ("B", 1),
+            ),
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
@@ -844,34 +844,30 @@ if __name__ == "__main__":
                 #     "A": 4.8,
                 #     "B": 2.4,
                 # },
-                ConfigNetwork.TRIP_REJECTION_PENALTY: {
-                    "A": 0,
-                    "B": 0,
-                },
-                ConfigNetwork.TRIP_BASE_FARE: {
-                    "A": 4.8,
-                    "B": 2.4,
-                },
-                ConfigNetwork.TRIP_DISTANCE_RATE_KM: {
-                    "A": 1,
-                    "B": 1,
-                },
-                # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
-                #     "A": 5,
-                #     "B": 5,
-                # },
-                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: {
-                    "A": 0,
-                    "B": 0,
-                },
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: {
-                    "A": 5,
-                    "B": 10,
-                },
-                ConfigNetwork.TRIP_CLASS_PROPORTION: {
-                    "A": 0,
-                    "B": 1,
-                },
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (
+                    ("A", 0),
+                    ("B", 0),
+                ),
+                ConfigNetwork.TRIP_BASE_FARE: (
+                     ("A", 4.8),
+                     ("B", 2.4),
+                ),
+                ConfigNetwork.TRIP_DISTANCE_RATE_KM: (
+                    ("A", 1),
+                    ("B", 1),
+                ),
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
+                    ("A", 5),
+                    ("B", 5),
+                ),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
+                    ("A", 5),
+                    ("B", 10),
+                ),
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (
+                    ("A", 0),
+                    ("B", 1),
+                ),
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.MYOPIC: myopic,
                 # Rebalance costs are ignored by MIP but included when
@@ -917,6 +913,8 @@ if __name__ == "__main__":
                 # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60
                 # ,  # = rebalancing 1 min
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
+                # Saving
+                ConfigNetwork.USE_SHORT_PATH: False
             }
         )
 

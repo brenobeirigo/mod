@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import random
 from collections import namedtuple
+import hashlib
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -167,6 +168,9 @@ class Config:
     OFFSET_REPOSITIONING_MIN = "OFFSET_REPOSITIONING_MIN"
     OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
     TIME_PERIODS = "TIME_PERIODS"
+
+
+    USE_SHORT_PATH = "USE_SHORT_PATH"
 
     # FLEET ECONOMICS
     OPERATION_YEARS = "OPERATION_YEARS"
@@ -633,18 +637,23 @@ class Config:
             + f"od_base_{base_fares}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
         )
 
-    def get_path_od_penalties(self, extension="npy"):
+    @property
+    def sl_config_label(self):
         """Path of saved fares per sq_class, o, d"""
-        base_fares = "_".join(
+        sl_config_label = "_".join(
             [
                 f"{sq}_{base:.2f}_{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.2f}_{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.2f}"
                 for sq, base, in self.config[Config.TRIP_BASE_FARE].items()
             ]
         )
 
+        return sl_config_label
+
+    def get_path_od_penalties(self, extension="npy"):
+        """Path of saved fares per sq_class, o, d"""
         return (
             FOLDER_OD_DATA
-            + f"od_penalties_{base_fares}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
+            + f"od_penalties_{self.sl_config_label}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
         )
 
     def get_path_od_costs(self, extension="npy"):
@@ -763,14 +772,29 @@ class Config:
         return FOLDER_OUTPUT + self.label + "/exp_settings.json"
 
     @property
+    def short_path(self):
+        return self.config[Config.USE_SHORT_PATH]
+
+    @property
+    def label_md5(self):
+        return hashlib.md5(self.label.encode()).hexdigest()
+
+    @property
     def label(self, name=""):
         # Implemented by childreen
         pass
 
     def save(self, file_path=None):
+        label = self.label
+        self.config["label"] = self.label
+        self.config["label_md5"] = self.label_md5
 
-        if not os.path.isdir(FOLDER_OUTPUT + self.label):
-            os.makedirs(FOLDER_OUTPUT + self.label)
+        if self.short_path:
+            label = self.label_md5
+
+        folder = FOLDER_OUTPUT + str(label)
+        if not os.path.isdir(folder):
+            os.makedirs(folder)
 
         def convert_times(t):
             if isinstance(t, (date, datetime)):
@@ -1209,6 +1233,10 @@ class ConfigNetwork(ConfigStandard):
 
         self.config[Config.MYOPIC] = False
         self.config[Config.POLICY_RANDOM] = False
+
+
+        # Names
+        self.config[Config.USE_SHORT_PATH] = False
 
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
@@ -1716,7 +1744,8 @@ class ConfigNetwork(ConfigStandard):
             f"match={self.config[Config.MATCHING_DELAY]:02}_"
             f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
             f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
-            f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}"
+            f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}_"
+            f"{self.sl_config_label}"
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

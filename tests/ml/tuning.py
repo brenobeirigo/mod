@@ -141,8 +141,7 @@ def multi_proc_exp(exp_list, processes=4, iterations=300):
         df.to_csv(f"tuning_{exp_name}.csv")
 
 
-if __name__ == "__main__":
-
+def main():
     try:
         test_label = sys.argv[1]
     except:
@@ -152,53 +151,43 @@ if __name__ == "__main__":
         N_PROCESSES = int(sys.argv[2])
     except:
         N_PROCESSES = 2
+    try:
+        focus = sys.argv[3]
+    except:
+        print("Include tuning focus [sensitivity, sl, adp]")
+        return
+
+    tuning_focus = dict()
 
     n = 7
     spatiotemporal_levels = [(0, i, 0, 0, 0, 0) for i in range(n)]
-    # print("Levels:")
-    # pprint(levels)
     power_set = get_power_set(
         spatiotemporal_levels, keep_first=1, n=2, keep_last=2, max_size=4
     )
+    # BASE FARE SENSITIVITY ANALYSIS
+    # Goal - Does your penalty mechanism really works? Or the same results
+    # can be achieved my manipulating the base fares?
+    # 1 - PAV baseline
+    # 2 - PAV baseline + 2 x Base fares
+    # 3 - PAV baseline + 3 x Base fares
+    tuning_focus["sensitivity"] = {
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)], #, ((1, 4),(2,4))],
+        ConfigNetwork.TRIP_BASE_FARE: [(("A", 4.8), ("B", 2.4)), (("A", 7.2), ("B", 4.8)), (("A", 9.6), ("B", 7.2))],
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0)),],
+        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [(("A", 5), ("B", 10)), (("A", 10), ("B", 15))],
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [
+            (("A", 1), ("B", 0)),
+            (("A", 0), ("B", 1)),
+        ],
+    }
 
-    tuning_params = {
-        # Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        # Config.DISCOUNT_FACTOR: [1],
-        # Config.STEPSIZE_CONSTANT: [0.1],
-        # Config.HARMONIC_STEPSIZE: [1],
-        # # Config.FLEET_SIZE: [300],
-        # Config.FLEET_START: [
-        #     # conf.FLEET_START_LAST,
-        #     # conf.FLEET_START_SAME,
-        #     conf.FLEET_START_RANDOM
-        # ],
-        # ConfigNetwork.IDLE_ANNEALING: [0],
-        # # -------------------------------------------------------- #
-        # # DEMAND ################################################# #
-        # # -------------------------------------------------------- #
-        # "DEMAND_TW": [
-        #     {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
-        #     # {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
-        # ],
-        # Config.DEMAND_SAMPLING: [
-        #     True,
-        #     # False
-        # ],
-        # # Config.DEMAND_RESIZE_FACTOR: [0.1],
-        # # Cars rebalance to up to #region centers at each level
-        # Config.N_CLOSEST_NEIGHBORS: [
-        #     ((0, 8), (1, 8)),
-        #     # ((0, 4),),
-        #     # ((0, 8),(4, 4)),
-        #     # ((0, 8),(4, 4), (5, 1))
-        # ],
-        # Config.MAX_CARS_LINK: [5],
-        # # Config.MAX_CARS_LINK: [None, 5, 10],
-        # Config.AGGREGATION_LEVELS: [
-        #     # [(2, 0, 0, 0, 0, 0), (2, 4, 0, 0, 0, 0), (2, 5, 0, 0, 0, 0)],
-        #     # [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
-        #     [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
-        # ],
+    # ENFORCING SERVICE LEVELS
+    # Goal: What is the impact of each penalty mechanism in A and B?
+    # 1 - PAV baseline
+    # 2 - PAV baseline + tolerance delay (=larger pk time)
+    # 3 - PAV baseline + tolerance delay + delay penalty
+    # 4 - PAV baseline + tolerance delay + Delay penalty + rejection penalty
+    tuning_focus["sl"] = {
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),), ((1, 4),(2,4))],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
@@ -222,8 +211,46 @@ if __name__ == "__main__":
             (("A", 1), ("B", 0)),
             (("A", 0), ("B", 1)),
         ],
-        # list(power_set)
     }
+
+    # TUNING ADP
+    tuning_focus["adp"] = {
+        Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
+        Config.DISCOUNT_FACTOR: [1],
+        Config.STEPSIZE_CONSTANT: [0.1],
+        Config.HARMONIC_STEPSIZE: [1],
+    }
+    # # Config.FLEET_SIZE: [300],
+    # Config.FLEET_START: [
+    #     # conf.FLEET_START_LAST,
+    #     # conf.FLEET_START_SAME,
+    #     conf.FLEET_START_RANDOM
+    # ],
+    # ConfigNetwork.IDLE_ANNEALING: [0],
+    # # -------------------------------------------------------- #
+    # # DEMAND ################################################# #
+    # # -------------------------------------------------------- #
+    # "DEMAND_TW": [
+    #     {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 5},
+    #     # {Config.DEMAND_TOTAL_HOURS: 4, Config.DEMAND_EARLIEST_HOUR: 9},
+    # ],
+    # Config.DEMAND_SAMPLING: [
+    #     True,
+    #     # False
+    # ],
+    # # Config.DEMAND_RESIZE_FACTOR: [0.1],
+    # # Cars rebalance to up to #region centers at each level
+    # Config.N_CLOSEST_NEIGHBORS: [
+    #     ((0, 8), (1, 8)),
+    #     # ((0, 4),),
+    #     # ((0, 8),(4, 4)),
+    #     # ((0, 8),(4, 4), (5, 1))
+    # ],
+    # Config.MAX_CARS_LINK: [5],
+    # # Config.MAX_CARS_LINK: [None, 5, 10],
+    # Config.AGGREGATION_LEVELS:list(power_set),
+    pprint(tuning_focus)
+    tuning_params = tuning_focus[focus]
 
     shared_settings = {
         ConfigNetwork.TEST_LABEL: test_label,
@@ -244,7 +271,7 @@ if __name__ == "__main__":
         ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
         ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
         ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
-        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
@@ -346,3 +373,8 @@ if __name__ == "__main__":
         print(f"Could not save aggregated data (result still needs to be processed). Exception: {e}")
 
     multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)
+
+
+if __name__ == "__main__":
+
+   main()

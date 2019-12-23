@@ -8,6 +8,7 @@ import numpy as np
 import random
 from collections import namedtuple
 import hashlib
+from copy import deepcopy
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -667,8 +668,10 @@ class Config:
             + f"od_costs_km_{self.config[Config.RECHARGE_COST_DISTANCE]:.2f}.{extension}"
         )
 
-    def update(self, dict_update):
+    def update(self, dict_update_base):
 
+        # Copy dictionary before updating element types
+        dict_update = deepcopy(dict_update_base)
         # Guarantee elements are tuples
         if Config.REBALANCE_LEVEL in dict_update:
             dict_update[Config.REBALANCE_LEVEL] = tuple(
@@ -798,7 +801,8 @@ class Config:
 
     @property
     def exp_settings(self):
-        return FOLDER_OUTPUT + self.label + "/exp_settings.json"
+        label = self.label
+        return FOLDER_OUTPUT + label + "/exp_settings.json"
 
     @property
     def short_path(self):

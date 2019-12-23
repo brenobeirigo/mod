@@ -79,7 +79,7 @@ config_adp = {
     "log_config_dict": log_config,
     "log_mip": False,
     "save_plots": True,
-    "save_progress": True,
+    "save_progress": 10,
     "linearize_integer_model": False,
     "use_artificial_duals": False,
     "save_df": False,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
         #     # [(3, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
         #     [(1, 0, 0, 0, 0, 0), (3, 2, 0, 0, 0, 0), (3, 3, 0, 0, 0, 0)],
         # ],
-        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),), ((1, 4),(2,4))],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
             (("A", 4.8), ("B", 2.4)),
@@ -208,6 +208,10 @@ if __name__ == "__main__":
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 15)),
+            },
+            {
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
             },
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
@@ -318,11 +322,11 @@ if __name__ == "__main__":
 
     exp_list = sorted(exp_list, key=lambda x: x[1])
 
-    print("\n################ Experiment folders:")
+    print(f"\n################ Experiment folders ({len(exp_list)}):")
 
+    # After running all tuning instances, generates a file comparing them
     try:
         d = dict()
-        print("XP LIST", len(exp_list))
         for exp in exp_list:
             path_all_stats = conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv"
             df = pd.read_csv(path_all_stats)
@@ -339,6 +343,6 @@ if __name__ == "__main__":
         df_outcome.to_csv("outcome_tuning.csv", index=False)
 
     except Exception as e:
-        print(f"Could not save aggregated data. Exception: {e}")
+        print(f"Could not save aggregated data (result still needs to be processed). Exception: {e}")
 
     multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)

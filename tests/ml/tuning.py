@@ -86,7 +86,9 @@ config_adp = {
 }
 
 
-def test_all(tuning_labels, tuning_params, update_dict, all_settings, exp_list):
+def test_all(
+    tuning_labels, tuning_params, update_dict, all_settings, exp_list
+):
 
     try:
 
@@ -104,10 +106,15 @@ def test_all(tuning_labels, tuning_params, update_dict, all_settings, exp_list):
             else:
                 update_dict = {**update_dict, **{param: e}}
 
-            test_all(tuning_labels, tuning_params, deepcopy(update_dict), all_settings, exp_list)
+            test_all(
+                tuning_labels,
+                tuning_params,
+                deepcopy(update_dict),
+                all_settings,
+                exp_list,
+            )
 
     except:
-
         updated = deepcopy(all_settings)
         updated.update(update_dict)
         exp_list.append((all_settings.test_label, updated.label, updated))
@@ -171,13 +178,51 @@ def main():
     # 2 - PAV baseline + 2 x Base fares
     # 3 - PAV baseline + 3 x Base fares
     tuning_focus["sensitivity"] = {
-        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)], #, ((1, 4),(2,4))],
-        ConfigNetwork.TRIP_BASE_FARE: [(("A", 4.8), ("B", 2.4)), (("A", 7.2), ("B", 4.8)), (("A", 9.6), ("B", 7.2))],
-        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0)),],
-        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [(("A", 5), ("B", 10)), (("A", 10), ("B", 15))],
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [(("A", 0), ("B", 0))],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        ConfigNetwork.TRIP_BASE_FARE: [
+            (("A", 4.8), ("B", 2.4)),
+            (("A", 7.2), ("B", 4.8)),
+            (("A", 9.6), ("B", 7.2)),
+        ],
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
+        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [
+            (("A", 5), ("B", 10)),
+            (("A", 10), ("B", 15)),
+        ],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [
             (("A", 1), ("B", 0)),
             (("A", 0), ("B", 1)),
+        ],
+    }
+
+    tuning_focus["hiring"] = {
+        ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
+        ConfigNetwork.FAV_FLEET_SIZE: [100, 200],
+        ConfigNetwork.MAX_CONTRACT_DURATION: [True],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [
+            (("A", 1), ("B", 0)),
+            (("A", 0), ("B", 1)),
+        ],
+        ConfigNetwork.AGGREGATION_LEVELS: [
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (1, 0, 0, "-", 0, 3),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
+             [
+                (1, 0, 0, "-", 0, 2),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [
+                (1, 0, 0, "-", 0, 2),
+                (3, 2, 0, "-", 0, 3),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [(1, 0, 0, "-", 0, 1), (3, 2, 0, "-", 0, 2), (3, 3, 0, "-", 0, 3)],
         ],
     }
 
@@ -188,7 +233,7 @@ def main():
     # 3 - PAV baseline + tolerance delay + delay penalty
     # 4 - PAV baseline + tolerance delay + Delay penalty + rejection penalty
     tuning_focus["sl"] = {
-        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),), ((1, 4),(2,4))],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),), ((1, 4), (2, 4))],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
             (("A", 4.8), ("B", 2.4)),
@@ -248,7 +293,6 @@ def main():
     # ],
     # Config.MAX_CARS_LINK: [5],
     # # Config.MAX_CARS_LINK: [None, 5, 10],
-    # Config.AGGREGATION_LEVELS:list(power_set),
     pprint(tuning_focus)
     tuning_params = tuning_focus[focus]
 
@@ -268,10 +312,10 @@ def main():
         ConfigNetwork.MATCHING_DELAY: 15,
         ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
         ConfigNetwork.SQ_GUARANTEE: False,
-        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
         ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
         ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
-        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
@@ -347,6 +391,23 @@ def main():
 
     test_all(tuning_labels, tuning_params, update_dict, setup, exp_list)
 
+    print("################ All tests")
+    for short_label, label, config in exp_list:
+        print(" - ", label)
+
+
+    multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)
+
+    
+
+def save_outcome_tuning(exp_list):
+    """Read all stats from all test cases
+    
+    Parameters
+    ----------
+    exp_list : tuple
+        (test_label, entire label, config obj)
+    """
     exp_list = sorted(exp_list, key=lambda x: x[1])
 
     print(f"\n################ Experiment folders ({len(exp_list)}):")
@@ -370,11 +431,11 @@ def main():
         df_outcome.to_csv("outcome_tuning.csv", index=False)
 
     except Exception as e:
-        print(f"Could not save aggregated data (result still needs to be processed). Exception: {e}")
-
-    multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)
+        print(
+            f"Could not save aggregated data (result still needs to be processed). Exception: {e}"
+        )
 
 
 if __name__ == "__main__":
 
-   main()
+    main()

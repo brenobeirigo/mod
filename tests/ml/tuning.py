@@ -52,7 +52,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 2
+ITERATIONS = 10
 
 
 log_config = {
@@ -148,21 +148,7 @@ def multi_proc_exp(exp_list, processes=4, iterations=300):
         df.to_csv(f"tuning_{exp_name}.csv")
 
 
-def main():
-    try:
-        test_label = sys.argv[1]
-    except:
-        test_label = "TUNE"
-
-    try:
-        N_PROCESSES = int(sys.argv[2])
-    except:
-        N_PROCESSES = 2
-    try:
-        focus = sys.argv[3]
-    except:
-        print("Include tuning focus [sensitivity, sl, adp]")
-        return
+def main(test_labels, focus, N_PROCESSES):
 
     tuning_focus = dict()
 
@@ -249,11 +235,11 @@ def main():
     tuning_focus["sl"] = {
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [
             ((1, 8),),
-            # ((1, 4), (2, 4))
+            ((1, 4), (2, 4))
         ],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
-            # (("A", 4.8), ("B", 2.4)),
+            (("A", 4.8), ("B", 2.4)),
         ],
         "TOLERANCE_MAX_PICKUP": [
             {
@@ -316,7 +302,7 @@ def main():
     shared_settings = {
         ConfigNetwork.TEST_LABEL: test_label,
         ConfigNetwork.DISCOUNT_FACTOR: 1,
-        ConfigNetwork.FLEET_SIZE: 30,
+        ConfigNetwork.FLEET_SIZE: 300,
         # DEMAND ############################################# #
         ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
         ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
@@ -414,7 +400,7 @@ def main():
     return exp_list
 
 
-def save_outcome_tuning(exp_list):
+def save_outcome_tuning(test_label, exp_list):
     """Read all stats from all test cases
     
     Parameters
@@ -431,7 +417,7 @@ def save_outcome_tuning(exp_list):
     columns = [
         list(
             pd.read_csv(
-                config_exp.output_path + "/overall_stats.csv",
+                config_exp.output_path + "overall_stats.csv",
                 index_col="Episode",
             ).columns
         )
@@ -441,7 +427,7 @@ def save_outcome_tuning(exp_list):
 
     indexes = []
     for short_label, label, config_exp in exp_list:
-        path_all_stats = config_exp.output_path + "/overall_stats.csv"
+        path_all_stats = config_exp.output_path + "overall_stats.csv"
         print(f'Saving at "{path_all_stats}".')
         df = pd.read_csv(path_all_stats, index_col="Episode")
         indexes.append(config_exp.label)
@@ -485,7 +471,7 @@ def save_outcome_tuning(exp_list):
     df_outcome = pd.DataFrame(dict(d), index=indexes)
     # df_outcome = df_outcome[sorted(df_outcome.columns.values)]
     label = "myopic" if myopic else ""
-    df_outcome.to_csv("outcome_tuning.csv", index=True)
+    df_outcome.to_csv(f"{test_label}_outcome_tuning.csv", index=True)
 
     # except Exception as e:
     #     print(
@@ -495,5 +481,19 @@ def save_outcome_tuning(exp_list):
 
 if __name__ == "__main__":
 
-    exp_list = main()
-    save_outcome_tuning(exp_list)
+    try:
+        test_label = sys.argv[1]
+    except:
+        test_label = "TUNE"
+
+    try:
+        N_PROCESSES = int(sys.argv[2])
+    except:
+        N_PROCESSES = 2
+    try:
+        focus = sys.argv[3]
+    except:
+        print("Include tuning focus [sensitivity, sl, adp]")
+
+    exp_list = main(test_label, focus, N_PROCESSES)
+    save_outcome_tuning(test_label, exp_list)

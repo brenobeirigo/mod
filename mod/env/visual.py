@@ -224,7 +224,7 @@ class EpisodeLog:
 
         # Reward over the course of the whole experiment
         self.plot_reward(
-            file_path=self.output_path + f"/reward_{self.adp.n:04}_episodes",
+            file_path=self.output_path + f"r_{self.adp.n:04}",
             file_format="png",
             dpi=150,
             scale="linear",
@@ -232,14 +232,14 @@ class EpisodeLog:
 
         # Service rate over the course of the whole experiment
         self.plot_service_rate(
-            file_path=self.output_path + f"/service_rate_{self.adp.n:04}_episodes",
+            file_path=self.output_path + f"sl_{self.adp.n:04}",
             file_format="png",
             dpi=150,
         )
 
         # Service rate over the course of the whole experiment
         self.plot_weights(
-            file_path=self.output_path + f"/weights_{self.adp.n:04}_episodes",
+            file_path=self.output_path + f"w_{self.adp.n:04}",
             file_format="png",
             dpi=150,
         )

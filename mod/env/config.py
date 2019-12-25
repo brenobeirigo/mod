@@ -681,6 +681,28 @@ class Config:
 
         return sl_config_label
 
+    @property
+    def sl_label(self):
+        paper_label = dict()
+        paper_label["A"] = "1"
+        paper_label["B"] = "2"
+        sl_config_label = "_".join(
+            [
+                (
+                    f"{paper_label[sq]}"
+                    " ("
+                    f"{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.0f}"
+                    f"{(f' + {self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.0f}' if self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]>0 else '')}"
+                    ")"
+                    f"{(' [P]' if self.config[Config.TRIP_REJECTION_PENALTY][sq] > 0 else '')}"
+                )
+                for sq, base in self.config[Config.TRIP_BASE_FARE].items()
+                if self.config[Config.TRIP_CLASS_PROPORTION][sq] > 0 
+            ]
+        )
+
+        return sl_config_label
+
     def get_path_od_penalties(self, extension="npy"):
         """Path of saved fares per sq_class, o, d"""
         sl_config_label = "_".join(

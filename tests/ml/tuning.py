@@ -52,7 +52,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 10
+ITERATIONS = 20
 
 
 log_config = {
@@ -124,7 +124,9 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
-    if exp_setup.myopic or exp_setup.test or exp_setup.random:
+    if exp_setup.myopic or exp_setup.test or exp_setup.policy_random:
+
+        rows = config_adp["episodes"]
 
         try:
             df = pd.read_csv(
@@ -138,7 +140,8 @@ def run_adp(exp):
             print(f"No stats for \'{exp_setup.label}\'. Ëxception {e}")
             rows = config_adp["episodes"]
 
-    config_adp["episodes"] = max(0, rows)
+        config_adp["episodes"] = max(0, rows)
+
     reward_list = alg.alg_adp(None, exp_setup, **config_adp)
 
     return (exp_name, label, reward_list)
@@ -255,22 +258,31 @@ def main(test_labels, focus, N_PROCESSES):
             ((1, 8),),
             ((1, 4), (2, 4))
         ],
-        ConfigNetwork.TRIP_REJECTION_PENALTY: [
-            (("A", 0), ("B", 0)),
-            (("A", 4.8), ("B", 2.4)),
-        ],
         "TOLERANCE_MAX_PICKUP": [
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 15)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
             },
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+            },
+            {
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
             },
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+            },
+            {
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
             },
         ],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [

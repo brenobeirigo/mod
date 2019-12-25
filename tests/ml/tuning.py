@@ -124,6 +124,21 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
+    if exp_setup.myopic or exp_setup.test or exp_setup.random:
+
+        try:
+            df = pd.read_csv(
+                exp_setup.output_path + "overall_stats.csv",
+                index_col="Episode",
+            )
+
+            rows = config_adp["episodes"] - len(df.index)
+
+        except Exception as e:
+            print(f"No stats for \'{exp_setup.label}\'. Ëxception {e}")
+            rows = config_adp["episodes"]
+
+    config_adp["episodes"] = max(0, rows)
     reward_list = alg.alg_adp(None, exp_setup, **config_adp)
 
     return (exp_name, label, reward_list)
@@ -205,6 +220,9 @@ def main(test_labels, focus, N_PROCESSES):
             (("A", 1), ("B", 0)),
             (("A", 0), ("B", 1)),
         ],
+        # ConfigNetwork.FAV_AVAILABILITY_FEATURES:[
+        #     (8, 1, 5, 9), (8, 1, 5, 9),
+        # ],
         ConfigNetwork.AGGREGATION_LEVELS: [
             # [
             #     (1, 0, 0, "-", 0, 2),
@@ -322,7 +340,7 @@ def main(test_labels, focus, N_PROCESSES):
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
-        ConfigNetwork.METHOD: ConfigNetwork.METHOD_ADP_TEST,
+        ConfigNetwork.METHOD: ConfigNetwork.METHOD_ADP_TRAIN,
         ConfigNetwork.ADP_IGNORE_ZEROS: True,
         ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
         ConfigNetwork.USE_ARTIFICIAL_DUALS: False,

@@ -269,6 +269,8 @@ class Config:
     DEPOT_SHARE = "DEPOT_SHARE"
     FAV_DEPOT_LEVEL = "FAV_DEPOT_LEVEL"
     SEPARATE_FLEETS = "SEPARATE_FLEETS"
+    FAV_AVAILABILITY_FEATURES = "FAV_AVAILABILITY_FEATURES"
+    FAV_EARLIEST_FEATURES = "FAV_EARLIEST_FEATURES"
     # Max. contract duration = MAX_TIME_PERIODS
 
     # Max. number of rebalancing targets
@@ -1283,6 +1285,9 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.LINEARIZE_INTEGER_MODEL] = True
         self.config[Config.USE_ARTIFICIAL_DUALS] = False
         self.config[Config.FAV_FLEET_SIZE] = 0
+        # mean, std, clip_a, clip_b
+        self.config[Config.FAV_EARLIEST_FEATURES] = (8, 1, 5, 9)
+        self.config[Config.FAV_AVAILABILITY_FEATURES] = (2, 1, 1, 4)
         self.config[Config.SEPARATE_FLEETS] = False
         # self.update(config)
 
@@ -1454,6 +1459,14 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.FAV_FLEET_SIZE]
 
     @property
+    def fav_availability_features(self):
+        return self.config[Config.FAV_AVAILABILITY_FEATURES]
+
+    @property
+    def fav_earliest_features(self):
+        return self.config[Config.FAV_EARLIEST_FEATURES]
+
+    @property
     def separate_fleets(self):
         return self.config[Config.SEPARATE_FLEETS]
 
@@ -1477,22 +1490,16 @@ class ConfigNetwork(ConfigStandard):
     # TODO Regulate contract durations
     def get_availability_pattern(self):
 
-        # (mean, std, clip_a, clip_b)
-        avail_features = (2, 1, 1, 4)
-
         avail_a, avail_b, avail_bins = self.get_ab(
-            *avail_features, period=self.time_increment
+            *self.fav_availability_features, period=self.time_increment
         )
         # print("    Contract duration:", avail_a, avail_b, avail_bins)
         return avail_a, avail_b, avail_bins
 
     def get_earliest_pattern(self):
 
-        # (mean, std, clip_a, clip_b)
-        earliest_features = (8, 1, 5, 9)
-
         ear_a, ear_b, ear_bins = self.get_ab(
-            *(earliest_features[0:4]), period=self.time_increment
+            *(self.fav_earliest_features[0:4]), period=self.time_increment
         )
 
         # print("Earliest service time:", ear_a, ear_b, ear_bins)
@@ -1502,25 +1509,21 @@ class ConfigNetwork(ConfigStandard):
         AggLevel = namedtuple("EarliestDistribution", "mean, std, clip_a, clip_b")
 
     def get_earliest_time(self, n_favs):
-        # mean, std, clip_a, clip_b
-        earliest_features = (8, 1, 5, 9)
 
         ear_a, ear_b, ear_bins = self.get_earliest_pattern()
 
         # Earlist times of FAVs arriving in node n
-        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + earliest_features[0]
+        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + self.fav_earliest_features[0]
 
         return earliest_time
 
     def get_contract_duration(self, n_favs):
-        # mean, std, clip_a, clip_b
-        avail_features = (2, 1, 1, 4)
 
         avail_a, avail_b, avail_bins = self.get_availability_pattern()
 
         # Contract durations of FAVs arriving in node n
         contract_duration = (
-            truncnorm.rvs(avail_a, avail_b, size=n_favs) + avail_features[0]
+            truncnorm.rvs(avail_a, avail_b, size=n_favs) + self.fav_availability_features[0]
         )
 
         return contract_duration

@@ -18,6 +18,16 @@ sns.set(style="ticks")
 sns.set_context("paper")
 np.set_printoptions(precision=3)
 
+FOLDER_TESTING = "/adp/test"
+FOLDER_TRAINING = "/adp/train"
+FOLDER_MYOPIC = "/myopic"
+FOLDER_POLICY_RANDOM = "/random"
+
+ADP_LOGS = "/adp_logs/"
+FOLDER_TIME = "/time/"
+FOLDER_FLEET = "/fleet/"
+FOLDER_SERVICE = "/service/"
+PROGRESS_FILENAME = "progress.npy"
 
 class EpisodeLog:
 
@@ -64,17 +74,51 @@ class EpisodeLog:
             )
         return origins, destinations
 
+    @property
+    def output_path(self):
+        return self.config.output_path
+        # if self.config.short_path:
+        #     label = self.config.label_md5
+        # else:
+        #     label = self.config.label
+
+        # if self.config.myopic:
+        #     return conf.FOLDER_OUTPUT + label + FOLDER_MYOPIC
+
+        # if self.config.policy_random:
+        #     return conf.FOLDER_OUTPUT + label + FOLDER_POLICY_RANDOM
+
+        # if self.save_progress and self.save_progress > 0:
+        #     return conf.FOLDER_OUTPUT + label + FOLDER_TRAINING
+        # else:
+        #     return conf.FOLDER_OUTPUT + label + FOLDER_TESTING
+
+    @property
+    def progress_path(self):
+        if self.config.short_path:
+            label = self.config.label_md5
+        else:
+            label = self.config.label
+
+        return f"{conf.FOLDER_OUTPUT}{label}/{PROGRESS_FILENAME}" 
+
     def create_folders(self):
+        
+        print("Creating folders at:" + self.config.output_path)
         # If config is not None, then the experiments should be saved
         if self.config:
-            self.output_path = conf.FOLDER_OUTPUT + self.config.label
-            self.output_folder_delay = self.output_path + "/time/"
-            self.output_folder_fleet = self.output_path + "/fleet/"
-            self.output_folder_service = self.output_path + "/service/"
-            self.output_folder_adp_logs = self.output_path + "/adp_logs/"
+            self.output_folder_delay = self.config.output_path + FOLDER_TIME
+            self.output_folder_fleet = self.config.output_path + FOLDER_FLEET
+            self.output_folder_service = self.config.output_path + FOLDER_SERVICE
+            self.output_folder_adp_logs = self.config.output_path + ADP_LOGS
             self.folder_delay_data = self.output_folder_delay + "data/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
             self.folder_demand_status_data = self.output_folder_service + "data/"
+            # Creating folders to log MIP models
+            self.config.folder_mip = self.config.output_path + "/mip/"
+            self.config.folder_mip_log = self.config.folder_mip + "log/"
+            self.config.folder_mip_lp = self.config.folder_mip + "lp/"
+            self.config.folder_adp_log = self.config.output_path + "/logs/"
 
             # Creating folders to log episodes
             if not os.path.exists(self.output_folder_delay):
@@ -104,9 +148,10 @@ class EpisodeLog:
                     f"\n - {self.output_folder_service}"
                 )
 
-    def __init__(self, config=None, n=0, reward=list(), service_rate=list(), weights=list(), adp=None):
+    def __init__(self, save_progress, config=None, n=0, reward=list(), service_rate=list(), weights=list(), adp=None):
         self.config = config
         self.adp = adp
+        self.save_progress = save_progress
         self.create_folders()
 
     @property
@@ -349,7 +394,6 @@ class EpisodeLog:
                 + f"e_demand_status_{self.adp.n:04}.csv"
             )
 
-
         if save_overall_stats:
             df_stats = step_log.get_step_stats()
 
@@ -369,8 +413,6 @@ class EpisodeLog:
 
         # Save what was learned so far
         if save_learning and self.adp and self.adp.n%save_learning == 0:
-
-            path = self.output_path + "/progress.npy"
 
             # t1 = time.time()
             # adp_data = self.adp.current_data
@@ -402,7 +444,7 @@ class EpisodeLog:
             # print("CURRENT DATA")
             # pprint(self.adp.current_data)
             np.save(
-                path,
+                self.progress_path,
                 {
                     "episodes": self.adp.n,
                     "reward": self.adp.reward,
@@ -421,14 +463,12 @@ class EpisodeLog:
                 level.
         """
 
-        path = self.output_path + "/progress.npy"
-
         (
             self.adp.n,
             self.adp.reward,
             self.adp.service_rate,
             self.adp.weights
-        ) = self.adp.read_progress(path)
+        ) = self.adp.read_progress(self.progress_path)
         
         # print("After reading")
         # pprint(self.adp.values)

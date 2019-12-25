@@ -9,6 +9,7 @@ import random
 from collections import namedtuple
 import hashlib
 from copy import deepcopy
+from pprint import pprint
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -226,6 +227,13 @@ class Config:
     MYOPIC = "MYOPIC"
     POLICY_RANDOM = "POLICY_RANDOM"
     ACTIVATE_THOMPSON = "ACTIVATE_THOMPSON"
+    SAVE_PROGRESS = "SAVE_PROGRESS"
+    METHOD_ADP_TRAIN = "adp/train"
+    METHOD_ADP_TEST = "adp/test"
+    METHOD_RANDOM = "random"
+    METHOD_MYOPIC = "myopic"
+    METHOD = "METHOD"
+
 
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
@@ -281,6 +289,14 @@ class Config:
     @property
     def origin_centers(self):
         return self.config[Config.ORIGIN_CENTERS]
+    
+    @property
+    def method(self):
+        return self.config[Config.METHOD]
+
+    @property
+    def output_path(self):
+        return f"{FOLDER_OUTPUT}{self.label}/{self.method}/"
 
     @property
     def destination_centers(self):
@@ -474,11 +490,26 @@ class Config:
 
     @property
     def myopic(self):
-        return self.config[Config.MYOPIC]
+        return self.config[Config.METHOD] == Config.METHOD_MYOPIC
+
+    @property
+    def train(self):
+        return self.config[Config.METHOD] == Config.METHOD_ADP_TRAIN
+    
+    @property
+    def test(self):
+        return self.config[Config.METHOD] == Config.METHOD_ADP_TEST
+
+    @property
+    def save_progress(self):
+        if self.config[Config.METHOD] == Config.METHOD_ADP_TRAIN:
+            return self.config[Config.SAVE_PROGRESS]
+        else:
+            return None
 
     @property
     def policy_random(self):
-        return self.config[Config.POLICY_RANDOM]
+        return self.config[Config.METHOD] == Config.METHOD_RANDOM
 
     @property
     def time_increment(self):
@@ -670,6 +701,10 @@ class Config:
 
     def update(self, dict_update_base):
 
+        # print("Update")
+
+        # pprint(dict_update_base)
+
         # Copy dictionary before updating element types
         dict_update = deepcopy(dict_update_base)
         # Guarantee elements are tuples
@@ -778,12 +813,6 @@ class Config:
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
 
-        # Creating folders to log MIP models
-        self.folder_mip = FOLDER_OUTPUT + self.label + "/mip/"
-        self.folder_mip_log = self.folder_mip + "log/"
-        self.folder_mip_lp = self.folder_mip + "lp/"
-        self.folder_adp_log = FOLDER_OUTPUT + self.label + "/logs/"
-
         self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
             minutes=self.config[Config.TIME_INCREMENT]
         )
@@ -867,8 +896,16 @@ class Config:
         return self.config[Config.DEMAND_EARLIEST_HOUR]
 
     @property
+    def offset_termination_min(self):
+        return self.config[Config.OFFSET_TERMINATION_MIN]
+
+    @property
     def offset_termination_hour(self):
         return self.config[Config.OFFSET_TERMINATION_MIN] / 60
+
+    @property
+    def offset_repositioning_min(self):
+        return self.config[Config.OFFSET_REPOSITIONING_MIN]
 
     @property
     def latest_hour(self):
@@ -1255,6 +1292,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.IDLE_ANNEALING] = None
 
         self.config[Config.MYOPIC] = False
+        self.config[Config.SAVE_PROGRESS] = 1
         self.config[Config.POLICY_RANDOM] = False
 
         # Names
@@ -1630,22 +1668,27 @@ class ConfigNetwork(ConfigStandard):
     def max_targets(self):
         return self.config[Config.MAX_TARGETS]
 
+    # ################################################################ #
+    # LABELS ######################################################### #
+    # ################################################################ #
     @property
-    def label(self, name=""):
-
-        if self.config[Config.TUNE_LABEL] is not None:
-            return self.config[Config.TUNE_LABEL]
-
+    def label_reb_neigh(self):
         reb_neigh = ", ".join(
             [
                 f"{level}-{n_neighbors}"
                 for level, n_neighbors in self.config[Config.N_CLOSEST_NEIGHBORS]
             ]
         )
+        return reb_neigh
 
+    @property
+    def label_reach_neigh(self):
         if self.reachable_neighbors:
-            reb_neigh = f"reach_{self.time_increment:01}min"
+            reach_neigh = f"reach_{self.time_increment:01}min"
+        return reach_neigh
 
+    @property
+    def label_reb_neigh_explore(self):
         reb_neigh_explore = ", ".join(
             [
                 f"{level}-{n_neighbors}"
@@ -1654,14 +1697,23 @@ class ConfigNetwork(ConfigStandard):
                 ]
             ]
         )
+        return reb_neigh_explore
 
+    @property
+    def label_idle_annealing(self):
         idle_annealing = "[X]" if self.idle_annealing is not None else ""
+        return idle_annealing
 
+    @property
+    def label_levels(self):
         levels = ", ".join(
             [
                 (
-                    f"{self.config[Config.LEVEL_TIME_LIST][temporal]}-"
-                    f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
+                    f"{temporal}"
+                    f"{spatial}"
+                    f"{contract}"
+                    f"{car_type}"
+                    f"{car_origin}"
                 )
                 for (
                     temporal,
@@ -1674,9 +1726,18 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
 
+        return levels
+
+    @property
+    def label_sample(self):
+
         # Is the demand sampled or fixed?
         sample = "S" if self.config[Config.DEMAND_SAMPLING] else "F"
-
+        
+        return sample
+    
+    @property
+    def label_start(self):
         # Does fleet start from random positions or last?
         # L = Last visited position
         # S = Same position
@@ -1686,64 +1747,94 @@ class ConfigNetwork(ConfigStandard):
             else ("R" if self.cars_start_from_random_positions else "I")
         )
 
+        return start
+
+    @property
+    def label_stations(self):
         # Set the initial stations of FAVs
         stations = ""
-        max_contract = ""
         if self.fav_fleet_size > 0:
             if self.depot_share:
                 stations = f"[S{self.depot_share:3.2f}]"
             elif self.fav_depot_level:
                 stations = f"[S{self.fav_depot_level}]"
-
+        return stations
+    
+    @property
+    def label_max_contract(self):
+        # Set the initial stations of FAVs
+        max_contract = ""
+        if self.fav_fleet_size > 0:
             max_contract = "[M]" if self.config[Config.MAX_CONTRACT_DURATION] else ""
-
+        return max_contract
+    
+    @property
+    def label_max_link(self):
         max_link = f"[L({self.max_cars_link:02})]" if self.max_cars_link else ""
+        return max_link
 
+    @property
+    def label_penalize(self):
         penalize = f"[P]" if self.penalize_rebalance else ""
+        return penalize
 
+    @property
+    def label_lin(self):
         lin = "LIN_INT_" if self.config[Config.LINEARIZE_INTEGER_MODEL] else "LIN_"
+        return lin
 
+    @property
+    def label_artificial(self):
         artificial = "[A]_" if self.config[Config.USE_ARTIFICIAL_DUALS] else ""
+        return artificial
 
+    @property
+    def label_explore(self):
         explore = (
-            f"-[{reb_neigh_explore}][I({self.config[Config.MAX_IDLE_STEP_COUNT]:02})]"
+            f"-[{self.label_reb_neigh_explore}][I({self.config[Config.MAX_IDLE_STEP_COUNT]:02})]"
             if self.config[Config.MAX_IDLE_STEP_COUNT]
             else ""
         )
+        return explore
 
+    @property
+    def label_thomp(self):
         thomp = f"[thompson={self.max_targets:02}]" if self.activate_thompson else ""
+        return thomp
 
-        myopic = f"[MY]_" if self.myopic else ""
+    @property
+    def label(self, name=""):
 
-        policy_random = f"[RA]_" if self.policy_random else ""
+        if self.config[Config.TUNE_LABEL] is not None:
+            return self.config[Config.TUNE_LABEL]
+
+
 
         return (
-            f"{self.config[Config.TEST_LABEL]}_"
-            f"{myopic}"
-            f"{policy_random}"
-            f"{idle_annealing}"
-            f"{artificial}"
-            f"{lin}"
+            f"{self.test_label}_"
+            f"{self.label_idle_annealing}"
+            f"{self.label_artificial}"
+            f"{self.label_lin}"
             # f"{self.config[Config.NAME]}_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
-            f"cars={self.config[Config.FLEET_SIZE]:04}-{self.config[Config.FAV_FLEET_SIZE]:04}{stations}{max_contract}({start})_"
-            f"t={self.config[Config.TIME_INCREMENT]}_"
+            f"cars={self.fleet_size:04}-{self.fav_fleet_size:04}{self.label_stations}{self.label_max_contract}({self.label_start})_"
+            f"t={self.time_increment}_"
             # f"{self.config[Config.BATTERY_LEVELS]:04}_"
-            f"levels[{len(self.config[Config.AGGREGATION_LEVELS])}]=({levels})_"
-            f"rebal=([{reb_neigh}]{explore}{thomp}[tabu={self.car_size_tabu:02}]){max_link}{penalize}_"
+            f"levels[{len(self.aggregation_levels)}]=({self.label_levels})_"
+            f"rebal=([{self.label_reb_neigh}]{self.label_explore}{self.label_thomp}[tabu={self.car_size_tabu:02}]){self.label_max_link}{self.label_penalize}_"
             # f"{self.config[Config.TIME_INCREMENT]:02}_"
             # f#"{self.config[Config.STEP_SECONDS]:04}_"
             # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
             # f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
             # f"{reb_neigh}_"
-            f"[{self.config[Config.DEMAND_EARLIEST_HOUR]:02}h,"
-            f"+{self.config[Config.OFFSET_REPOSITIONING_MIN]}m"
-            f"+{self.config[Config.DEMAND_TOTAL_HOURS]:02}h"
-            f"+{self.config[Config.OFFSET_TERMINATION_MIN]}m]_"
-            f"match={self.config[Config.MATCHING_DELAY]:02}_"
-            f"{self.config[Config.DEMAND_RESIZE_FACTOR]:3.2f}({sample})_"
-            f"{self.config[Config.DISCOUNT_FACTOR]:3.2f}_"
-            f"{self.config[Config.STEPSIZE_CONSTANT]:3.2f}_"
+            f"[{self.demand_earliest_hour:02}h,"
+            f"+{self.offset_repositioning_min}m"
+            f"+{self.demand_total_hours:02}h"
+            f"+{self.offset_termination_min}m]_"
+            f"match={self.matching_delay:02}_"
+            f"{self.demand_resize_factor:3.2f}({self.label_sample})_"
+            f"{self.discount_factor:3.2f}_"
+            f"{self.stepsize_constant:3.2f}_"
             f"{self.sl_config_label}"
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"

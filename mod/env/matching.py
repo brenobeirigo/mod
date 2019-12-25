@@ -345,7 +345,7 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
     for pos, battery, contract_duration, car_type, car_origin in flow_cars:
 
         if car_type == Car.TYPE_VIRTUAL:
-            print("deu merda22")
+            print("VIRTUAL CAR!")
 
         try:
             constr = m.getConstrByName(
@@ -531,7 +531,6 @@ def service_trips(
     use_artificial_duals=True,
     log_times=True,
     car_type_hide=None,
-    save_progress=1,
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -562,7 +561,6 @@ def service_trips(
     float, list, list
         total contribution, serviced trips, rejected trips
     """
-
     if log_times:
         t_decisions = 0
         t_duals = 0
@@ -852,11 +850,7 @@ def service_trips(
         logger.debug(denied_count_dict)
 
         # Update shadow prices to be used in the next iterations
-        if (
-            not env.config.myopic
-            and not env.config.policy_random
-            and save_progress > 0
-        ):
+        if env.config.train:
 
             try:
 

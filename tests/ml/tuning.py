@@ -52,7 +52,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 500
+ITERATIONS = 2
 
 
 log_config = {
@@ -69,17 +69,17 @@ log_config = {
     la.FORMATTER_FILE: la.FORMATTER_TERSE,
 }
 
+myopic = False
+policy_random = True
+
 config_adp = {
     "episodes": ITERATIONS,
     "classed_trips": True,
-    # enable_hiring=True,
-    # contract_duration_h=2,
     # sq_guarantee=True,
     # universal_service=True,
     "log_config_dict": log_config,
     "log_mip": False,
     "save_plots": True,
-    "save_progress": 10,
     "linearize_integer_model": False,
     "use_artificial_duals": False,
     "save_df": False,
@@ -171,6 +171,7 @@ def main():
     power_set = get_power_set(
         spatiotemporal_levels, keep_first=1, n=2, keep_last=2, max_size=4
     )
+
     # BASE FARE SENSITIVITY ANALYSIS
     # Goal - Does your penalty mechanism really works? Or the same results
     # can be achieved my manipulating the base fares?
@@ -196,6 +197,19 @@ def main():
         ],
     }
 
+    # TEST METHODS
+    # Goal - Test all methods in the same baseline instance.
+    tuning_focus["methods"] = {
+        ConfigNetwork.METHOD: [
+            ConfigNetwork.METHOD_ADP_TRAIN,
+            ConfigNetwork.METHOD_ADP_TEST,
+            ConfigNetwork.METHOD_MYOPIC,
+            ConfigNetwork.METHOD_RANDOM,
+        ],
+    }
+
+    # TEST HIRING
+    # Goal - Depot shares X FAV fleet size X Aggregation levels
     tuning_focus["hiring"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
         ConfigNetwork.FAV_FLEET_SIZE: [100, 200],
@@ -212,7 +226,7 @@ def main():
             #     (3, 2, 0, "-", 0, "-"),
             #     (3, 3, 0, "-", 0, "-"),
             # ],
-             [
+            [
                 (1, 0, 0, "-", 0, 2),
                 (3, 2, 0, "-", 0, "-"),
                 (3, 3, 0, "-", 0, "-"),
@@ -233,10 +247,13 @@ def main():
     # 3 - PAV baseline + tolerance delay + delay penalty
     # 4 - PAV baseline + tolerance delay + Delay penalty + rejection penalty
     tuning_focus["sl"] = {
-        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),), ((1, 4), (2, 4))],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [
+            ((1, 8),),
+            # ((1, 4), (2, 4))
+        ],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
-            (("A", 4.8), ("B", 2.4)),
+            # (("A", 4.8), ("B", 2.4)),
         ],
         "TOLERANCE_MAX_PICKUP": [
             {
@@ -299,7 +316,7 @@ def main():
     shared_settings = {
         ConfigNetwork.TEST_LABEL: test_label,
         ConfigNetwork.DISCOUNT_FACTOR: 1,
-        ConfigNetwork.FLEET_SIZE: 300,
+        ConfigNetwork.FLEET_SIZE: 30,
         # DEMAND ############################################# #
         ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
         ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
@@ -319,10 +336,7 @@ def main():
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
-        ConfigNetwork.MYOPIC: False,
-        # Rebalance costs are ignored by MIP but included when
-        # realizing the model
-        ConfigNetwork.POLICY_RANDOM: False,
+        ConfigNetwork.METHOD: ConfigNetwork.METHOD_ADP_TEST,
         ConfigNetwork.ADP_IGNORE_ZEROS: True,
         ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
         ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
@@ -395,10 +409,10 @@ def main():
     for short_label, label, config in exp_list:
         print(" - ", label)
 
-
     multi_proc_exp(exp_list, processes=N_PROCESSES, iterations=ITERATIONS)
 
-    
+    return exp_list
+
 
 def save_outcome_tuning(exp_list):
     """Read all stats from all test cases
@@ -412,30 +426,74 @@ def save_outcome_tuning(exp_list):
 
     print(f"\n################ Experiment folders ({len(exp_list)}):")
 
-    # After running all tuning instances, generates a file comparing them
-    try:
-        d = dict()
-        for exp in exp_list:
-            path_all_stats = conf.FOLDER_OUTPUT + exp[1] + "/overall_stats.csv"
-            df = pd.read_csv(path_all_stats)
-            spatiotemporal_levels = exp[2].get_levels()
-            neighbors = exp[2].get_reb_neighbors()
-            id_label = spatiotemporal_levels + neighbors
-            d["reward_" + id_label] = df["Total reward"][:ITERATIONS]
-            d["service_rate_" + id_label] = df["Service rate"][:ITERATIONS]
-            d["time_" + id_label] = df["time"][:ITERATIONS]
-            print(f" - {id_label}")
+    d = defaultdict(list)
 
-        df_outcome = pd.DataFrame(d)
-        df_outcome = df_outcome[sorted(df_outcome.columns.values)]
-        df_outcome.to_csv("outcome_tuning.csv", index=False)
-
-    except Exception as e:
-        print(
-            f"Could not save aggregated data (result still needs to be processed). Exception: {e}"
+    columns = [
+        list(
+            pd.read_csv(
+                config_exp.output_path + "/overall_stats.csv",
+                index_col="Episode",
+            ).columns
         )
+        for _, label, config_exp in exp_list
+    ]
+    columns = set(it.chain.from_iterable(columns))
+
+    indexes = []
+    for short_label, label, config_exp in exp_list:
+        path_all_stats = config_exp.output_path + "/overall_stats.csv"
+        print(f'Saving at "{path_all_stats}".')
+        df = pd.read_csv(path_all_stats, index_col="Episode")
+        indexes.append(config_exp.label)
+        # config.test_label
+        # config.label_idle_annealing
+        # config.label_artificial
+        # config.label_lin
+
+        d["method"].append(config_exp.method)
+        d["pav"].append(config_exp.fleet_size)
+        d["fav"].append(config_exp.fav_fleet_size)
+        d["station"].append(config_exp.label_stations)
+        d["contract"].append(config_exp.label_max_contract)
+        d["start"].append(config_exp.label_start)
+        d["time_increment"].append(config_exp.time_increment)
+        # d["aggregation_levels"].append(config_exp.aggregation_levels)
+        d["levels"].append(config_exp.label_levels)
+        d["reb_neigh"].append(config_exp.label_reb_neigh)
+        # config_exp.label_explore
+        # config_exp.label_thomp
+        # config_exp.car_size_tabu
+        d["max_link"].append(config_exp.label_max_link)
+        d["penalize"].append(config_exp.label_penalize)
+        d["earliest_hour"].append(config_exp.demand_earliest_hour)
+        d["repositioning"].append(config_exp.offset_repositioning_min)
+        d["total_hours"].append(config_exp.demand_total_hours)
+        d["termination_min"].append(config_exp.offset_termination_min)
+        # config_exp.matching_delay
+        d["resize_factor"].append(config_exp.demand_resize_factor)
+        d["sample"].append(config_exp.label_sample)
+        d["discount_factor"].append(config_exp.discount_factor)
+        d["stepsize_constant"].append(config_exp.stepsize_constant)
+        d["sl_config_label"].append(config_exp.sl_config_label)
+
+        for c in columns:
+            if c in df.columns:
+                d[c].append(df[c].mean())
+            else:
+                d[c].append(0)
+
+    df_outcome = pd.DataFrame(dict(d), index=indexes)
+    # df_outcome = df_outcome[sorted(df_outcome.columns.values)]
+    label = "myopic" if myopic else ""
+    df_outcome.to_csv("outcome_tuning.csv", index=True)
+
+    # except Exception as e:
+    #     print(
+    #         f"Could not save aggregated data (result still needs to be processed). Exception: {e}"
+    #     )
 
 
 if __name__ == "__main__":
 
-    main()
+    exp_list = main()
+    save_outcome_tuning(exp_list)

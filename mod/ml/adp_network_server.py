@@ -286,23 +286,6 @@ def get_sim_config(update_dict):
     return config
 
 
-def hire_cars_trip_regions(amod, trips, contract_duration_h, step):
-    # Hired fleet is appearing in trip origins
-
-    hired_cars = [
-        HiredCar(
-            amod.points[t.id_sq1_level],
-            contract_duration_h,
-            current_step=step,
-            current_arrival=step * amod.config.time_increment,
-            duration_level=amod.config.contract_duration_level,
-        )
-        for t in trips
-    ]
-
-    return hired_cars
-
-
 def hire_cars_centers(amod, contract_duration_h, step, rc_level=2):
     # Hired fleet is appearing in trip origins
 
@@ -332,8 +315,6 @@ def alg_adp(
     # LOG ############################################################ #
     skip_steps=1,
     # HIRING ######################################################### #
-    enable_hiring=False,
-    contract_duration_h=2,
     sq_guarantee=False,
     universal_service=False,
     # TRIPS ########################################################## #
@@ -345,9 +326,6 @@ def alg_adp(
     save_df=True,
     # Save total reward, total service rate, and weights after iteration
     save_overall_stats=True,
-    # Update value functions (dictionary in progress.npy file)
-    # after n iterations (default n=1)
-    save_progress=1,
     log_config_dict={
         # la.LOG_DUALS: True,
         # la.LOG_FLEET_ACTIVITY: True,
@@ -378,7 +356,7 @@ def alg_adp(
     # ---------------------------------------------------------------- #
 
     amod = AmodNetworkHired(config, online=True)
-    episode_log = EpisodeLog(config=config, adp=amod.adp)
+    episode_log = EpisodeLog(amod.config.save_progress, config=config, adp=amod.adp)
     if plot_track:
         plot_track.set_env(amod)
 
@@ -398,9 +376,12 @@ def alg_adp(
     print(f"Loading demand scenario '{config.demand_scenario}'...")
 
     try:
-        # Load last episode
-        episode_log.load_progress()
-        print("Data loaded successfully.")
+        if config.myopic or config.policy_random:
+            print("Ignore training.")
+        else:
+            # Load last episode
+            episode_log.load_progress()
+            print("Data loaded successfully.")
 
     except Exception as e:
         print(f"No previous episodes were saved (Exception: '{e}').")
@@ -427,7 +408,12 @@ def alg_adp(
     # ---------------------------------------------------------------- #
 
     # Loop all episodes, pick up trips, and learn where they are
-    for n in range(episode_log.n, episodes):
+    if config.method == ConfigNetwork.METHOD_ADP_TRAIN:
+        start = episode_log.n
+    else:
+        start = 0
+
+    for n in range(start, episodes):
 
         t_update = 0
         t_mip = 0
@@ -534,7 +520,7 @@ def alg_adp(
             # TIME INCREMENT HAS PASSED ############################## #
             # ######################################################## #
 
-            if enable_hiring:
+            if amod.config.fav_fleet_size > 0:
                 hired_cars = amod.step_favs.get(step, [])
 
                 # Add hired fleet to model
@@ -636,7 +622,6 @@ def alg_adp(
                     # linearize_integer_model=linearize_integer_model,
                     log_times=log_times,
                     car_type_hide=Car.TYPE_FLEET,
-                    save_progress=1,
                 )
 
                 revenue += (revenue_fav,)
@@ -720,7 +705,7 @@ def alg_adp(
             time.time() - start_time,
             save_df=save_df,
             plots=save_plots,
-            save_learning=save_progress,
+            save_learning=amod.config.save_progress,
             save_overall_stats=save_overall_stats,
         )
         t_epi = t1 = time.time() - t1
@@ -757,6 +742,10 @@ def alg_adp(
 
 if __name__ == "__main__":
 
+    # Default is training
+    method = ConfigNetwork.METHOD_ADP_TEST
+    save_progress_interval = None
+
     # Isolate arguments (first is filename)
     args = sys.argv[1:]
 
@@ -771,19 +760,36 @@ if __name__ == "__main__":
     save_plots = "-save_plots" in args
     save_df = "-save_df" in args
     log_times = "-log_times" in args
-    use_duals = "-myopic" in args
+    myopic = "-myopic" in args
     policy_random = "-random" in args
+    train = "-train" in args
+    test = "-test" in args
 
-    try:
-        save_progress = int(args.index("-save_progress"))
+    if policy_random:
+        print("RANDOM")
+        method = ConfigNetwork.METHOD_RANDOM
+
+    elif myopic:
+        print("MYOPIC")
+        method = ConfigNetwork.METHOD_MYOPIC
+
+    elif train:
+        print("SAVING PROGRESS")
         try:
-            save_progress = int(args[save_progress + 1])
+            i = int(args.index("-train"))
+            save_progress_interval = int(args[i + 1])
         except:
-            save_progress = 1
-        print(f"Saving progress every {save_progress} iteration.")
-    except:
+            save_progress_interval = 1
+        print(f"Saving progress every {save_progress_interval} iteration.")
+        method = ConfigNetwork.METHOD_ADP_TRAIN
+    elif test:
+        method = ConfigNetwork.METHOD_ADP_TEST
+        save_progress_interval = None
         print("Progress will not be saved!")
-        save_progress = None
+    else:
+        raise("Error! Which method?")
+    
+    print("METHOD:", method)
 
     try:
         iterations = args.index("-n")
@@ -798,23 +804,13 @@ if __name__ == "__main__":
         fleet_size = 100
 
     try:
-        policy_random = args.index(f"-{ConfigNetwork.POLICY_RANDOM}".lower())
-    except:
-        policy_random = False
-
-    try:
-        myopic = args.index(f"-{ConfigNetwork.MYOPIC}".lower())
-    except:
-        myopic = False
-
-    try:
         log_level_i = args.index("-level")
         log_level_label = args[log_level_i + 1]
         log_level = la.levels[log_level_label]
     except:
         log_level = la.INFO
 
-    print("###### STARTING EXPERIMENTS")
+    print(f"###### STARTING EXPERIMENTS. METHOD: {method}")
 
     instance_name = (
         None
@@ -869,10 +865,8 @@ if __name__ == "__main__":
                     ("B", 1),
                 ),
                 # ADP EXECUTION ###################################### #
-                ConfigNetwork.MYOPIC: myopic,
-                # Rebalance costs are ignored by MIP but included when
-                # realizing the model
-                ConfigNetwork.POLICY_RANDOM: policy_random,
+                ConfigNetwork.METHOD: method,
+                ConfigNetwork.SAVE_PROGRESS: save_progress_interval,
                 ConfigNetwork.ADP_IGNORE_ZEROS: True,
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
@@ -933,19 +927,18 @@ if __name__ == "__main__":
         la.FORMATTER_FILE: la.FORMATTER_TERSE,
     }
 
+    print("PROGRESS", start_config.save_progress)
+
     alg_adp(
         None,
         start_config,
         episodes=n_iterations,
-        contract_duration_h=2,
         sq_guarantee=hire,
-        enable_hiring=hire,
         universal_service=False,
         log_config_dict=log_config,
         log_mip=log_mip,
         log_times=log_times,
         save_plots=save_plots,
-        save_progress=save_progress,
         save_df=save_df,
         use_artificial_duals=start_config.use_artificial_duals,
     )

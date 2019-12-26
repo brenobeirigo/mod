@@ -25,19 +25,14 @@ FOLDER_TUNING = root + "/data/input/tuning/"
 FOLDER_OD_DATA = root + "/data/input/od_data/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
 
+FILE_TRAINING = f"{FOLDER_NYC_TRIPS}tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv"
 TRIP_FILES = [
     f"{FOLDER_NYC_TRIPS}{t}"
-    for t in [
-        # "trips_2011-01-04-enriched.csv"
-        "tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv",
-        # "tripdata_ids_2011-04-19_000000_2011-04-19_235959.csv",
-        # "tripdata_ids_2011-12-06_000000_2011-12-06_235959.csv",
-        # "trips_2011-02-01.csv",
-        # "trips_2011-02-08.csv",
-        # "trips_2011-02-15.csv",
-        # "trips_2011-02-22.csv",
-    ]
+    for t in os.listdir(FOLDER_NYC_TRIPS) if t.endswith(".csv")
 ]
+
+TRIP_FILES.remove(FILE_TRAINING)
+print(f"{len(TRIP_FILES)} trip files loaded.")
 
 # Car statuses
 IDLE = 0

@@ -437,7 +437,15 @@ def alg_adp(
         elif config.demand_scenario == conf.SCENARIO_NYC:
 
             # Load a random .csv file with trips from NYC
-            trips_file_path = random.choice(conf.TRIP_FILES)
+            # trips_file_path = random.choice(conf.TRIP_FILES)
+            if config.train:
+                trips_file_path = conf.FILE_TRAINING
+                # print(f"  -> Trip file - {trips_file_path}")
+            else:
+                # If testing, select different trip files
+                test_i = n % len(conf.TRIP_FILES)
+                trips_file_path = conf.TRIP_FILES[test_i]
+                # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
 
             step_trip_list, step_trip_count = tp.get_ny_demand(
                 config, trips_file_path, amod.points
@@ -788,7 +796,7 @@ if __name__ == "__main__":
         print("Progress will not be saved!")
     else:
         raise("Error! Which method?")
-    
+
     print("METHOD:", method)
 
     try:

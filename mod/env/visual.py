@@ -258,7 +258,7 @@ class EpisodeLog:
         total_trips = 0
         for sq, delays in serviced.items():
             n_serviced = len(delays)
-            n_rejected = rejected[sq]
+            n_rejected = len(rejected[sq])
             total = n_rejected + n_serviced
             total_trips += total
 
@@ -294,9 +294,9 @@ class EpisodeLog:
         save_overall_stats=True
     ):
 
-        ### Process trip data ######################################## #
+        # # Process trip data ######################################## #
         trip_delays = defaultdict(list)
-        trip_rejections = defaultdict(int)
+        trip_rejections = defaultdict(list)
         total_trips = defaultdict(int)
         for t in it.chain(*it_step_trip_list):
             total_trips[t.sq_class] += 1
@@ -304,7 +304,8 @@ class EpisodeLog:
             if t.pk_delay is not None:
                 trip_delays[t.sq_class].append(t.pk_delay)
             else:
-                trip_rejections[t.sq_class] += 1
+                # Append travel distance of rejected trip
+                trip_rejections[t.sq_class].append(nw.get_distance(t.o.id, t.d.id))
 
         delays_stats = dict()
 
@@ -313,7 +314,9 @@ class EpisodeLog:
                 mean=np.mean(delays),
                 median=np.median(delays),
                 serviced=len(delays),
-                rejected=trip_rejections[sq],
+                rejected=len(trip_rejections[sq]),
+                rejected_dist_mean=np.mean(trip_rejections[sq]),
+                rejected_dist_median=np.median(trip_rejections[sq]),
                 sl=len(delays)/total_trips[sq],
             )
 

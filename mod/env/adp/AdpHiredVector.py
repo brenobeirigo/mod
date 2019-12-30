@@ -330,6 +330,7 @@ class AdpHired(adp.Adp):
         self.n = progress.get("episodes", list())
         self.reward = progress.get("reward", list())
         self.pk_delay = progress.get("pk_delay", list())
+        self.car_time = progress.get("car_time", list())
         self.service_rate = progress.get("service_rate", list())
         self.weights = progress.get("weights", list())
         self.values = [
@@ -350,6 +351,8 @@ class AdpHired(adp.Adp):
             f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
             f"(max={max(self.service_rate):15.2%})"
             f"\n - Last pickup delay: {self.pk_delay[self.n-1]} "
+            # TODO
+            # f"\n -    Last car times: {self.car_time[self.n-1]} "
             f"\n -   Count per level:           {count_level}"
         )
 

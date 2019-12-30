@@ -211,10 +211,25 @@ class EpisodeLog:
                 stats_str.append(f"{sq}[{label_values}]")
             sq_delay_stats = ", ".join(stats_str)
             delay_info = f"delays=({sq_delay_stats})"
+            
+            stats_str_cars = []
+            for car_type, stats in self.adp.car_time[-1].items():
+                label_values = ", ".join(
+                    [
+                        f"{label}={v:>6.2f}" if isinstance(v, float) else f"{label}={v:>5}"
+                        for label, v in stats.items()
+                    ]
+                )
+                stats_str_cars.append(f"{car_type}[{label_values}]")
+            car_type_stats = ", ".join(stats_str_cars)
+
+            car_time_info = f"car time status=({car_type_stats})"
+
             return (
                 f"({self.adp.reward[-1]:15,.2f},"
                 f" {self.adp.service_rate[-1]:6.2%},"
-                f" {delay_info}), "
+                f" {delay_info},"
+                f" {car_time_info}), "
                 f"Agg. level weights = {a}"
             )
         except:
@@ -296,6 +311,7 @@ class EpisodeLog:
 
         # # Process trip data ######################################## #
         trip_delays = defaultdict(list)
+        trip_distances = defaultdict(list)
         trip_rejections = defaultdict(list)
         total_trips = defaultdict(int)
         for t in it.chain(*it_step_trip_list):
@@ -303,6 +319,7 @@ class EpisodeLog:
             # If None -> Trip was rejected
             if t.pk_delay is not None:
                 trip_delays[t.sq_class].append(t.pk_delay)
+                trip_distances[t.sq_class].append(nw.get_distance(t.o.id, t.d.id))
             else:
                 # Append travel distance of rejected trip
                 trip_rejections[t.sq_class].append(nw.get_distance(t.o.id, t.d.id))
@@ -311,16 +328,43 @@ class EpisodeLog:
 
         for sq, delays in trip_delays.items():
             delays_stats[sq] = dict(
-                mean=np.mean(delays),
-                median=np.median(delays),
+                delay_mean=np.mean(delays),
+                delay_median=np.median(delays),
+                delay_total=np.sum(delays),
                 serviced=len(delays),
+                serviced_dist_mean=np.mean(trip_distances[sq]),
+                serviced_dist_median=np.median(trip_distances[sq]),
+                serviced_dist_total=np.sum(trip_distances[sq]),
                 rejected=len(trip_rejections[sq]),
                 rejected_dist_mean=np.mean(trip_rejections[sq]),
                 rejected_dist_median=np.median(trip_rejections[sq]),
+                rejected_dist_total=np.sum(trip_rejections[sq]),
                 sl=len(delays)/total_trips[sq],
             )
+        # TODO comment this section
+        car_type_status_durations = defaultdict(lambda:defaultdict(list))
+        for c in it.chain(step_log.env.cars, step_log.env.overall_hired):
+            for status, duration in c.time_status.items():
+                car_type_status_durations[c.type][status].append(np.sum(duration))
 
+        car_type_status_dict = dict()
+        for car_type, status_durations in car_type_status_durations.items():
+            car_type_status_dict[car_type] = dict()
+            overall_duration = 0
+            for status, durations in status_durations.items():
+                status_label = conf.status_label_dict[status].lower().replace(" ","_")
+                total = np.sum(durations)
+                overall_duration+=total
+                # mean = np.mean(durations)
+                d = {
+                    f"{status_label}_total": total,
+                    # f"{status_label}_mean": mean
+                    }
+                car_type_status_dict[car_type].update(d)
+            car_type_status_dict[car_type].update({"total_duration":overall_duration})
+                
         self.adp.pk_delay.append(delays_stats)
+        self.adp.car_time.append(car_type_status_dict)
 
         # Increment number of episodes
         self.adp.n += 1
@@ -404,6 +448,11 @@ class EpisodeLog:
             for sq, stats in self.adp.pk_delay[-1].items():
                 for label, v in stats.items():
                     df_stats[f"{sq}_{label}"] = v
+            
+            # Add car stats
+            for car_type, stats in self.adp.car_time[-1].items():
+                for label, v in stats.items():
+                    df_stats[f"{car_type}_{label}"] = v
 
             df_stats["time"] = pd.Series([processing_time])
             stats_file = self.output_path + "/overall_stats.csv"
@@ -453,6 +502,7 @@ class EpisodeLog:
                     "reward": self.adp.reward,
                     "service_rate": self.adp.service_rate,
                     "pk_delay": self.adp.pk_delay,
+                    "car_time": self.adp.car_time,
                     "progress": self.adp.current_data,
                     "weights": self.adp.weights,
                 },

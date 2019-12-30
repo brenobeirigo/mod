@@ -18,6 +18,8 @@ class Car:
     RETURN = 5
     SERVICING = 6
 
+    statuses = [IDLE, RECHARGING, ASSIGN, CRUISING, REBALANCE, RETURN, SERVICING]
+
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
 
@@ -92,6 +94,10 @@ class Car:
         # Vehicle starts free to operate
         self.status = Car.IDLE
         self.current_trip = None
+
+        self.time_status = dict()
+        for s in Car.statuses:
+            self.time_status[s] = list()
 
         # Regular cars are always available
         self.contract_duration = Car.INFINITE_CONTRACT_DURATION
@@ -185,6 +191,9 @@ class Car:
             if self.point != self.point_list[-1]:
                 self.point_list.append(self.point)
 
+            self.time_status[self.status].append(step * time_increment - self.arrival_time)
+            # print(self.time_status[self.status])
+            
             # Car is free to service users
             self.arrival_time = step * time_increment
             self.step = step
@@ -245,6 +254,8 @@ class Car:
             self.status = Car.RETURN
         else:
             self.status = Car.REBALANCE
+            
+        self.time_status[self.status].append(duration_service)
 
     def update_trip(
         self,
@@ -306,6 +317,9 @@ class Car:
             self.status = Car.ASSIGN
         else:
             self.status = Car.CRUISING
+        
+        self.time_status[Car.ASSIGN].append(total_duration-pk_duration)
+        self.time_status[Car.CRUISING].append(pk_duration)
 
         self.trip.pk_step = self.step + pk_step
 
@@ -339,6 +353,9 @@ class Car:
         self.count = 0
         self.previous = self.point
         self.revenue = 0
+        self.time_status = dict()
+        for s in Car.statuses:
+            self.time_status[s] = list()
 
     def __str__(self):
         return f"V{self.id} - {self.point}"

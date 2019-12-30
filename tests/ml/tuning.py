@@ -52,7 +52,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 20
+ITERATIONS = 51
 
 
 log_config = {
@@ -216,7 +216,7 @@ def main(test_labels, focus, N_PROCESSES):
     # Goal - Depot shares X FAV fleet size X Aggregation levels
     tuning_focus["hiring"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
-        ConfigNetwork.FAV_FLEET_SIZE: [100, 200],
+        ConfigNetwork.FAV_FLEET_SIZE: [200],
         ConfigNetwork.MAX_CONTRACT_DURATION: [True],
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [
@@ -243,7 +243,11 @@ def main(test_labels, focus, N_PROCESSES):
                 (3, 2, 0, "-", 0, 3),
                 (3, 3, 0, "-", 0, "-"),
             ],
-            [(1, 0, 0, "-", 0, 1), (3, 2, 0, "-", 0, 2), (3, 3, 0, "-", 0, 3)],
+            [
+                (1, 0, 0, "-", 0, 1),
+                (3, 2, 0, "-", 0, 2),
+                (3, 3, 0, "-", 0, 3)
+            ],
         ],
     }
 
@@ -256,7 +260,7 @@ def main(test_labels, focus, N_PROCESSES):
     tuning_focus["sl"] = {
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [
             ((1, 8),),
-            ((1, 4), (2, 4))
+            # ((1, 4), (2, 4))
         ],
         "TOLERANCE_MAX_PICKUP": [
             {
@@ -264,25 +268,63 @@ def main(test_labels, focus, N_PROCESSES):
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 15)),
                 ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
             },
+            # {
+            #     ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+            #     ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            #     ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+            # },
+            # {
+            #     ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+            #     ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            #     ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
+            # },
+            # {
+            #     ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+            #     ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            #     ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+            # },
+            # {
+            #     ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+            #     ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            #     ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
+            # },
+        ],
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [
+            (("A", 1), ("B", 0)),
+            (("A", 0), ("B", 1)),
+        ],
+    }
+
+
+    # ENFORCING SERVICE LEVELS
+    # Goal: What is the impact of each penalty mechanism in A and B?
+    # 1 - PAV baseline
+    # 2 - PAV baseline + tolerance delay (=larger pk time)
+    # 3 - PAV baseline + tolerance delay + delay penalty
+    # 4 - PAV baseline + tolerance delay + Delay penalty + rejection penalty
+    tuning_focus["sl_pen"] = {
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [
+            ((1, 8),),
+            # ((1, 4), (2, 4))
+        ],
+        ConfigNetwork.TRIP_REJECTION_PENALTY:[
+            (("A", 0), ("B", 0)),
+            (("A", 4.8), ("B", 2.4)),
+            (("A", 7.2), ("B", 4.8)),
+            (("A", 9.6), ("B", 7.2)),
+        ],
+        "TOLERANCE_MAX_PICKUP": [
+            # {
+            #     ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+            #     ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 15)),
+            # },
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
-            },
-            {
-                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
             },
             {
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
-            },
-            {
-                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
             },
         ],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [
@@ -421,7 +463,7 @@ def main(test_labels, focus, N_PROCESSES):
 
     test_all(tuning_labels, tuning_params, update_dict, setup, exp_list)
 
-    print("################ All tests")
+    print(f"################ All tests ({len(exp_list)})")
     for short_label, label, config in exp_list:
         print(" - ", label)
 
@@ -466,6 +508,8 @@ def save_outcome_tuning(test_label, exp_list):
         # config.label_artificial
         # config.label_lin
 
+        d["label"].append(config_exp.sl_label)
+
         d["method"].append(config_exp.method)
         d["pav"].append(config_exp.fleet_size)
         d["fav"].append(config_exp.fav_fleet_size)
@@ -490,7 +534,9 @@ def save_outcome_tuning(test_label, exp_list):
         d["sample"].append(config_exp.label_sample)
         d["discount_factor"].append(config_exp.discount_factor)
         d["stepsize_constant"].append(config_exp.stepsize_constant)
-        d["sl_config_label"].append(config_exp.sl_config_label)
+        for k,v in config_exp.sl_config_dict.items():
+            d[k].append(v)
+        # d["sl_config_label"].append(config_exp.sl_config_label)
 
         for c in columns:
             if c in df.columns:
@@ -521,9 +567,11 @@ if __name__ == "__main__":
     except:
         N_PROCESSES = 2
     try:
-        focus = sys.argv[3]
+        focus = sys.argv[3:]
     except:
         print("Include tuning focus [sensitivity, sl, adp]")
-
-    exp_list = main(test_label, focus, N_PROCESSES)
+    exp_list = []
+    for f in focus:
+        print(f"---> Focus: {f}")
+        exp_list.extend(main(test_label, f, N_PROCESSES))
     save_outcome_tuning(test_label, exp_list)

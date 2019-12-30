@@ -534,6 +534,7 @@ def alg_adp(
                 # Add hired fleet to model
                 amod.hired_cars.extend(hired_cars)
                 amod.available_hired.extend(hired_cars)
+                amod.overall_hired.extend(hired_cars)
 
             # Loop cars and update their current status as well as the
             # the list of available vehicles (change available and

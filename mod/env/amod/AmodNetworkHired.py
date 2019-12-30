@@ -70,8 +70,12 @@ class AmodNetworkHired(AmodNetwork):
 
         super().__init__(config, car_positions=car_positions)
 
-        # Third-party fleet can be hired to assist main fleet
+        # Third-party fleet can be hired to assist main fleet. These are
+        # hired cars whose contracts are still active.
         self.hired_cars = []
+
+        # List of all cars hired (active and inactive contracts)
+        self.overall_hired = []
 
         # With a depot list, we can determine a number of FAVs per node.
         # For that to work, we need a fixed order.
@@ -1009,6 +1013,7 @@ class AmodNetworkHired(AmodNetwork):
 
         super().reset()
         self.hired_cars = []
+        self.overall_hired = []
         self.step_favs = self.get_hired_step()
         self.expired_contract_cars = []
         self.available_hired = []

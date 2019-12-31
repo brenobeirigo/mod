@@ -310,7 +310,6 @@ def alg_adp(
     config,
     # PLOT ########################################################### #
     step_delay=PlotTrack.STEP_DELAY,
-    episodes=450,
     enable_charging=False,
     # LOG ############################################################ #
     skip_steps=1,
@@ -413,7 +412,7 @@ def alg_adp(
     else:
         start = 0
 
-    for n in range(start, episodes):
+    for n in range(start, config.iterations):
 
         t_update = 0
         t_mip = 0
@@ -829,7 +828,8 @@ if __name__ == "__main__":
         start_config = ConfigNetwork.load(instance_name)
     else:
         start_config = get_sim_config(
-            {
+            {   
+                ConfigNetwork.ITERATIONS: iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
                 ConfigNetwork.FLEET_SIZE: fleet_size,
@@ -941,7 +941,6 @@ if __name__ == "__main__":
     alg_adp(
         None,
         start_config,
-        episodes=n_iterations,
         sq_guarantee=hire,
         universal_service=False,
         log_config_dict=log_config,

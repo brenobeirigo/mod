@@ -73,7 +73,6 @@ myopic = False
 policy_random = True
 
 config_adp = {
-    "episodes": ITERATIONS,
     "classed_trips": True,
     # sq_guarantee=True,
     # universal_service=True,
@@ -166,7 +165,7 @@ def multi_proc_exp(exp_list, processes=4, iterations=300):
         df.to_csv(f"tuning_{exp_name}.csv")
 
 
-def main(test_labels, focus, N_PROCESSES):
+def main(test_labels, focus, N_PROCESSES, method):
 
     tuning_focus = dict()
 
@@ -189,6 +188,7 @@ def main(test_labels, focus, N_PROCESSES):
             (("A", 4.8), ("B", 2.4)),
             (("A", 7.2), ("B", 4.8)),
             (("A", 9.6), ("B", 7.2)),
+            (("A", 12.0), ("B", 9.6)),
         ],
         ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [
@@ -371,7 +371,18 @@ def main(test_labels, focus, N_PROCESSES):
     pprint(tuning_focus)
     tuning_params = tuning_focus[focus]
 
+
+    if method == "-train":
+        m = ConfigNetwork.METHOD_ADP_TRAIN
+        ITERATIONS = 500
+    elif method == "-test":
+        m = ConfigNetwork.METHOD_ADP_TEST
+        ITERATIONS = 51
+
+    print(f"ITERATIONS: {ITERATIONS:04} - METHOD: {m}")
+
     shared_settings = {
+        ConfigNetwork.ITERATIONS: ITERATIONS,
         ConfigNetwork.TEST_LABEL: test_label,
         ConfigNetwork.DISCOUNT_FACTOR: 1,
         ConfigNetwork.FLEET_SIZE: 300,
@@ -394,7 +405,7 @@ def main(test_labels, focus, N_PROCESSES):
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
-        ConfigNetwork.METHOD: ConfigNetwork.METHOD_ADP_TRAIN,
+        ConfigNetwork.METHOD: m,
         ConfigNetwork.ADP_IGNORE_ZEROS: True,
         ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
         ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
@@ -566,12 +577,19 @@ if __name__ == "__main__":
         N_PROCESSES = int(sys.argv[2])
     except:
         N_PROCESSES = 2
+    
     try:
-        focus = sys.argv[3:]
+        method = sys.argv[3]
     except:
         print("Include tuning focus [sensitivity, sl, adp]")
+        
+    try:
+        focus = sys.argv[4:]
+    except:
+        print("Include tuning focus [sensitivity, sl, adp]")
+    
     exp_list = []
     for f in focus:
         print(f"---> Focus: {f}")
-        exp_list.extend(main(test_label, f, N_PROCESSES))
+        exp_list.extend(main(test_label, f, N_PROCESSES, method))
     save_outcome_tuning(test_label, exp_list)

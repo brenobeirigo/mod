@@ -32,7 +32,7 @@ TRIP_FILES = [
 ]
 
 TRIP_FILES.remove(FILE_TRAINING)
-print(f"{len(TRIP_FILES)} trip files loaded.")
+print(f"{len(TRIP_FILES)} trip files loaded (52 including training file).")
 
 # Car statuses
 IDLE = 0
@@ -228,6 +228,7 @@ class Config:
     METHOD_RANDOM = "random"
     METHOD_MYOPIC = "myopic"
     METHOD = "METHOD"
+    ITERATIONS = "ITERATIONS"
 
 
     # DEMAND
@@ -677,6 +678,19 @@ class Config:
         return sl_config_label
 
     @property
+    def sl_config_dict(self):
+        sl_config_dict = {}
+        for sq, base in self.config[Config.TRIP_BASE_FARE].items():
+            sl_config_dict[f"{sq}_trip_base_fare"] = base
+            sl_config_dict[f"{sq}_trip_distance_rate_km"] = self.config[Config.TRIP_DISTANCE_RATE_KM][sq]
+            sl_config_dict[f"{sq}_trip_max_pickup_delay"] = self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]
+            sl_config_dict[f"{sq}_trip_tolerance_delay_min"] = self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]
+            sl_config_dict[f"{sq}_trip_rejection_penalty"] = self.config[Config.TRIP_REJECTION_PENALTY][sq]
+            sl_config_dict[f"{sq}_trip_class_proportion"] = self.config[Config.TRIP_CLASS_PROPORTION][sq]
+
+        return sl_config_dict
+
+    @property
     def sl_label(self):
         paper_label = dict()
         paper_label["A"] = "1"
@@ -747,30 +761,35 @@ class Config:
                 dict_update[Config.AGGREGATION_LEVELS]
             )
 
-        if Config.TRIP_MAX_PICKUP_DELAY in dict_update:
-            dict_update[Config.TRIP_MAX_PICKUP_DELAY] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_MAX_PICKUP_DELAY]
-            }
-        if Config.TRIP_DISTANCE_RATE_KM in dict_update:
-            dict_update[Config.TRIP_DISTANCE_RATE_KM] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_DISTANCE_RATE_KM]
-            }
-        if Config.TRIP_TOLERANCE_DELAY_MIN in dict_update:
-            dict_update[Config.TRIP_TOLERANCE_DELAY_MIN] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_TOLERANCE_DELAY_MIN]
-            }
-        if Config.TRIP_CLASS_PROPORTION in dict_update:
-            dict_update[Config.TRIP_CLASS_PROPORTION] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_CLASS_PROPORTION]
-            }
-        if Config.TRIP_REJECTION_PENALTY in dict_update:
-            dict_update[Config.TRIP_REJECTION_PENALTY] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_REJECTION_PENALTY]
-            }
-        if Config.TRIP_BASE_FARE in dict_update:
-            dict_update[Config.TRIP_BASE_FARE] = {
-                kv[0]: kv[1] for kv in dict_update[Config.TRIP_BASE_FARE]
-            }
+        # TODO check data structure
+        try:
+
+            if Config.TRIP_MAX_PICKUP_DELAY in dict_update:
+                dict_update[Config.TRIP_MAX_PICKUP_DELAY] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_MAX_PICKUP_DELAY]
+                }
+            if Config.TRIP_DISTANCE_RATE_KM in dict_update:
+                dict_update[Config.TRIP_DISTANCE_RATE_KM] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_DISTANCE_RATE_KM]
+                }
+            if Config.TRIP_TOLERANCE_DELAY_MIN in dict_update:
+                dict_update[Config.TRIP_TOLERANCE_DELAY_MIN] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_TOLERANCE_DELAY_MIN]
+                }
+            if Config.TRIP_CLASS_PROPORTION in dict_update:
+                dict_update[Config.TRIP_CLASS_PROPORTION] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_CLASS_PROPORTION]
+                }
+            if Config.TRIP_REJECTION_PENALTY in dict_update:
+                dict_update[Config.TRIP_REJECTION_PENALTY] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_REJECTION_PENALTY]
+                }
+            if Config.TRIP_BASE_FARE in dict_update:
+                dict_update[Config.TRIP_BASE_FARE] = {
+                    kv[0]: kv[1] for kv in dict_update[Config.TRIP_BASE_FARE]
+                }
+        except:
+            pass
 
 
         self.config.update(dict_update)
@@ -893,6 +912,9 @@ class Config:
         return self.folder_adp_log + f"{iteration:04}.log"
 
     @property
+    def iterations(self):
+        return self.config[Config.ITERATIONS]
+    @property
     def step_seconds(self):
         """Speed in kmh"""
         return self.config["STEP_SECONDS"]
@@ -970,6 +992,8 @@ class ConfigStandard(Config):
         super().__init__(config)
 
         self.config = dict()
+
+        self.config[Config.ITERATIONS] = 500
 
         ################################################################
         # Car ##########################################################

@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import timedelta, datetime
 import math
 import time
+import mod.env.network as nw
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -158,7 +159,73 @@ def load_trips_ods_from(tripdata_path, config):
     return step_trip_od_list
 
 
-def get_ny_demand(config, tripdata_path, points):
+def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
+    """Get dataframe from sampled trip list.
+
+    Parameters
+    ----------
+    step_trip_list : list of lists
+        List of trip lists occuring in the same step.
+    show_service_data: bool
+        Show trip pickup and dropoff results.
+    earliest_datetime: datetime
+        Trip start time - rebalance offset
+
+    Returns
+    -------
+    DataFrame
+        Dataframe with trip data info.
+    """
+    d = defaultdict(list)
+    for trips in step_trip_list:
+        for t in trips:
+            d["placement_datetime"].append(t.placement)
+            d["pk_id"].append(t.o.id)
+            d["dp_id"].append(t.d.id)
+            d["sq_class"].append(t.sq_class)
+            d["max_delay"].append(t.max_delay)
+            d["tolerance"].append(t.tolerance)
+            lon_o, lat_o = nw.tenv.lonlat(t.o.id)
+            lon_d, lat_d = nw.tenv.lonlat(t.d.id)
+            d["passenger_count"].append(1)
+            d["pickup_latitude"].append(lat_o)
+            d["pickup_longitude"].append(lon_o)
+            d["dropoff_latitude"].append(lat_d)
+            d["dropoff_longitude"].append(lon_d)
+
+            if show_service_data:
+                if t.pk_delay is not None:
+                    pickup_datetime = (
+                        t.placement
+                        + timedelta(minutes=t.pk_delay)
+                    )
+                    pickup_datetime_str = datetime.strftime(
+                        pickup_datetime,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                if t.dropoff_time is not None:
+                    dropoff_datetime = (
+                        earliest_datetime + timedelta(minutes=t.dropoff_time)
+                    )
+
+                    dropoff_datetime_str = datetime.strftime(
+                        dropoff_datetime,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                d['pickup_step'].append(t.pk_step if t.pk_step is not None else "-")
+                d['pickup_delay'].append(t.pk_delay if t.pk_delay is not None else "-")
+                d['pickup_datetime'].append(pickup_datetime_str if t.pk_delay is not None else "-")
+                d['dropoff_time'].append(t.dropoff_time if t.dropoff_time is not None else "-")
+                d['dropoff_datetime'].append(dropoff_datetime_str if t.dropoff_time is not None else "-")
+                d['picked_by'].append(t.picked_by)
+
+    df = pd.DataFrame.from_dict(dict(d))
+    return df
+
+
+def get_ny_demand(config, tripdata_path, points, equal_samples=False):
 
     step_trip_od_list = load_trips_ods_from(tripdata_path, config)
 
@@ -175,6 +242,7 @@ def get_ny_demand(config, tripdata_path, points):
             offset_end=config.offset_termination_steps,
             classed=config.demand_is_classed,
             resize_factor=config.demand_resize_factor,
+            equal_samples=equal_samples,
         )
 
         # Count number of trips per step
@@ -470,10 +538,15 @@ def get_trips(
     offset_end=0,
     classed=False,
     resize_factor=1,
+    equal_samples=False,
 ):
 
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
+
+    # Guarantee everytime the same trips are sampled
+    if equal_samples:
+        random.seed(1)
 
     for step, trips in enumerate(step_trips):
         trip_list = list()

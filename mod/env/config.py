@@ -226,6 +226,7 @@ class Config:
     METHOD_ADP_TRAIN = "adp/train"
     METHOD_ADP_TEST = "adp/test"
     METHOD_RANDOM = "random"
+    METHOD_REACTIVE = "reactive"
     METHOD_MYOPIC = "myopic"
     METHOD = "METHOD"
     ITERATIONS = "ITERATIONS"
@@ -487,6 +488,12 @@ class Config:
         return self.config["MAX_IDLE_STEP_COUNT"]
 
     @property
+    def consider_rebalance(self):
+        if self.myopic or self.policy_reactive:
+            return False
+        return True
+
+    @property
     def myopic(self):
         return self.config[Config.METHOD] == Config.METHOD_MYOPIC
 
@@ -508,6 +515,10 @@ class Config:
     @property
     def policy_random(self):
         return self.config[Config.METHOD] == Config.METHOD_RANDOM
+    
+    @property
+    def policy_reactive(self):
+        return self.config[Config.METHOD] == Config.METHOD_REACTIVE
 
     @property
     def time_increment(self):

@@ -52,6 +52,17 @@ def stay_decision(car):
     )
 
 
+def stay_decision_reb(car):
+    """Stay in middle position"""
+    return (
+        (STAY_DECISION,)
+        + car.attribute
+        + (car.middle_point.id,)
+        + (car.middle_point.id,)
+        + (DISCARD,)
+    )
+
+
 def recharge_decision(car):
     """Stay in current position recharging"""
     return (
@@ -149,12 +160,12 @@ def get_virtual_decisions(trips):
     """Create virtual trip and stay decisions.
     When the system must fullfil all orders, virtual cars can be
     used to pretend customers were serviced.
-    
+
     Parameters
     ----------
     trips : list
         Trip list from where virtual car origins are drawn.
-    
+
     Returns
     -------
     list
@@ -235,8 +246,10 @@ def get_decisions(env, trips, min_battery_level=None):
         # TODO it differs for FAVs
         from_location[car.point.id] += 1
 
-        # Vehicle knows nothing about future states, hence it rebalances
-        if not env.config.myopic:
+        # myopic = NO
+        # reactive = NO (Rebalance decisions only in 2nd round)
+        # random, train, and test = YES
+        if env.config.consider_rebalance:
             # Rebalancing ################################################ #
 
             neighbors = env.attribute_rebalance[car.point.id]
@@ -351,4 +364,114 @@ def get_decisions(env, trips, min_battery_level=None):
 
                 #     decision_class[trip.sq_class].append(d)
 
+    # Rebalancing vehicles can only stop to pick up new trips
+    for car in itertools.chain(env.rebalancing, env.rebalancing_hired):
+        # Stay ################################################### #
+        d_stay = stay_decision_reb(car)
+        decisions.add(d_stay)
+
+        # Try matching trips departing from the closest middle point
+        for trip in trips:
+
+            # Car cannot service trip because it cannot go back
+            # to origin in time
+            if isinstance(car, HiredCar) and not env.can_move(
+                car.middle_point.id,
+                trip.o.id,
+                trip.d.id,
+                car.depot.id,
+                car.contract_duration,
+            ):
+                continue
+
+            # Time to reach trip origin
+            travel_time = env.get_travel_time_od(
+                car.middle_point, trip.o, unit="min"
+            )
+
+            # TODO here we have an approximation. Precise matching uses
+            # env.config.time_increment
+
+            # Can the car reach the trip origin?
+            if (
+                travel_time
+                <= trip.max_delay
+                - car.elapsed
+                - env.config.time_increment
+                + trip.tolerance
+            ):
+                # Setup decisions
+                d = trip_decision(car, trip)
+                decisions.add(d)
+
     return decisions, decisions_return, decision_class
+
+
+def get_rebalancing_decisions(env, neighbors, min_battery_level=None):
+    """Get list of rebalancing decision tuples moving towards neighbors.
+
+    Parameters
+    ----------
+    env : Amod object
+        Amod environment
+    trips : list
+        Trips placed in the current time step
+    min_battery_level : int, optional
+        Create recharging decisions with car battery level is lower, by
+        default None
+
+    Returns
+    -------
+    (list, dict(list))
+        List of all decisions
+        List of trip decisions per class
+    """
+
+    decisions = set()
+
+    # ##################################################################
+    # SORT CARS ########################################################
+    # ##################################################################
+
+    for car in itertools.chain(env.available, env.available_hired):
+
+        # Stay ####################################################### #
+        d_stay = stay_decision(car)
+        decisions.add(d_stay)
+
+        if env.config.activate_thompson:
+            d_rebalance = rebalance_decisions_thompson(car, neighbors, env)
+        else:
+            d_rebalance = rebalance_decisions(car, neighbors, env)
+
+        if not d_rebalance:
+            # Remove from tabu if not empty.
+            # Avoid cars are corned indefinitely
+            if car.tabu:
+                car.tabu.popleft()
+
+        # TODO this is here because of a lack or rebalancing options
+        # thompson selected is small 0.2
+        if len(d_rebalance) == 1:
+            d_stay = stay_decision(car)
+            decisions.add(d_stay)
+
+        # Vehicles can stay idle for a maximum number of steps.
+        # If they surpass this number, they can rebalance to farther
+        # areas.
+        if env.config.max_idle_step_count:
+
+            # Car can rebalance to farther locations besides the
+            # closest after staying still for idle_step_count steps
+            if car.idle_step_count >= env.config.max_idle_step_count:
+                farther = env.get_zone_neighbors(car.point.id, explore=True)
+
+                # print(f"farther: {farther} - d_rebalance: {d_rebalance}")
+                d_rebalance.update(rebalance_decisions(car, farther, env))
+                # d_rebalance = d_rebalance | farther
+
+        # print(f"farther: {d_rebalance}")
+
+        decisions.update(d_rebalance)
+
+    return decisions

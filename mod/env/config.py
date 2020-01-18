@@ -299,11 +299,19 @@ class Config:
 
     @property
     def sampled_tripdata_path(self):
-        samples_path = f"{FOLDER_OUTPUT}{self.label}/{self.method}/samples/"
+        samples_path = f"{FOLDER_OUTPUT}{self.label}/{self.method}/trip_samples_data/"
         # Creates directories
         if not os.path.exists(samples_path):
             os.makedirs(samples_path)
         return samples_path
+
+    @property
+    def fleet_data_path(self):
+        fleet_data_path = f"{FOLDER_OUTPUT}{self.label}/{self.method}/fleet_data/"
+        # Creates directories
+        if not os.path.exists(fleet_data_path):
+            os.makedirs(fleet_data_path)
+        return fleet_data_path
 
     @property
     def destination_centers(self):

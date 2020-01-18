@@ -16,6 +16,7 @@ from mod.env.amod.AmodNetwork import AmodNetwork
 import mod.env.decisions as du
 from copy import deepcopy
 import math
+import pandas as pd
 
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
@@ -88,6 +89,7 @@ class AmodNetworkHired(AmodNetwork):
         # List of fav list
         self.step_favs = self.get_hired_step()
         self.available_hired = []
+        self.rebalancing_hired = []
         self.available_hired_ids = np.zeros(len(self.points_level[0]))
         self.expired_contract_cars = []
 
@@ -111,6 +113,7 @@ class AmodNetworkHired(AmodNetwork):
             self.revenue = self.online_revenue
             self.cost = self.online_costs
             self.penalty = self.online_penalty
+        # Load data from dictionaries
         else:
             self.load_od_data()
             self.revenue = self.loaded_revenue
@@ -128,15 +131,25 @@ class AmodNetworkHired(AmodNetwork):
         # scenario (user waiting since the beginning of the round)
         max_time = self.config.trip_max_pickup_delay[sq] - self.config.time_increment
 
+        # Pickup travel time
         distance = nw.get_distance(car_o, trip_o)
         travel_time = self.get_travel_time(distance, unit="min")
 
-        
+        # If pickup travel time surpasses user max. waiting
+        # 0 <= travel_time <= max_time + tolerance
         if travel_time > max_time + tolerance:
             return None
+        
+        # Delay considering 1st tier service level
+        # 0 <= delay <= tolerance
         delay = max(0, travel_time - max_time)
+
+        # Base fare is the upper bound for the penalty
         base_fare = self.config.trip_base_fare[sq]
-        penalty = base_fare / tolerance * delay
+        
+        # Penalty is a function of the delay tolerance
+        # consumed
+        penalty = (base_fare / tolerance) * delay
         # print(
         #     "sq={}, distance={:6.2f}, travel_time={:6.2f}, max_time={:6.2f}, tolerance={:6.2f}, delay={:6.2f}, max_time + tolerance={:6.2f}, base_fare={:6.2f}, penalty={:6.2f}".format(
         #         sq,
@@ -333,25 +346,20 @@ class AmodNetworkHired(AmodNetwork):
 
     # @functools.lru_cache(maxsize=None)
     def cost_func(self, decision, ignore_rebalance_costs=False):
-        """Return decision cost.
-
+        """Return decision cost
+        
         Parameters
         ----------
-        car_type : self owned or third party
-            [description]
-        action : Decision type
-            STAY, TRIP, RECHARGE, REBALANCE
-        pos : int
-            Id car current position
-        o : int
-            Id trip origin
-        d : int
-            Id trip destination
-
+        decision : tuple
+            Decision tuple (decision_id, car_attribute(size=5), o, d, class)
+        ignore_rebalance_costs : bool, optional
+            Ignore rebalance costs for random rebalance, such that 
+            moving and staying have the same costs, by default False
+        
         Returns
         -------
         float
-            Decision cost
+            Cost of the decision
         """
 
         # Platform's profit margin is lower when using hired cars
@@ -390,7 +398,7 @@ class AmodNetworkHired(AmodNetwork):
             cost_trip = self.cost(decision[du.ORIGIN], decision[du.DESTINATION])
 
             # Travel cost
-            cost = cost_pickup + cost_trip - penalty_pk
+            cost = cost_pickup + cost_trip + penalty_pk
 
             # Base fare + distance cost
             revenue = self.revenue(
@@ -422,6 +430,71 @@ class AmodNetworkHired(AmodNetwork):
                 reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
                 # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
                 return reb_cost
+
+    def update_middle(self, car, step):
+        """Where is the car at current step?
+        Update middle point of car. Used together with rebalancing
+        interruption method.
+        
+        Parameters
+        ----------
+        car : Car
+            Car rebalancing
+        step : int
+            Current step
+        """
+
+        # How long since car left previous point?
+        elapsed = step * self.config.time_increment - car.previous_arrival
+
+        # SP including o and d
+        o, d = car.previous.id, car.point.id
+        sp = nw.tenv.sp(o, d)
+        legs = zip(sp[:-1], sp[1:])
+
+        # print(">>> ", o, self.points[o], d, self.points[d])
+
+        # print(sp)
+        time_legs = 0
+        distance_legs = 0
+
+        # Loop legs until finds first point after elapsed time
+        for leg_o, leg_d in legs:
+            distance_leg = nw.get_distance(leg_o, leg_d)
+            distance_legs += distance_leg
+            time_leg = self.get_travel_time(distance_leg, unit="min")
+            time_legs += time_leg
+            # print(leg_o, self.points[leg_o], leg_d, self.points[leg_d], distance_leg, time_legs, elapsed)
+
+            # Car takes "time_legs" to move from "previous_node" to
+            # "leg_d"
+            if time_legs >= elapsed:
+                car.middle_point = self.points[leg_d]
+                # Time from current location (middle of edge) to middle
+                car.elapsed = time_legs - elapsed
+
+                # Distance from current location (middle of edge) to middle
+                car.elapsed_distance = self.get_distance_time(car.elapsed)
+
+                # Assume car reaches middle in the current step. In fact,
+                # it reaches the middle possibly "elapsed" minutes later
+                car.step_m = step
+
+                # Arrival time at middle (from previous)
+                car.time_o_m = time_legs
+
+                # Distance to middle (from previous)
+                car.distance_o_m = distance_legs
+
+                # Distance remaining to finish rebalancig
+                # In case movement is stopped, discount travel costs
+                # from this distance in vehicle contribution
+                car.remaining_distance = (
+                    nw.get_distance(car.previous.id, car.point.id)
+                    - car.distance_o_m
+                )
+
+                break
 
     def can_move(self, pos, waypoint, target, start, remaining_hiring_slots):
         pos, waypoint, target, start = (
@@ -669,12 +742,29 @@ class AmodNetworkHired(AmodNetwork):
                     )
 
                 elif action == du.STAY_DECISION:
-                    # Car settings are updated all together when time
-                    # step finishes
-                    car.idle_step_count += 1
+                    # Car does nothing to alter its state ############ #
+
+                    if car.status == Car.IDLE:
+                        car.idle_step_count += 1
+
+                    # Notice that if a rebalancing vehicle cannot pick
+                    # up trips, it will be assigned to a STAY decision.
+                    # Hence, it will continue the rebalance.
 
                 elif action == du.TRIP_DECISION:
                     # Servicing ###################################### #
+
+                    if car.status == Car.REBALANCE:
+                        # Car was previously rebalancing. Thus, the
+                        # rebalancing movement has to be interrupted.
+                        car.interrupt_rebalance()
+
+                        # Car did not finish rebalance. Thus, return to
+                        # platform the costs not yet charged regarding the
+                        # rest of the rebalancing path.
+                        total_reward += self.config.get_travel_cost(
+                            car.remaining_distance
+                        )
 
                     # Get closest trip
                     iclosest_pk = np.argmin(
@@ -716,7 +806,26 @@ class AmodNetworkHired(AmodNetwork):
 
         return neighbors
 
-    def update_fleet_status(self, time_step):
+    def update_fleet_status(self, time_step, use_rebalancing_cars=False):
+        """Update the status of the fleet (PAVs and FAVs) at time step.
+         - List of cars per attribute
+         - List of cars per location
+         - List of cars returning to home station
+         - List of cars inbound to each node
+
+        Depending on the method, update can also add rebalancing cars
+        to the list of available cars.
+
+        Parameters
+        ----------
+        time_step : int
+            Current time step of the simulation
+        use_rebalancing_cars: bool
+            Rebalancing cars are added to the list of available vehicles.
+            We consider they can be rerouted from their closest node
+            they are at in their shortest path, accordind to the current
+            time step.
+        """
 
         # List of cars per attribute
         self.attribute_cars_dict = defaultdict(list)
@@ -746,14 +855,16 @@ class AmodNetworkHired(AmodNetwork):
 
         # Idle company-owned cars
         available = []
-
+        rebalancing = []
         for car in self.cars:
+            # print(" -1 ", car.__repr__())
             # Check if vehicles finished their tasks
             # Where are the cars?
             # What are they doing at the current step?
             # t ----- t+1 ----- t+2 ----- t+3 ----- t+4 ------- t+5
             # --trips----trips------trips-----trips------trips-----
             car.update(time_step, time_increment=self.config.time_increment)
+            # print(" -2 ", car.__repr__())
 
             # Inbound location of car
             self.cars_location[car.point.id][car.type].append(car)
@@ -774,6 +885,22 @@ class AmodNetworkHired(AmodNetwork):
                 if self.config.car_size_tabu > 0:
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
             else:
+                # Car is moving (rebalancing or servicing)
+                if use_rebalancing_cars and car.status == Car.REBALANCE:
+
+                    # Find car's current position
+                    self.update_middle(
+                        car,
+                        time_step
+                    )
+
+                    # print(car.m_data())
+                    
+                    rebalancing.append(car)
+
+                    # print("REBALANCE FROM MIDDLE")
+                    self.attribute_cars_dict[car.attribute].append(car)
+
                 # Busy cars arriving at each location
                 self.cars_inbound_to[car.point.id].append(car)
 
@@ -783,6 +910,7 @@ class AmodNetworkHired(AmodNetwork):
 
         # Idle hired cars
         available_hired = []
+        rebalancing_hired = []
 
         # List of cars whose contracts have expired
         expired_contract = []
@@ -833,12 +961,29 @@ class AmodNetworkHired(AmodNetwork):
                 if car.point.id != car.origin.id:
                     self.cars_inbound_to[car.point.id].append(car)
 
+                if use_rebalancing_cars and car.status == Car.REBALANCE:
+
+                    self.update_middle(
+                        car,
+                        time_step
+                    )
+
+                    # print(car.m_data())
+
+                    rebalancing_hired.append(car)
+
+                    self.attribute_cars_dict[car.attribute].append(car)
+
+                # print(f"{car.previous.id} -> {car.point.id} - timestep=({time_step}) ({car.elapsed}) - middle={car.middle_point} - elapsed={car.elapsed}")
+
             # # Car count per region center
             # for g in range(len(self.config.level_dist_list)):
             #     self.count_car_region[g][self.points[car.point.id].id_level(g)] += 1
 
         self.available = available
         self.available_hired = available_hired
+        self.rebalancing = rebalancing
+        self.rebalancing_hired = rebalancing_hired
 
         # Remove expired contract cars
         for car in expired_contract:
@@ -1009,17 +1154,79 @@ class AmodNetworkHired(AmodNetwork):
 
         return (status_count, pav_status_count, fav_status_count, total_battery_level)
 
-    def reset(self):
+    def reset(self, seed=1):
 
-        super().reset()
+        super().reset(seed=seed)
         self.hired_cars = []
         self.overall_hired = []
         self.step_favs = self.get_hired_step()
         self.expired_contract_cars = []
         self.available_hired = []
+        self.rebalancing_hired = []
         # self.post_cost.cache_clear()
         self.adp.weighted_values.clear()
         self.cur_step = 0
+
+    @property
+    def available_fleet_size(self):
+        """Sum of PAV and FAV fleet sizes"""
+        return len(self.available) + len(self.available_hired)
+
+    def get_fleet_df(self):
+
+        d = defaultdict(list)
+
+        for car in itertools.chain(self.cars, self.hired_cars):
+
+            d["id"].append(car.id)
+            # Current node or destination
+            d["point"].append(car.point)
+            d["waypoint"].append(car.waypoint)
+            # Last point visited
+            d["previous"].append(car.previous)
+            # Starting point
+            d["origin"].append(car.origin)
+
+            # Middle point data
+            d["middle_point"].append(car.middle_point)
+            d["elapsed_distance"].append(car.elapsed_distance)
+            d["time_o_m"].append(car.time_o_m)
+            d["distance_o_m"].append(car.distance_o_m)
+            d["elapsed"].append(car.elapsed)
+            d["remaining_distance"].append(car.remaining_distance)
+            d["step_m"].append(car.step_m)
+
+            d["type"].append(car.type)
+            d["idle_step_count"].append(car.idle_step_count)
+            d["interrupted_rebalance_count"].append(car.interrupted_rebalance_count)
+
+            d["tabu"].append(car.tabu)
+
+            d["battery_level"].append(car.battery_level)
+
+            d["trip"].append(car.trip)
+            d["point_list"].append(car.point_list)
+
+            d["arrival_time"].append(car.arrival_time)
+            d["previous_arrival"].append(car.previous_arrival)
+            d["previous_step"].append(car.previous_step)
+            d["step"].append(car.step)
+            d["revenue"].append(car.revenue)
+            d["n_trips"].append(car.n_trips)
+            d["distance_traveled"].append(car.distance_traveled)
+
+            # Vehicle starts free to operate
+            d["status"].append(car.status)
+            d["curret_trip"].append(car.current_trip)
+
+            d["time_status"].append(car.time_status)
+
+            # Regular cars are always available
+            d["contract_duration"].append(car.contract_duration)
+
+        df = pd.DataFrame.from_dict(dict(d))
+
+        return df
 
     def get_fleet_stats(self):
 

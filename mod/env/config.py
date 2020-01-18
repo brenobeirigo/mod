@@ -32,7 +32,7 @@ TRIP_FILES = [
 ]
 
 TRIP_FILES.remove(FILE_TRAINING)
-print(f"{len(TRIP_FILES)} trip files loaded (52 including training file).")
+print(f"{len(TRIP_FILES)} trip files loaded ({len(TRIP_FILES)+1}, including training file).")
 
 # Car statuses
 IDLE = 0

@@ -100,3 +100,25 @@ If you are more interested in finding feasible solutions quickly, you can select
 Example:
 
     m.setParam("MIPFocus", 1)
+
+### AMoD
+
+## Online and loaded data
+
+If you define `amod = AmodNetworkHired(config, online=True)` the following is activated:
+
+    # Is data calculated on-the-fly?
+    # Calculate everything on the fly
+    if online:
+        self.revenue = self.online_revenue 
+        self.cost = self.online_costs
+        self.penalty = self.online_penalty
+
+    # Access data from dictionary
+    else:
+        self.load_od_data()
+        self.revenue = self.loaded_revenue
+        self.cost = self.loaded_costs
+        self.penalty = self.loaded_penalty
+
+If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.

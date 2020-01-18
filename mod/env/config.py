@@ -166,7 +166,10 @@ class Config:
     OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
     TIME_PERIODS = "TIME_PERIODS"
 
+    # SAVING DATA
     USE_SHORT_PATH = "USE_SHORT_PATH"
+    SAVE_TRIP_DATA = "SAVE_TRIP_DATA" 
+    SAVE_FLEET_DATA = "SAVE_FLEET_DATA"
 
     # FLEET ECONOMICS
     OPERATION_YEARS = "OPERATION_YEARS"
@@ -901,6 +904,14 @@ class Config:
     @property
     def short_path(self):
         return self.config[Config.USE_SHORT_PATH]
+
+    @property
+    def save_trip_data(self):
+        return self.config[Config.SAVE_TRIP_DATA]
+
+    @property
+    def save_fleet_data(self):
+        return self.config[Config.SAVE_FLEET_DATA]
 
     @property
     def label_md5(self):

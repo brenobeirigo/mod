@@ -298,6 +298,14 @@ class Config:
         return f"{FOLDER_OUTPUT}{self.label}/{self.method}/"
 
     @property
+    def sampled_tripdata_path(self):
+        samples_path = f"{FOLDER_OUTPUT}{self.label}/{self.method}/samples/"
+        # Creates directories
+        if not os.path.exists(samples_path):
+            os.makedirs(samples_path)
+        return samples_path
+
+    @property
     def destination_centers(self):
         return self.config[Config.DESTINATION_CENTERS]
 

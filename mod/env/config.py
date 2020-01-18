@@ -1382,6 +1382,9 @@ class ConfigNetwork(ConfigStandard):
         # Names
         self.config[Config.USE_SHORT_PATH] = False
 
+        self.config[Config.SAVE_TRIP_DATA] = False
+
+        self.config[Config.SAVE_FLEET_DATA] = False
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #

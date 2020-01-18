@@ -375,9 +375,16 @@ def main(test_labels, focus, N_PROCESSES, method):
     if method == "-train":
         m = ConfigNetwork.METHOD_ADP_TRAIN
         ITERATIONS = 500
+    elif method == "-reactive":
+        m = ConfigNetwork.METHOD_REACTIVE
+        ITERATIONS = 51
     elif method == "-test":
         m = ConfigNetwork.METHOD_ADP_TEST
         ITERATIONS = 51
+    else:
+        m = ConfigNetwork.METHOD_ADP_TRAIN
+        ITERATIONS = 500
+
 
     print(f"ITERATIONS: {ITERATIONS:04} - METHOD: {m}")
 
@@ -442,6 +449,8 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
         # Saving
         ConfigNetwork.USE_SHORT_PATH: False,
+        ConfigNetwork.SAVE_TRIP_DATA: False,
+        ConfigNetwork.SAVE_FLEET_DATA: False,
     }
 
     # Creating folders to log episodes

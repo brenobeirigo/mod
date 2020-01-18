@@ -73,6 +73,7 @@ class Amod:
 
         # List of available vehicles
         self.available = self.cars
+        self.rebalancing = []
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -487,6 +488,12 @@ class Amod:
             steps = math.ceil(travel_time_min / self.config.time_increment)
             return steps
 
+    def get_distance_time(self, time):
+        """Distance in kilometers given time in minutes"""
+
+        distance = time * self.config.speed / 60
+        return distance
+
     # @functools.lru_cache(maxsize=None)
     def get_travel_time_od(self, o, d, unit="min"):
         """Travel time in minutes or steps between od"""
@@ -548,7 +555,7 @@ class Amod:
     # Save/Load ###################################################### #
     # ################################################################ #
 
-    def reset(self):
+    def reset(self, seed=None):
 
         new_origins = []
 
@@ -564,6 +571,11 @@ class Amod:
             new_origins = [c.point for c in self.cars]
 
         elif self.config.cars_start_from_random_positions:
+            if seed is not None:
+                print(
+                    f"Starting fleet at random points (random seed: {seed})..."
+                )
+                random.seed(seed + 1)
 
             new_origins = random.choices(self.points, k=self.fleet_size)
 
@@ -579,6 +591,8 @@ class Amod:
         ]
 
         self.available = self.cars
+
+        self.rebalancing = []
 
         # self.cars = [
         #     Car(

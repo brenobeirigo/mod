@@ -412,6 +412,8 @@ def alg_adp(
     else:
         start = 0
 
+    print(f" - Iterating from {start:>4} to {config.iterations:>4}...")
+
     for n in range(start, config.iterations):
 
         t_update = 0
@@ -439,16 +441,24 @@ def alg_adp(
             # trips_file_path = random.choice(conf.TRIP_FILES)
             if config.train:
                 trips_file_path = conf.FILE_TRAINING
+                equal_samples = False
+                test_i = n
                 # print(f"  -> Trip file - {trips_file_path}")
             else:
                 # If testing, select different trip files
                 test_i = n % len(conf.TRIP_FILES)
                 trips_file_path = conf.TRIP_FILES[test_i]
+                equal_samples = True
                 # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
 
             step_trip_list, step_trip_count = tp.get_ny_demand(
-                config, trips_file_path, amod.points
+                config, trips_file_path, amod.points, equal_samples=equal_samples
             )
+
+            # Save random data (trip samples)
+            if amod.config.save_trip_data:
+                df = tp.get_df(step_trip_list)
+                df.to_csv(f"{config.sampled_tripdata_path}trips_{test_i:04}.csv", index=False)
 
         # Log events of iteration n
         logger = la.get_logger(
@@ -477,7 +487,16 @@ def alg_adp(
         step_log = StepLog(amod)
 
         # Resetting environment
-        amod.reset()
+        amod.reset(seed=n)
+
+        # Save random data (initial positions)
+        if amod.config.save_fleet_data:
+            # Save car distribution
+            df_cars = amod.get_fleet_df()
+            df_cars.to_csv(
+                f"{config.fleet_data_path}cars_{test_i:04}.csv",
+                index=False,
+            )
 
         # ------------------------------------------------------------ #
         # Plot fleet current status ################################## #
@@ -539,7 +558,13 @@ def alg_adp(
             # the list of available vehicles (change available and
             # available_hired)
             t1 = time.time()
-            amod.update_fleet_status(step + 1)
+            # If policy is reactive, rebalancing cars can be rerouted
+            # from the intermediate nodes in along the shortest path
+            # to the rebalancing target.
+            amod.update_fleet_status(
+                step + 1,
+                use_rebalancing_cars=amod.config.policy_reactive
+            )
             t_update += time.time() - t1
             
             # Show the top highest vehicle count per position
@@ -580,7 +605,7 @@ def alg_adp(
 
             # for tt in trips:
             #     print(tt.info())
-    
+
             t1 = time.time()
             revenue, serviced, rejected = service_trips(
                 # Amod environment with configuration file
@@ -651,6 +676,53 @@ def alg_adp(
                 rejected = expired
             t_mip += time.time() - t1
 
+            # If reactive rebalance, send vehicles to rejected
+            # user's origins
+            t_reactive_rebalance_1 = time.time()
+            if amod.config.policy_reactive and rejected:
+                logger.debug(
+                    "####################"
+                    f"[{step:04}] REACTIVE REBALANCE "
+                    "####################"
+                )
+                logger.debug("Rejected requests (rebalancing targets):")
+                for r in rejected:
+                    logger.debug(f"{r}")
+                
+                # print(step, amod.available_fleet_size,  len(rejected))
+                # Update fleet headings to isolate Idle vehicles
+                amod.update_fleet_status(step + 1)
+                
+                # Service idle vehicles
+                rebal_costs, _, _ = service_trips(
+                    # Amod environment with configuration file
+                    amod,
+                    # Trips to be matched
+                    rejected,
+                    # Service step (+1 trip placement step)
+                    step + 1,
+                    # Guarantee lowest pickup delay for a share of users
+                    # sq_guarantee=sq_guarantee,
+                    # All users are picked up
+                    universal_service=universal_service,
+                    # Allow recharging
+                    charge=enable_charging,
+                    # # Save mip .lp and .log of iteration n
+                    iteration=n,
+                    log_mip=log_mip,
+                    # Use hierarchical aggregation to update values
+                    use_artificial_duals=use_artificial_duals,
+                    # linearize_integer_model=linearize_integer_model,
+                    log_times=log_times,
+                    car_type_hide=Car.TYPE_FLEET,
+                    reactive=True,
+                )
+
+                revenue -= rebal_costs
+                logger.debug(f"\n# REB. COSTS: {rebal_costs:6.2f}")
+
+            t_reactive_rebalance = time.time() - t_reactive_rebalance_1
+    
             t1 = time.time()
             # What each vehicle is doing?
             la.log_fleet_activity(
@@ -697,8 +769,30 @@ def alg_adp(
             # amod.adp.get_weighted_value.cache_clear()
             # self.post_cost.cache_clear()
 
-
+        # LAST UPDATE (Closing the episode)
         amod.update_fleet_status(step + 1)
+
+        df = tp.get_df(
+            it_step_trip_list,
+            show_service_data=True,
+            earliest_datetime=config.demand_earliest_datetime
+        )
+
+        # Save random data (fleet and trips)
+        if amod.config.save_trip_data:
+
+            df.to_csv(
+                f"{config.sampled_tripdata_path}trips_result_{test_i:04}.csv",
+                index=False
+            )
+
+        if amod.config.save_fleet_data:
+
+            df_cars = amod.get_fleet_df()
+            df_cars.to_csv(
+                f"{config.fleet_data_path}cars_result_{test_i:04}.csv",
+                index=False
+            )
 
         # -------------------------------------------------------------#
         # Compute episode info #########################################
@@ -770,12 +864,17 @@ if __name__ == "__main__":
     log_times = "-log_times" in args
     myopic = "-myopic" in args
     policy_random = "-random" in args
+    policy_reactive = "-reactive" in args
     train = "-train" in args
     test = "-test" in args
 
     if policy_random:
         print("RANDOM")
         method = ConfigNetwork.METHOD_RANDOM
+
+    elif policy_reactive:
+        print("REACTIVE")
+        method = ConfigNetwork.METHOD_REACTIVE
 
     elif myopic:
         print("MYOPIC")
@@ -829,7 +928,7 @@ if __name__ == "__main__":
     else:
         start_config = get_sim_config(
             {   
-                ConfigNetwork.ITERATIONS: iterations,
+                ConfigNetwork.ITERATIONS: n_iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
                 ConfigNetwork.FLEET_SIZE: fleet_size,
@@ -862,8 +961,8 @@ if __name__ == "__main__":
                     ("B", 1),
                 ),
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
-                    ("A", 5),
-                    ("B", 5),
+                    ("A", 0),
+                    ("B", 0),
                 ),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
                     ("A", 5),
@@ -896,7 +995,7 @@ if __name__ == "__main__":
                 ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    # (0, 8),
+                    #(1, 8),
                     (1, 4),
                     (2, 4),
                     # (3, 4),
@@ -917,7 +1016,9 @@ if __name__ == "__main__":
                 # ,  # = rebalancing 1 min
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
                 # Saving
-                ConfigNetwork.USE_SHORT_PATH: False
+                ConfigNetwork.USE_SHORT_PATH: False,
+                ConfigNetwork.SAVE_TRIP_DATA: True,
+                ConfigNetwork.SAVE_FLEET_DATA: True,
             }
         )
 

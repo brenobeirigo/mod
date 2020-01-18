@@ -125,7 +125,7 @@ def run_adp(exp):
 
     if exp_setup.myopic or exp_setup.test or exp_setup.policy_random:
 
-        rows = config_adp["episodes"]
+        rows = exp_setup.iterations
 
         try:
             df = pd.read_csv(
@@ -133,13 +133,13 @@ def run_adp(exp):
                 index_col="Episode",
             )
 
-            rows = config_adp["episodes"] - len(df.index)
+            rows = exp_setup.iterations - len(df.index)
+            print(f"{rows} tests left to perform for instance \"{exp_name}\".")
 
         except Exception as e:
-            print(f"No stats for \'{exp_setup.label}\'. Ëxception {e}")
-            rows = config_adp["episodes"]
+            print(f"No stats for \'{exp_setup.label}\'. Exception {e}")
 
-        config_adp["episodes"] = max(0, rows)
+        exp_setup.config[ConfigNetwork.ITERATIONS] = max(0, rows)
 
     reward_list = alg.alg_adp(None, exp_setup, **config_adp)
 
@@ -216,8 +216,25 @@ def main(test_labels, focus, N_PROCESSES, method):
     # Goal - Depot shares X FAV fleet size X Aggregation levels
     tuning_focus["hiring"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
-        ConfigNetwork.FAV_FLEET_SIZE: [200],
-        ConfigNetwork.MAX_CONTRACT_DURATION: [True],
+        "fleet" : [
+            {
+                ConfigNetwork.FLEET_SIZE: 300,
+                ConfigNetwork.FAV_FLEET_SIZE: 200,
+            },
+            # {
+            #     ConfigNetwork.FLEET_SIZE: 300,
+            #     ConfigNetwork.FAV_FLEET_SIZE: 300,
+            # },
+            # {
+            #     ConfigNetwork.FLEET_SIZE: 0,
+            #     ConfigNetwork.FAV_FLEET_SIZE: 400,
+            # },
+            {
+                ConfigNetwork.FLEET_SIZE: 0,
+                ConfigNetwork.FAV_FLEET_SIZE: 500,
+            }
+        ],
+        ConfigNetwork.MAX_CONTRACT_DURATION: [True, False],
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [
             (("A", 1), ("B", 0)),
@@ -227,12 +244,12 @@ def main(test_labels, focus, N_PROCESSES, method):
         #     (8, 1, 5, 9), (8, 1, 5, 9),
         # ],
         ConfigNetwork.AGGREGATION_LEVELS: [
-            # [
-            #     (1, 0, 0, "-", 0, 2),
-            #     (1, 0, 0, "-", 0, 3),
-            #     (3, 2, 0, "-", 0, "-"),
-            #     (3, 3, 0, "-", 0, "-"),
-            # ],
+            [
+                (1, 0, 0, "-", 0, 2),
+                (1, 0, 0, "-", 0, 3),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
             [
                 (1, 0, 0, "-", 0, 2),
                 (3, 2, 0, "-", 0, "-"),

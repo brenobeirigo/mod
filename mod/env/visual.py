@@ -310,12 +310,19 @@ class EpisodeLog:
     ):
 
         # # Process trip data ######################################## #
+        # Class pickup delays of SERVICED users
         trip_delays = defaultdict(list)
+        # Class in-vehicle distances (km) of SERVICED users
         trip_distances = defaultdict(list)
+        # Class in-vehicle distances (km) of REJECTED users
         trip_rejections = defaultdict(list)
+        # Class trip count
         total_trips = defaultdict(int)
+
+        # Loop all trips from all steps
         for t in it.chain(*it_step_trip_list):
             total_trips[t.sq_class] += 1
+
             # If None -> Trip was rejected
             if t.pk_delay is not None:
                 trip_delays[t.sq_class].append(t.pk_delay)
@@ -326,6 +333,7 @@ class EpisodeLog:
 
         delays_stats = dict()
 
+        # TODO change to "for sq in user_bases"
         for sq, delays in trip_delays.items():
             delays_stats[sq] = dict(
                 delay_mean=np.mean(delays),
@@ -343,15 +351,22 @@ class EpisodeLog:
             )
         # TODO comment this section
         car_type_status_durations = defaultdict(lambda:defaultdict(list))
+        # How much time each car have spent in each status (in minutes)?
+        # dict(dict(dict()))
+        # CAR TYPE -> STATUS -> TOTAL DURATION
         for c in it.chain(step_log.env.cars, step_log.env.overall_hired):
             for status, duration in c.time_status.items():
                 car_type_status_durations[c.type][status].append(np.sum(duration))
 
+        # Remove status level (insert it as label, such as "STATUS_total")
+        # dict(dict())
+        # E.g.: {"CARTYPE1":{"STATUS1_total":total_duration}}
         car_type_status_dict = dict()
         for car_type, status_durations in car_type_status_durations.items():
             car_type_status_dict[car_type] = dict()
             overall_duration = 0
             for status, durations in status_durations.items():
+                # Create status
                 status_label = conf.status_label_dict[status].lower().replace(" ","_")
                 total = np.sum(durations)
                 overall_duration+=total

@@ -18,7 +18,15 @@ class Car:
     RETURN = 5
     SERVICING = 6
 
-    statuses = [IDLE, RECHARGING, ASSIGN, CRUISING, REBALANCE, RETURN, SERVICING]
+    statuses = [
+        IDLE,
+        RECHARGING,
+        ASSIGN,
+        CRUISING,
+        REBALANCE,
+        RETURN,
+        SERVICING,
+    ]
 
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
@@ -65,14 +73,40 @@ class Car:
 
     adp_label_dict = {DISCARD: "-", INFINITE_CONTRACT_DURATION: "Inf"}
 
+    def m_data(self):
+        return (
+            "## "
+            f"middle={self.middle_point}, "
+            f"elapsed_distance={self.elapsed_distance:6.2f}, "
+            f"time_o_m={self.time_o_m:6.2f}, "
+            f"distance_o_m={self.distance_o_m:6.2f}, "
+            f"elapsed={self.elapsed:6.2f}, "
+            f"remaining_distance={self.remaining_distance:6.2f}, "
+            f"step_m={self.step_m:>4}"
+        )
+
     def __init__(self, o):
         self.id = Car.count
+        # Current node or destination
         self.point = o
         self.waypoint = None
+        # Last point visited
         self.previous = o
+        # Starting point
         self.origin = o
+
+        # Middle point data
+        self.middle_point = o
+        self.elapsed_distance = 0
+        self.time_o_m = 0
+        self.distance_o_m = 0
+        self.elapsed = 0
+        self.remaining_distance = 0
+        self.step_m = 0
+
         self.type = Car.TYPE_FLEET
         self.idle_step_count = 0
+        self.interrupted_rebalance_count = 0
 
         self.tabu = collections.deque([o.id], Car.SIZE_TABU)
 
@@ -108,14 +142,48 @@ class Car:
 
     @property
     def attribute(self, level=0):
+        """Car attributes at aggregation level "level" for location.
+        When car is rebalancing, returns the location correspond to the
+        middle point.
+        
+        Parameters
+        ----------
+        level : int, optional
+            Location RC level, by default 0 (disaggregate)
+        
+        Returns
+        -------
+        tuple
+            (point(level), battery, contract_duration, type, home station)
+        """
+        if self.status == Car.REBALANCE:
+            point = self.middle_point.id_level(level)
+            # TODO check if this influeced ADP
+            # print("ATTRIBUTE:", point, self.middle_point)
+        else:
+            point = self.point.id_level(level)
         return (
-            self.point.id_level(level),
+            point,
             1,
             self.contract_duration,
             self.type,
             Car.DISCARD,
             # self.step,
         )
+
+    def interrupt_rebalance(self):
+        """Make car idle to pickup request"""
+        self.interrupted_rebalance_count += 1
+        self.point = self.middle_point
+        self.arrival_time = self.previous_arrival + self.time_o_m
+        self.distance_traveled -= self.remaining_distance
+
+        # Cut time spent rebalancing
+        self.time_status[self.status][-1] = self.time_o_m
+        # Approximated, since car will be actually avaliable in "elapsed"
+        # time units.
+        self.step = self.step_m
+        self.status = Car.IDLE
 
     def attribute_level(self, level):
         return (self.point.id_level(level),)
@@ -153,6 +221,8 @@ class Car:
             f" - Arrival: {self.arrival_time:>6.2f}"
             f"(previous={self.previous_step:>5},step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
+            f" -> ({self.previous},{self.middle_point},{self.point})"
+            f" - interruped={self.interrupted_rebalance_count:>4}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
             # f" - #Previous: {self.previous.id:>4}"
@@ -187,13 +257,25 @@ class Car:
             self.previous_step = self.step
             self.waypoint = None
 
+            # If car was rebalancing, update middle point information
+            self.middle_point = self.point
+            self.elapsed = 0
+            self.elapsed_distance = 0
+            self.time_o_m = 0
+            self.distance_o_m = 0
+            self.remaining_distance = 0
+            self.step_m = step
+
             # Update route
             if self.point != self.point_list[-1]:
                 self.point_list.append(self.point)
 
-            self.time_status[self.status].append(step * time_increment - self.arrival_time)
+            # Time car spent PARKED since arrival
+            self.time_status[self.status].append(
+                step * time_increment - self.arrival_time
+            )
             # print(self.time_status[self.status])
-            
+
             # Car is free to service users
             self.arrival_time = step * time_increment
             self.step = step
@@ -254,7 +336,7 @@ class Car:
             self.status = Car.RETURN
         else:
             self.status = Car.REBALANCE
-            
+
         self.time_status[self.status].append(duration_service)
 
     def update_trip(
@@ -317,8 +399,8 @@ class Car:
             self.status = Car.ASSIGN
         else:
             self.status = Car.CRUISING
-        
-        self.time_status[Car.ASSIGN].append(total_duration-pk_duration)
+
+        self.time_status[Car.ASSIGN].append(total_duration - pk_duration)
         self.time_status[Car.CRUISING].append(pk_duration)
 
         self.trip.pk_step = self.step + pk_step
@@ -361,7 +443,13 @@ class Car:
         return f"V{self.id} - {self.point}"
 
     def __repr__(self):
-        return f"Car{{id={self.id:02}, " f"point={self.point}}}"
+        return (
+            f"Car{{id={self.id:02},"
+            f"previous={self.previous}, "
+            f"middle={self.middle_point}, "
+            f"point={self.point}, "
+            f"status={self.status}}}"
+        )
 
 
 class ElectricCar(Car):

@@ -115,6 +115,33 @@ def car_flow_constr(m, x_var, attribute_cars_dict):
     return flow_cars_dict
 
 
+def car_min_rebal_constr(m, x_var, fleet_size, n_targets):
+    """Optimal rebalance Alonso-Mora et al. (2017)
+    
+    Parameters
+    ----------
+    m : model
+        Gurobi model
+    x_var : gurobi vars
+        STAY and REBALANCING decisions
+    fleet_size : int
+        Total fleet (PAVs + FAVs)
+    n_targets : int
+        Number of rebalancing targets
+    
+    Returns
+    -------
+    Gurobi constraints
+        Optimal rebalancing constraints.
+    """
+    flow_cars_dict = m.addConstr(
+            x_var.sum(du.REBALANCE_DECISION, "*", "*", "*", "*", "*", "*", "*", "*") == min(fleet_size, n_targets),
+            f"CAR_REBAL"
+    )
+
+    return flow_cars_dict
+
+
 def trip_flow_constrs(m, x_var, attribute_trips_dict, universal_service=False):
 
     if universal_service:
@@ -531,6 +558,7 @@ def service_trips(
     use_artificial_duals=True,
     log_times=True,
     car_type_hide=None,
+    reactive=False,
 ):
 
     """Assign trips to available vehicles optimally at the current
@@ -588,6 +616,9 @@ def service_trips(
     # Log steps of current episode
     if log_mip:
 
+        # Add .log for rebalancing second phase
+        rebal_label = ("_reb" if reactive else "")
+
         m.setParam("LogToConsole", 0)
         folder_epi_log = f"{env.config.folder_mip_log}episode_{iteration:04}/"
         folder_epi_lp = f"{env.config.folder_mip_lp}episode_{iteration:04}/"
@@ -596,8 +627,8 @@ def service_trips(
             os.makedirs(folder_epi_log)
             os.makedirs(folder_epi_lp)
 
-        m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}.log"
-        m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}.lp"
+        m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}{rebal_label}.log"
+        m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}{rebal_label}.lp"
 
         logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
         logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
@@ -628,80 +659,102 @@ def service_trips(
     # List of trips per OD
     attribute_trips_sq_dict = defaultdict(list)
 
-    # TODO Car productivity
-    # How many trips in each region
-    # count_trips_region = defaultdict(
-    #     lambda: defaultdict(lambda: {"o": 0, "d": 0})
-    # )
+    # If rebalancing is reactive, rebalancing to unmet users
+    if env.config.policy_reactive and reactive:
 
-    # Create a dictionary associate
-    for trip in trips:
+        # Rebalancing targets are pickup ids of rejected trips
+        targets = [target.o.id for target in trips]
+        logger.debug(
+            f"  - Reactive rebalance  "
+            f"(targets={len(targets)}, "
+            f"available cars={env.available_fleet_size})"
+        )
 
-        # Trip count per class
-        class_count_dict[trip.sq_class] += 1
+        # Only idle cars can rebalance to targets
+        # Get REBALANCE and STAY decisions
+        decision_cars = du.get_rebalancing_decisions(
+            env,
+            targets,
+        )
 
-        # Group trips with the same ods
-        attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
+    else:
+        # Consider all decisions
+        # TODO Car productivity
+        # How many trips in each region
+        # count_trips_region = defaultdict(
+        #     lambda: defaultdict(lambda: {"o": 0, "d": 0})
+        # )
 
-        # Group trips with the same ods
-        attribute_trips_sq_dict[trip.attribute].append(trip)
+        # Create a dictionary associate
+        for trip in trips:
 
-        # TODO Rebalance based on car productivity (trips/cars/area)
-        # Trip count per region center
-        # for g in range(len(env.config.level_dist_list)):
-        #     count_trips_region[g][env.points[trip.o.id].id_level(g)]['o']+=1
-        #     count_trips_region[g][env.points[trip.d.id].id_level(g)]['d']+=1
+            # Trip count per class
+            class_count_dict[trip.sq_class] += 1
 
-    # print("### Count car region")
-    # pprint(env.count_car_region)
+            # Group trips with the same ods
+            attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
 
-    # print("\n### Count trip region")
-    # pprint(count_trips_region)
+            # Group trips with the same ods
+            attribute_trips_sq_dict[trip.attribute].append(trip)
 
-    # ##################################################################
-    # VARIABLES ########################################################
-    # ##################################################################
+            # TODO Rebalance based on car productivity (trips/cars/area)
+            # Trip count per region center
+            # for g in range(len(env.config.level_dist_list)):
+            #     count_trips_region[g][env.points[trip.o.id].id_level(g)]['o']+=1
+            #     count_trips_region[g][env.points[trip.d.id].id_level(g)]['d']+=1
 
-    # Get all decision tuples, and trip decision tuples per service
-    # quality class. If max. battery level is defined, also includes
-    # recharge decisions.
-    logger.debug(
-        f"  - Getting decisions  "
-        f"(trips={len(trips)}, "
-        f"available cars={len(env.available)+len(env.available_hired)})"
-    )
+        # print("### Count car region")
+        # pprint(env.count_car_region)
 
-    t1_decisions = time.time()
-    decision_cars, decision_return, decision_class = du.get_decisions(
-        env,
-        trips
-        # max_battery_level=env.config.battery_levels,
-    )
+        # print("\n### Count trip region")
+        # pprint(count_trips_region)
 
-    # virtual_decisions = du.get_virtual_decisions(env, trips)
+        # ##################################################################
+        # VARIABLES ########################################################
+        # ##################################################################
 
-    # logger.debug("\n ###### Virtual vehicles:")
-    # for v in virtual_decisions:
-    #     logger.debug(f' - {v}')
+        # Get all decision tuples, and trip decision tuples per service
+        # quality class. If max. battery level is defined, also includes
+        # recharge decisions.
+        logger.debug(
+            f"  - Getting decisions  "
+            f"(trips={len(trips)}, "
+            f"available cars={len(env.available)+len(env.available_hired)})"
+        )
 
-    # decision_cars.update(virtual_decisions)
+        t1_decisions = time.time()
 
-    t_decisions = time.time() - t1_decisions
+        # Trip, stay, and rebalance decisions
+        decision_cars, decision_return, decision_class = du.get_decisions(
+            env,
+            trips,
+            # max_battery_level=env.config.battery_levels,
+        )
 
-    logger.debug(f"  - Decision count: {len(decision_cars)}")
+        # virtual_decisions = du.get_virtual_decisions(env, trips)
 
-    # Logging cost calculus
-    la.log_costs(
-        logger_name,
-        decision_cars,
-        env.cost_func,
-        env.post_cost,
-        time_step,
-        env.config.discount_factor,
-        msg="TRIP DECISIONS",
-        # filter_decisions=set([du.TRIP_DECISION]),
-        post_opt=False,
-    )
+        # logger.debug("\n ###### Virtual vehicles:")
+        # for v in virtual_decisions:
+        #     logger.debug(f' - {v}')
+
+        # decision_cars.update(virtual_decisions)
+
+        t_decisions = time.time() - t1_decisions
+
+        logger.debug(f"  - Decision count: {len(decision_cars)}")
+
+        # Logging cost calculus
+        la.log_costs(
+            logger_name,
+            decision_cars,
+            env.cost_func,
+            env.post_cost,
+            time_step,
+            env.config.discount_factor,
+            msg="TRIP DECISIONS",
+            # filter_decisions=set([du.TRIP_DECISION]),
+            post_opt=False,
+        )
 
     # Create variables
     x_var = m.addVars(
@@ -719,10 +772,17 @@ def service_trips(
     # Time to setup post decision costs
     t1_setup_costs = time.time()
 
-    # If myopic, do not include post decision costs
-    # If random, discard rebalance costs
-    if env.config.myopic or env.config.policy_random:
+    # If reactive, consider rebalancing costs
+    if env.config.policy_reactive and reactive:
+        # print(" - REBALANCE CONTRIBUTION")
+        contribution = quicksum(
+            env.cost_func(d, ignore_rebalance_costs=False) * x_var[d]
+            for d in x_var
+        )
 
+    # If myopic, do not include post decision costs
+    # If random, discard rebalance costs and add them later
+    elif env.config.myopic or env.config.policy_random or env.config.policy_reactive:
         contribution = quicksum(
             env.cost_func(d, ignore_rebalance_costs=True) * x_var[d]
             for d in x_var
@@ -762,31 +822,40 @@ def service_trips(
     # CONSTRAINTS ######################################################
     # ---------------------------------------------------------------- #
     t1_setup_constraints = time.time()
+
     # Car flow conservation
     flow_cars_dict = car_flow_constr(m, x_var, env.attribute_cars_dict)
 
-    # FAVs return to their origins before contract deadlines
-    return_to_station_constrs(m, x_var, decision_return)
-
-    # Trip flow conservation
-    flow_trips = trip_flow_constrs(
-        m, x_var, attribute_trips_dict, universal_service=universal_service
-    )
-
-    # Service quality constraints
-    if env.config.sq_guarantee:
-        sq_flow_dict = sq_constrs(m, x_var, decision_class, class_count_dict)
-
-    # Car is obliged to charged if battery reaches minimum level
-    # Car flow conservation
-    if charge:
-        max_battery = env.config.battery_levels
-        car_recharge_dict = recharge_constrs(
-            m, x_var, env.attribute_cars_dict, max_battery
+    # 2nd round of reactive rebalance
+    if reactive:
+        # N. of rebalance = min(N. of cars, N. of targets)
+        min_rebalance_dict = car_min_rebal_constr(
+            m, x_var, env.available_fleet_size, len(trips)
         )
 
-    # Limit the number of cars per node
-    if env.config.max_cars_link:
+    else:
+        # FAVs return to their origins before contract deadlines
+        return_to_station_constrs(m, x_var, decision_return)
+
+        # Trip flow conservation
+        flow_trips = trip_flow_constrs(
+            m, x_var, attribute_trips_dict, universal_service=universal_service
+        )
+
+        # Service quality constraints
+        if env.config.sq_guarantee:
+            sq_flow_dict = sq_constrs(m, x_var, decision_class, class_count_dict)
+
+        # Car is obliged to charged if battery reaches minimum level
+        # Car flow conservation
+        if charge:
+            max_battery = env.config.battery_levels
+            car_recharge_dict = recharge_constrs(
+                m, x_var, env.attribute_cars_dict, max_battery
+            )
+
+    # Limit the number of cars per node (not in reactive rebalance)
+    if env.config.max_cars_link and not env.config.policy_reactive:
 
         # decisions_time_pos = defaultdict(list)
         decisions_destination = defaultdict(int)
@@ -913,7 +982,7 @@ def service_trips(
             time_dict["update_artificial"] = [
                 time.time() - t1_update_vf_artificial
             ]
-        
+
         # The penalties must be discounted from the contribution
         applied_penalties = sum(
             [

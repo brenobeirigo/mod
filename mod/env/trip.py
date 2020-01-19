@@ -544,7 +544,8 @@ def get_trips(
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
 
-    # Guarantee everytime the same trips are sampled
+    # Guarantee everytime the same trips are sampled.
+    # Used in conjunction with the testing data.
     if equal_samples:
         random.seed(1)
 

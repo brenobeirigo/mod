@@ -1925,6 +1925,40 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
 
+    def concise_label(self):
+        return (
+            f"{self.test_label}_"
+            f"{self.label_idle_annealing}"
+            f"{self.label_artificial}"
+            f"{self.label_lin}"
+            # f"{self.config[Config.NAME]}_"
+            # f"{self.config[Config.DEMAND_SCENARIO]}_"
+            f"V={self.fleet_size:04}-{self.fav_fleet_size:04}{self.label_stations}{self.label_max_contract}({self.label_start})_"
+            f"I={self.time_increment}_"
+            # f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            f"L[{len(self.aggregation_levels)}]=({self.label_levels})_"
+            f"R=([{self.label_reb_neigh}]{self.label_explore}{self.label_thomp}"
+            # f"[tabu={self.car_size_tabu:02}])"
+            f"{self.label_max_link}"
+            # f"{self.label_penalize}_"
+            # f"{self.config[Config.TIME_INCREMENT]:02}_"
+            # f#"{self.config[Config.STEP_SECONDS]:04}_"
+            # f"{self.config[Config.PICKUP_ZONE_RANGE]:02}_"
+            # f"{self.config[Config.NEIGHBORHOOD_LEVEL]:02}_"
+            # f"{reb_neigh}_"
+            f"_T=[{self.demand_earliest_hour:02}h,"
+            f"+{self.offset_repositioning_min}m"
+            f"+{self.demand_total_hours:02}h"
+            f"+{self.offset_termination_min}m]_"
+            # f"match={self.matching_delay:02}_"
+            f"{self.demand_resize_factor:3.2f}({self.label_sample})_"
+            f"{self.discount_factor:3.2f}_"
+            f"{self.stepsize_constant:3.2f}_"
+            f"{self.sl_config_label}"
+            # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
+            # f"{self.config[Config.CONGESTION_PRICE]:2}"
+        )
+
     @staticmethod
     def load(file_path):
         with open(file_path, "r") as f:

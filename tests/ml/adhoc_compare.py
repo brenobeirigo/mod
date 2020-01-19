@@ -42,11 +42,24 @@ if __name__ == "__main__":
     linewidth = dict()
 
     # test_label = "penalize"
-    # test_label = "rebalance"
+    test_label = "rebalance"
     # test_label = "pavfav"
     # test_label = "exploration"
     # test_label = "flood"
-    test_label = "policy"
+    # test_label = "policy"
+    # test_label = "penalty"
+
+    adhoc_compare["penalty"] = [
+        "baselineB10_disable_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-4, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        "baselineB10_pen_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-4, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+        "baselineB10_pen_rej_pen_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-4, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
+    ]
+
+    adhoc_compare_labels["penalty"] = [
+        "10 min. pickup delay",
+        "10 min. pickup delay + 5 min. tolerance",
+        "10 min. pickup delay + 5 min. tolerance + rejection penalty",
+    ]
 
     adhoc_compare["penalize"] = [
         "baseline_R_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([0-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10",
@@ -88,7 +101,6 @@ if __name__ == "__main__":
         # "myopic_[RA]_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8, 2-4][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "annealing_hire_LIN_cars=0300-0200(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
-
     ]
     adhoc_compare_labels["policy"] = [
         "Myopic",
@@ -181,11 +193,7 @@ if __name__ == "__main__":
         "#cab2d6",
     ]
 
-    colors["policy"] = [
-        "k",
-        "r",
-        "g",
-    ]
+    colors["policy"] = ["k", "r", "g"]
     markers["policy"] = [None, "x", "D"]
 
     colors["pavfav"] = ["k", "r"]
@@ -210,7 +218,7 @@ if __name__ == "__main__":
 
     linewidth["penalize"] = [1, 1, 1, 1, 1, 1, 1]
     # linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
-    linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]
+    linewidth["rebalance"] = [1, 1, 1, 1, 1, 1, 1]*2
     # linewidth["policy"] = [1, 1, 1, 1, 1, 1, 1]
     markers["rebalance"] = [None, "o", "x", "D"]
 
@@ -234,18 +242,21 @@ if __name__ == "__main__":
         "#ff7f00",
         "#cab2d6",
     ]
+    markers_default = [None] * len(adhoc_compare[test_label])
+    linewidth_default = [1] * len(adhoc_compare[test_label])
 
     legend_pos = dict()
     legend_pos["policy"] = "center right"
 
     SL = "Users serviced"
     OF = "Profit($)"
+    XLABEL = "Iteration"
     window = 30
     ITERATIONS = 500
-    markers_default = [None] * len(adhoc_compare[test_label])
+
     # markers = [None, "o", "*", "x", "|", None]
 
-    shadow = True
+    shadow = False
     dpi = 1200
     try:
         d = dict()
@@ -253,10 +264,11 @@ if __name__ == "__main__":
 
         for exp, sum_label in zip(
             adhoc_compare[test_label], adhoc_compare_labels[test_label]
-        ):
-            path_all_stats = conf.FOLDER_OUTPUT + exp + "/overall_stats.csv"
+        ):  
+            folder = "O:/phd/output_paper/"
+            path_all_stats = folder + exp + "/overall_stats.csv"
             config_exp = ConfigNetwork()
-            config_exp.load(conf.FOLDER_OUTPUT + exp + "/exp_settings.json")
+            config_exp.load(folder + exp + "/exp_settings.json")
 
             df = pd.read_csv(path_all_stats)
             # spatiotemporal_levels = exp[2].get_levels()
@@ -280,15 +292,15 @@ if __name__ == "__main__":
 
         yticks = dict()
         yticks_labels = dict()
-        # yticks[OF] = np.linspace(15000, 18500, 8)
-        # yticks[SL] = np.linspace(0.7, 0.9, 5)
+        yticks[OF] = np.linspace(15000, 18500, 8)
+        yticks[SL] = np.linspace(0.7, 0.9, 5)
 
         # Policy
         # yticks[OF] = np.linspace(13000, 19000, 13)
         # yticks[SL] = np.linspace(0.5, 0.95, 10)
 
-        yticks[OF] = np.linspace(13000, 19000, 7)
-        yticks[SL] = np.linspace(0.5, 0.95, 8)
+        #yticks[OF] = np.linspace(10000, 20000, 9)
+        #yticks[SL] = np.linspace(0.45, 1, 12)
 
         yticks_labels[SL] = [f"{s:3.0%}" for s in yticks[SL]]
         yticks_labels[OF] = [f"{p:,.0f}" for p in yticks[OF]]
@@ -300,7 +312,7 @@ if __name__ == "__main__":
 
         sns.set(style="ticks")
         sns.set_context("talk")
-        #sns.set_context("paper")
+        # sns.set_context("paper")
         np.set_printoptions(precision=3)
         fig, axs = plt.subplots(1, len(d_plot), figsize=(8 * len(d_plot), 6))
 
@@ -314,10 +326,10 @@ if __name__ == "__main__":
                     axs[i].plot(
                         data,
                         color=colors.get(test_label, colors_default)[j],
-                        linewidth=linewidth.get(
-                            test_label, [2] * len(label_data)
-                        )[j],
-                        # marker=markers.get(test_label, markers_default)[j],
+                        linewidth=linewidth.get(test_label, linewidth_default)[
+                            j
+                        ],
+                        marker=markers.get(test_label, markers_default)[j],
                         alpha=0.25,
                         label="",
                     )
@@ -343,14 +355,14 @@ if __name__ == "__main__":
                 # axs[i].text(ITERATIONS+0.2, mavg[-1], sum_label, horizontalalignment='left', size='small', color='k')
 
                 # axs[i].set_title(vst)
-                axs[i].set_xlabel("Iteration")
+                axs[i].set_xlabel(XLABEL)
                 axs[i].set_ylabel(cat)
                 axs[i].set_xlim(0, len(data))
                 axs[i].set_yticks(yticks[cat])
                 axs[i].set_yticklabels(yticks_labels[cat])
 
         plt.legend(
-            loc=legend_pos.get(test_label,"lower right"),
+            loc=legend_pos.get(test_label, "lower right"),
             frameon=False,
             bbox_to_anchor=(1, 0, 0, 1),  # (0.5, -0.15),
             ncol=1,
@@ -358,7 +370,7 @@ if __name__ == "__main__":
 
         # plt.show()
         print(f'Saving "{test_label}.png"...')
-        plt.savefig(f"{test_label}.png", bbox_inches="tight", dpi=dpi)
+        plt.savefig(f"{test_label}.pdf", bbox_inches="tight", dpi=dpi)
 
     except Exception as e:
         print(f"Exception: {e}")

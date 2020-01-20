@@ -713,8 +713,14 @@ class HiredCar(Car):
 
     @property
     def attribute(self, level=0):
+        if self.status == Car.REBALANCE:
+            point = self.middle_point.id_level(level)
+            # TODO check if this influeced ADP
+            # print("ATTRIBUTE:", point, self.middle_point)
+        else:
+            point = self.point.id_level(level)
         return (
-            self.point.id_level(level),
+            point,
             1,
             self.contract_duration,
             self.type,

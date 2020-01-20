@@ -640,15 +640,11 @@ def service_trips(
         # Model is deterministic (usefull for testing)
         m.setParam("Seed", 1)
 
-    # ##################################################################
-    # SORT CARS ########################################################
-    # ##################################################################
-
+    # ################################################################ #
+    # ################################################################ #
+    # ################################################################ #
+    
     la.log_attribute_cars_dict(logger_name, env.attribute_cars_dict)
-
-    # ##################################################################
-    # SORT TRIPS #######################################################
-    # ##################################################################
 
     # Number of trips per class
     class_count_dict = defaultdict(int)
@@ -659,22 +655,41 @@ def service_trips(
     # List of trips per OD
     attribute_trips_sq_dict = defaultdict(list)
 
+    # ################################################################ #
+    # REACTIVE REBALANCING ########################################### #
+    # ################################################################ #
+
     # If rebalancing is reactive, rebalancing to unmet users
     if env.config.policy_reactive and reactive:
 
         # Rebalancing targets are pickup ids of rejected trips
         targets = [target.o.id for target in trips]
-        logger.debug(
-            f"  - Reactive rebalance  "
-            f"(targets={len(targets)}, "
-            f"available cars={env.available_fleet_size})"
-        )
 
         # Only idle cars can rebalance to targets
         # Get REBALANCE and STAY decisions
-        decision_cars = du.get_rebalancing_decisions(
+        decision_cars, n_cars_can_rebalance = du.get_rebalancing_decisions(
             env,
             targets,
+        )
+
+        logger.debug(
+            f"  - Reactive rebalance  "
+            f"(targets={len(targets)}, "
+            f"decisions={len(decision_cars)}, "
+            f"available cars=[PAV={len(env.available)}, FAV={len(env.available_hired)}, total={env.available_fleet_size}])"
+        )
+
+        # Logging cost calculus
+        la.log_costs(
+            logger_name,
+            decision_cars,
+            env.cost_func,
+            env.post_cost,
+            time_step,
+            env.config.discount_factor,
+            msg="REACTIVE DECISIONS",
+            # filter_decisions=set([du.TRIP_DECISION]),
+            post_opt=False,
         )
 
     else:
@@ -716,11 +731,6 @@ def service_trips(
         # Get all decision tuples, and trip decision tuples per service
         # quality class. If max. battery level is defined, also includes
         # recharge decisions.
-        logger.debug(
-            f"  - Getting decisions  "
-            f"(trips={len(trips)}, "
-            f"available cars={len(env.available)+len(env.available_hired)})"
-        )
 
         t1_decisions = time.time()
 
@@ -741,7 +751,12 @@ def service_trips(
 
         t_decisions = time.time() - t1_decisions
 
-        logger.debug(f"  - Decision count: {len(decision_cars)}")
+        logger.debug(
+            f"  - Getting decisions  "
+            f"(trips={len(trips)}, "
+            f"decisions={len(decision_cars)}, "
+            f"available cars=[PAV={len(env.available)}, FAV={len(env.available_hired)}, total={env.available_fleet_size}])"
+        )
 
         # Logging cost calculus
         la.log_costs(
@@ -828,9 +843,13 @@ def service_trips(
 
     # 2nd round of reactive rebalance
     if reactive:
+        # Sometimes, cars cannot rebalance due to contract limitations.
+        # Then, this check guarantees the constraints is declared only
+        # if there are valid rebalancing decision.
+
         # N. of rebalance = min(N. of cars, N. of targets)
         min_rebalance_dict = car_min_rebal_constr(
-            m, x_var, env.available_fleet_size, len(trips)
+            m, x_var, n_cars_can_rebalance, len(trips)
         )
 
     else:

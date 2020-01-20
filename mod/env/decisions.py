@@ -246,41 +246,45 @@ def get_decisions(env, trips, min_battery_level=None):
         # TODO it differs for FAVs
         from_location[car.point.id] += 1
 
+        # Rebalancing decisions (also add return decisions)
+        d_rebalance = set()
+        # Return ##################################################### #
+        # Return trips are always available
+        if isinstance(car, HiredCar):
+
+            # If car has moved from depot
+            if car.point.id != car.depot.id:
+
+                # Car must return when contract is about to end
+                return_trip_duration = env.get_travel_time_od(
+                    car.point, car.depot, unit="min"
+                )
+
+                neighbors = env.attribute_rebalance[car.point.id]
+
+                if car.contract_duration <= return_trip_duration:
+                    d_return = return_decision(car)
+                    d_rebalance.add(d_return)
+                    decisions_return.add(d_return)
+                    decisions.add(d_return)
+
+        # Rebalancing ################################################ #
         # myopic = NO
         # reactive = NO (Rebalance decisions only in 2nd round)
         # random, train, and test = YES
         if env.config.consider_rebalance:
-            # Rebalancing ################################################ #
 
             neighbors = env.attribute_rebalance[car.point.id]
             if env.config.activate_thompson:
                 d_rebalance = rebalance_decisions_thompson(car, neighbors, env)
             else:
+                if isinstance(car, HiredCar):
+                    # Car can always rebalance to its home station.
+                    # Makes sense when parking costs are cheaper at 
+                    # home station.
+                    neighbors.add(car.depot.id)
+
                 d_rebalance = rebalance_decisions(car, neighbors, env)
-
-            # Return trips are always available
-            if isinstance(car, HiredCar):
-
-                # If car has moved from depot
-                if car.point.id != car.depot.id:
-
-                    # d_return_trip = rebalance_decision(car, car.depot.id)
-                    # d_rebalance.add(d_return_trip)
-
-                    travel_time = env.get_travel_time_od(
-                        car.point, car.depot, unit="min"
-                    )
-
-                    # Car must return if when contract is about to end
-                    # (1 step offset given)
-                    return_trip_duration = (
-                        travel_time + env.config.time_increment
-                    )
-
-                    if car.contract_duration <= return_trip_duration:
-                        d_return = return_decision(car)
-                        d_rebalance.add(d_return)
-                        decisions_return.add(d_return)
 
             if not d_rebalance:
                 # Remove from tabu if not empty.
@@ -306,11 +310,7 @@ def get_decisions(env, trips, min_battery_level=None):
                         car.point.id, explore=True
                     )
 
-                    # print(f"farther: {farther} - d_rebalance: {d_rebalance}")
                     d_rebalance.update(rebalance_decisions(car, farther, env))
-                    # d_rebalance = d_rebalance | farther
-
-            # print(f"farther: {d_rebalance}")
 
             decisions.update(d_rebalance)
 
@@ -332,16 +332,14 @@ def get_decisions(env, trips, min_battery_level=None):
                 continue
 
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(car.point, trip.o, unit="min")
+            pk_time = env.get_travel_time_od(car.point, trip.o, unit="min")
 
-            # TODO here we have an approximation. Precise matching uses
-            # env.config.time_increment
+            # Discount time increment because it covers the worst case
+            # scenario (user waiting since the beginning of the round)
+            max_pk_time = trip.max_delay - env.config.time_increment
 
             # Can the car reach the trip origin?
-            if (
-                travel_time
-                <= trip.max_delay - env.config.time_increment + trip.tolerance
-            ):
+            if pk_time <= max_pk_time + trip.tolerance:
 
                 # Setup decisions
                 d = trip_decision(car, trip)
@@ -381,25 +379,21 @@ def get_decisions(env, trips, min_battery_level=None):
                 trip.d.id,
                 car.depot.id,
                 car.contract_duration,
+                delay_offset=car.elapsed,  # Time to reach middle
             ):
                 continue
 
+            # Discount time increment because it covers the worst case
+            # scenario (user waiting since the beginning of the round)
+            max_pk_time = trip.max_delay - env.config.time_increment
+
             # Time to reach trip origin
-            travel_time = env.get_travel_time_od(
+            pk_time = env.get_travel_time_od(
                 car.middle_point, trip.o, unit="min"
             )
 
-            # TODO here we have an approximation. Precise matching uses
-            # env.config.time_increment
-
             # Can the car reach the trip origin?
-            if (
-                travel_time
-                <= trip.max_delay
-                - car.elapsed
-                - env.config.time_increment
-                + trip.tolerance
-            ):
+            if pk_time + car.elapsed <= max_pk_time + trip.tolerance:
                 # Setup decisions
                 d = trip_decision(car, trip)
                 decisions.add(d)
@@ -407,27 +401,28 @@ def get_decisions(env, trips, min_battery_level=None):
     return decisions, decisions_return, decision_class
 
 
-def get_rebalancing_decisions(env, neighbors, min_battery_level=None):
-    """Get list of rebalancing decision tuples moving towards neighbors.
+def get_rebalancing_decisions(env, targets):
+    """Stay and rebalancing decisions for the reactive rebalancing
+    policy.
 
     Parameters
     ----------
-    env : Amod object
-        Amod environment
-    trips : list
-        Trips placed in the current time step
-    min_battery_level : int, optional
-        Create recharging decisions with car battery level is lower, by
-        default None
+    env : AMoD
+        AMoD environment
+    targets : list
+        Rebalancing targets
 
     Returns
     -------
-    (list, dict(list))
-        List of all decisions
-        List of trip decisions per class
+    set, int
+        Set of all decisions (rebalancing + stay)
+        Number of cars that can rebalance
     """
-
     decisions = set()
+
+    # How many cars can rebalance? Hired cars can rebalance only if
+    # contract limit is not surpassed.
+    n_can_rebalance = 0
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -440,15 +435,18 @@ def get_rebalancing_decisions(env, neighbors, min_battery_level=None):
         decisions.add(d_stay)
 
         if env.config.activate_thompson:
-            d_rebalance = rebalance_decisions_thompson(car, neighbors, env)
+            d_rebalance = rebalance_decisions_thompson(car, targets, env)
         else:
-            d_rebalance = rebalance_decisions(car, neighbors, env)
+            d_rebalance = rebalance_decisions(car, targets, env)
 
         if not d_rebalance:
             # Remove from tabu if not empty.
             # Avoid cars are corned indefinitely
             if car.tabu:
                 car.tabu.popleft()
+        else:
+            # Rebalance decision was created
+            n_can_rebalance += 1
 
         # TODO this is here because of a lack or rebalancing options
         # thompson selected is small 0.2
@@ -474,4 +472,4 @@ def get_rebalancing_decisions(env, neighbors, min_battery_level=None):
 
         decisions.update(d_rebalance)
 
-    return decisions
+    return decisions, n_can_rebalance

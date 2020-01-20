@@ -129,20 +129,20 @@ class AmodNetworkHired(AmodNetwork):
 
         # Include time increment because it covers the worst case
         # scenario (user waiting since the beginning of the round)
-        max_time = self.config.trip_max_pickup_delay[sq] - self.config.time_increment
+        max_pk_delay = self.config.trip_max_pickup_delay[sq] - self.config.time_increment
 
         # Pickup travel time
         distance = nw.get_distance(car_o, trip_o)
-        travel_time = self.get_travel_time(distance, unit="min")
+        pk_time = self.get_travel_time(distance, unit="min")
 
         # If pickup travel time surpasses user max. waiting
         # 0 <= travel_time <= max_time + tolerance
-        if travel_time > max_time + tolerance:
+        if pk_time > max_pk_delay + tolerance:
             return None
         
         # Delay considering 1st tier service level
         # 0 <= delay <= tolerance
-        delay = max(0, travel_time - max_time)
+        delay = max(0, pk_time - max_pk_delay)
 
         # Base fare is the upper bound for the penalty
         base_fare = self.config.trip_base_fare[sq]
@@ -496,7 +496,7 @@ class AmodNetworkHired(AmodNetwork):
 
                 break
 
-    def can_move(self, pos, waypoint, target, start, remaining_hiring_slots):
+    def can_move(self, pos, waypoint, target, start, remaining_hiring_slots, delay_offset=0):
         pos, waypoint, target, start = (
             Point.point_dict[pos],
             Point.point_dict[waypoint],
@@ -516,7 +516,9 @@ class AmodNetworkHired(AmodNetwork):
             remaining_hiring_slots * self.config.contract_duration_level
         )
 
-        return remaining_hiring_time > duration_movement
+        # TODO delay_offset is used when middle point is the current
+        # position (it corresponds to the time to reach the middle)
+        return remaining_hiring_time > duration_movement + delay_offset
 
     def get_fav_depots(self):
 
@@ -935,7 +937,6 @@ class AmodNetworkHired(AmodNetwork):
 
             # Contract duration has expired
             if car.contract_duration == 0:
-                # expired_contract.append(car)
                 expired_contract.append(car)
                 # self.hired_cars.remove(car)
                 self.available_hired_ids[car.point.id] += 1

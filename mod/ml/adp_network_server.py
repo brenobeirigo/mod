@@ -372,6 +372,12 @@ def alg_adp(
             show_lines=PlotTrack.SHOW_LINES,
         )
 
+    if config.use_class_prob:
+        print("Loading first-class probabilities...")
+        prob_dict = np.load(conf.FIST_CLASS_PROB).item()
+    else:
+        prob_dict = None
+
     print(f"Loading demand scenario '{config.demand_scenario}'...")
 
     try:
@@ -441,18 +447,16 @@ def alg_adp(
             # trips_file_path = random.choice(conf.TRIP_FILES)
             if config.train:
                 trips_file_path = conf.FILE_TRAINING
-                equal_samples = False
                 test_i = n
                 # print(f"  -> Trip file - {trips_file_path}")
             else:
                 # If testing, select different trip files
                 test_i = n % len(conf.TRIP_FILES)
                 trips_file_path = conf.TRIP_FILES[test_i]
-                equal_samples = True
                 # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
 
             step_trip_list, step_trip_count = tp.get_ny_demand(
-                config, trips_file_path, amod.points, equal_samples=equal_samples
+                config, trips_file_path, amod.points, seed=n, prob_dict=prob_dict,
             )
 
             # Save random data (trip samples)
@@ -688,11 +692,11 @@ def alg_adp(
                 logger.debug("Rejected requests (rebalancing targets):")
                 for r in rejected:
                     logger.debug(f"{r}")
-                
+
                 # print(step, amod.available_fleet_size,  len(rejected))
                 # Update fleet headings to isolate Idle vehicles
                 amod.update_fleet_status(step + 1)
-                
+
                 # Service idle vehicles
                 rebal_costs, _, _ = service_trips(
                     # Amod environment with configuration file
@@ -949,8 +953,8 @@ if __name__ == "__main__":
                 #     "B": 2.4,
                 # },
                 ConfigNetwork.TRIP_REJECTION_PENALTY: (
-                    ("A", 0),
-                    ("B", 0),
+                    ("A", 4.8),
+                    ("B", 2.4),
                 ),
                 ConfigNetwork.TRIP_BASE_FARE: (
                      ("A", 4.8),
@@ -961,16 +965,16 @@ if __name__ == "__main__":
                     ("B", 1),
                 ),
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
-                    ("A", 0),
-                    ("B", 0),
+                    ("A", 5),
+                    ("B", 5),
                 ),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
                     ("A", 5),
                     ("B", 10),
                 ),
                 ConfigNetwork.TRIP_CLASS_PROPORTION: (
-                    ("A", 0),
-                    ("B", 1),
+                    ("A", 0.2),
+                    ("B", 0.8),
                 ),
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.METHOD: method,
@@ -992,12 +996,12 @@ if __name__ == "__main__":
                 ConfigNetwork.CAR_SIZE_TABU: 0,
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
-                ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.PENALIZE_REBALANCE: False,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    #(1, 8),
-                    (1, 4),
-                    (2, 4),
+                    (1, 8),
+                    # (1, 4),
+                    # (2, 4),
                     # (3, 4),
                 ),
                 # FLEET ############################################## #
@@ -1017,8 +1021,11 @@ if __name__ == "__main__":
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
                 # Saving
                 ConfigNetwork.USE_SHORT_PATH: False,
-                ConfigNetwork.SAVE_TRIP_DATA: True,
-                ConfigNetwork.SAVE_FLEET_DATA: True,
+                ConfigNetwork.SAVE_TRIP_DATA: False,
+                ConfigNetwork.SAVE_FLEET_DATA: False,
+
+                # Load 1st class probabilities dictionary
+                ConfigNetwork.USE_CLASS_PROB: False,
             }
         )
 

@@ -132,7 +132,6 @@ trip_od_list = dict()
 # List of trips and trip counts per step (key is file path)
 trip_demand_dict = dict()
 
-
 def load_trips_ods_from(tripdata_path, config):
 
     global trip_od_list
@@ -225,11 +224,11 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
     return df
 
 
-def get_ny_demand(config, tripdata_path, points, equal_samples=False):
+def get_ny_demand(config, tripdata_path, points, seed=None, prob_dict=None):
 
     step_trip_od_list = load_trips_ods_from(tripdata_path, config)
 
-    if tripdata_path not in trip_demand_dict:
+    if tripdata_path not in trip_demand_dict or seed is not None:
 
         # Use loaded trip od list to create RESIZED trip list per step
         step_trip_list = get_trips(
@@ -242,7 +241,8 @@ def get_ny_demand(config, tripdata_path, points, equal_samples=False):
             offset_end=config.offset_termination_steps,
             classed=config.demand_is_classed,
             resize_factor=config.demand_resize_factor,
-            equal_samples=equal_samples,
+            seed=seed,
+            prob_dict=prob_dict,
         )
 
         # Count number of trips per step
@@ -527,6 +527,29 @@ def get_trips_random_ods(
 
     return step_trip_list
 
+def get_min(h, m, s, min_bin_size=30):
+    s = (h*3600 + m*60 + s)//(min_bin_size*60)
+    return s
+    
+def get_class(pk_id, pickup_datetime, prob_dict, min_bin_size=30):
+    """Return 1 if request is """
+
+    min_bin = get_min(
+        pickup_datetime.hour,
+        pickup_datetime.minute,
+        pickup_datetime.second,
+        min_bin_size=min_bin_size
+    )
+    
+    try:
+        prob = prob_dict[pk_id][min_bin]
+        if random.random() <= prob:
+            return 1
+        else:
+            return 0
+    except:
+        return 0
+
 
 def get_trips(
     points,
@@ -538,28 +561,42 @@ def get_trips(
     offset_end=0,
     classed=False,
     resize_factor=1,
-    equal_samples=False,
-):
+    seed=None,
+    prob_dict=None,
+):  
 
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
 
     # Guarantee everytime the same trips are sampled.
     # Used in conjunction with the testing data.
-    if equal_samples:
-        random.seed(1)
+    if seed is not None:
+        random.seed(seed)
+    step_trips_resized = list()
 
+    # Sampling trips
     for step, trips in enumerate(step_trips):
-        trip_list = list()
-        for time, elapsed_sec, count, o, d in trips:
+        resized = list()
+        for t in trips:
             # Only add a new trip "resize_factor" percent of the time
             if random.random() < resize_factor:
-                # Choose a class according to a probability
-                random_class = random.choices(
-                    population=list(class_proportion.keys()),
-                    weights=list(class_proportion.values()),
-                    k=1,
-                )[0]
+                resized.append(t)
+        step_trips_resized.append(resized)
+
+    for step, trips in enumerate(step_trips_resized):
+        trip_list = list()
+        for time, elapsed_sec, count, o, d in trips:
+                # Use probability distribution from file
+                if prob_dict is not None:
+                    random_class = get_class(o, time, prob_dict, min_bin_size=30)
+                    random_class = ("A" if random_class else "B")
+                else:
+                    # Choose a class according to a probability
+                    random_class = random.choices(
+                        population=list(class_proportion.keys()),
+                        weights=list(class_proportion.values()),
+                        k=1,
+                    )[0]
 
                 trip_list.append(
                     ClassedTrip(

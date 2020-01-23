@@ -25,6 +25,8 @@ FOLDER_TUNING = root + "/data/input/tuning/"
 FOLDER_OD_DATA = root + "/data/input/od_data/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
 
+FIST_CLASS_PROB = f"{FOLDER_NYC_TRIPS}1st_class_prob_dict.npy"
+
 FILE_TRAINING = f"{FOLDER_NYC_TRIPS}tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv"
 TRIP_FILES = [
     f"{FOLDER_NYC_TRIPS}{t}"
@@ -124,6 +126,7 @@ class Config:
     TRIP_TOLERANCE_DELAY_MIN = "TRIP_TOLERANCE_DELAY_MIN"
     TRIP_MAX_PICKUP_DELAY = "TRIP_MAX_PICKUP_DELAY"
     TRIP_CLASS_PROPORTION = "TRIP_CLASS_PROPORTION"
+    USE_CLASS_PROB = "USE_CLASS_PROB"
 
     TRIP_COST_DISTANCE = "TRIP_COST_DISTANCE"
     TOTAL_TRIPS = "TOTAL_TRIPS"
@@ -471,6 +474,11 @@ class Config:
     @property
     def trip_class_proportion(self):
         return self.config[Config.TRIP_CLASS_PROPORTION]
+
+    @property
+    def use_class_prob(self):
+        """Load 1st class probability from FIST_CLASS_PROB"""
+        return self.config[Config.USE_CLASS_PROB]
 
     @property
     def trip_cost_fare(self):
@@ -1385,6 +1393,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.SAVE_TRIP_DATA] = False
 
         self.config[Config.SAVE_FLEET_DATA] = False
+
+        self.config[Config.USE_CLASS_PROB] = False
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
@@ -1890,6 +1900,8 @@ class ConfigNetwork(ConfigStandard):
     @property
     def label(self, name=""):
 
+        return self.concise_label
+
         if self.config[Config.TUNE_LABEL] is not None:
             return self.config[Config.TUNE_LABEL]
 
@@ -1925,7 +1937,9 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )
 
+    @property
     def concise_label(self):
+        prob = ("_P" if self.use_class_prob else "")
         return (
             f"{self.test_label}_"
             f"{self.label_idle_annealing}"
@@ -1955,6 +1969,7 @@ class ConfigNetwork(ConfigStandard):
             f"{self.discount_factor:3.2f}_"
             f"{self.stepsize_constant:3.2f}_"
             f"{self.sl_config_label}"
+            f"{prob}"
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

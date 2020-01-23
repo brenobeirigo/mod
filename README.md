@@ -122,3 +122,18 @@ If you define `amod = AmodNetworkHired(config, online=True)` the following is ac
         self.penalty = self.loaded_penalty
 
 If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.
+
+## Logging
+
+### Trips and vehicles
+
+Set configuration parameters to `True` to save `.csv` log files.
+
+To save trip data set:
+
+    SAVE_TRIP_DATA = True
+
+To save fleet data set:
+
+    SAVE_FLEET_DATA = True
+

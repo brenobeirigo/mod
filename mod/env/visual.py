@@ -268,7 +268,7 @@ class EpisodeLog:
         dpi=150,
     ):
 
-        sns.set_context("paper", font_scale=1.4)
+        sns.set_context("talk", font_scale=1.4)
 
         total_trips = 0
         for sq, delays in serviced.items():
@@ -411,16 +411,18 @@ class EpisodeLog:
                     trip_rejections,
                     trip_delays,
                     file_path=self.output_folder_delay + f"{self.adp.n:04}",
-                    file_format="png",
-                    dpi=150
+                    file_format="pdf",
+                    dpi=150,
                 )
 
             if step_log.env.config.fleet_size > 0:
                 step_log.plot_fleet_status(
                     step_log.pav_statuses,
                     file_path=self.output_folder_fleet + f"{self.adp.n:04}_pav",
-                    file_format="png",
+                    file_format="pdf",
                     dpi=150,
+                    omit_cruising=False,
+                    show_legend=False,
                 )
             # step_log.plot_fleet_status_all(
             #     step_log.car_statuses, step_log.pav_statuses, step_log.fav_statuses, 
@@ -432,15 +434,18 @@ class EpisodeLog:
                 step_log.plot_fleet_status(
                     step_log.fav_statuses,
                     file_path=self.output_folder_fleet + f"{self.adp.n:04}_fav",
-                    file_format="png",
+                    file_format="pdf",
                     dpi=150,
+                    omit_cruising=False,
+                    show_legend=False,
                 )
 
             # Service status (battery level, demand, serviced demand)
             step_log.plot_service_status(
                 file_path=self.output_folder_service + f"{self.adp.n:04}",
-                file_format="png",
+                file_format="pdf",
                 dpi=150,
+                show_legend=False,
             )
 
         if save_df:
@@ -730,7 +735,7 @@ class StepLog:
         )
 
 
-    def plot_fleet_status(self, car_statuses, file_path=None, file_format="png", dpi=150, earliest_hour=0, omit_cruising=True):
+    def plot_fleet_status(self, car_statuses, file_path=None, file_format="png", dpi=150, earliest_hour=0, omit_cruising=True, show_legend=True):
 
         sns.set_context("talk", font_scale=1.4)
 
@@ -751,14 +756,14 @@ class StepLog:
             plt.plot(
                 steps[:-1],
                 status_count_step[:-1],
-                linewidth=linewidth+1,
+                linewidth=linewidth,
                 label=status_label,
                 color=self.env.config.color_fleet_status[status_code]
             )
 
         matrix_status_count = np.array(list(car_statuses.values()))
         total_count = np.sum(matrix_status_count, axis=0)
-        plt.plot(steps[:-1], total_count[:-1], linewidth=linewidth+1, color="magenta", label="Total")
+        plt.plot(steps[:-1], total_count[:-1], linewidth=linewidth, color="magenta", label="Total")
 
         termination = self.n-self.env.config.offset_termination_steps
         repositioning = self.env.config.offset_repositioning_steps
@@ -782,7 +787,7 @@ class StepLog:
 
         plt.tick_params(
             direction='out',
-            length=lenght_tick,
+            # length=lenght_tick,
             width=linewidth,
             colors='k',
             grid_color='k',
@@ -805,7 +810,7 @@ class StepLog:
         plt.xlabel("Time")
         
         # Configure y axis
-        plt.ylabel("# Cars")
+        plt.ylabel("# Vehicles")
         ax = plt.gca()
         box = ax.get_position()
         ax.set_position(
@@ -818,6 +823,9 @@ class StepLog:
             bbox_to_anchor=(1, 0, 0.5, 1), #(0.5, -0.15),
             ncol=1,
         )
+
+        if not show_legend:
+            ax.get_legend().remove()
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
@@ -860,17 +868,26 @@ class StepLog:
         return self.step_stats
 
 
-    def plot_service_status(self, file_path=None, file_format="png", dpi=150):
+    def plot_service_status(self, file_path=None, file_format="png", dpi=150, show_legend=True):
+
+        sns.set_context("talk", font_scale=1.4)
+
+        linewidth = 2
+        lenght_tick = 6
+
+        termination = self.n-self.env.config.offset_termination_steps
+        repositioning = self.env.config.offset_repositioning_steps
 
         steps = np.arange(self.n)
 
         fig, ax1 = plt.subplots()
         ax1.set_xlabel("Time")
-        ax1.set_ylabel("Trips")
-        ax1.plot(steps, self.total_list, label="Total demand", color="b")
-        ax1.plot(steps, self.serviced_list, label="Met demand", color="g")
+        ax1.set_ylabel("Cumulative n. of requests")
+        ax1.plot(steps, np.cumsum(self.total_list), linewidth=linewidth, label="Total", color="magenta")
+        ax1.plot(steps, np.cumsum(self.serviced_list), linewidth=linewidth, label="Serviced", color="k")
         ax1.legend()
 
+        # Plot battery
         try:
             max_battery_level = len(self.env.cars) * (
                 self.env.cars[0].battery_level_miles_max
@@ -909,18 +926,46 @@ class StepLog:
         except:
             pass
 
-        # Configure ticks x axis
+            # Demarcate offsets
+        plt.axvline(repositioning, color='k', linewidth=linewidth, linestyle="--")
+        plt.axvline(termination, color='k', linewidth=linewidth, linestyle="--")
+
+        fig = plt.gcf()
+        fig.set_size_inches(10, 10)
+
+        xticks = np.linspace(0, 330, 12)
+        xticks[-1] = 329
+
+        plt.xticks(
+            xticks,
+            ["", "5AM", "", "6AM", "", "7AM", "", "8AM", "", "9AM", "", "10AM"]
+        )
+        plt.tick_params(labelsize=25)
+
+        plt.tick_params(
+            direction='out',
+            # length=lenght_tick,
+            width=linewidth,
+            colors='k',
+            grid_color='k',
+            grid_alpha=0.5
+        )
+
         # x_ticks = 6
         # x_stride = 60*3
         # max_x = np.math.ceil(self.n / x_stride) * x_stride
         # xticks = np.arange(0, max_x + x_stride, x_stride)
         # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
 
-         # Configure x axis
-        plt.xlim([0, self.env.config.time_steps])
-        # plt.ylim([0, self.env.config.fleet_size])
-        plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
+        # Configure x axis
+        plt.xlim([0, self.env.config.time_steps-1])
+        plt.ylim([0, 4000])
 
+        ax = plt.gca()
+        box = ax.get_position()
+        ax.set_position(
+            [box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.9]
+        )
 
         # Shrink current axis's height by 10% on the bottom
         box = ax1.get_position()
@@ -935,6 +980,9 @@ class StepLog:
             bbox_to_anchor=(0.3, -0.15),
             ncol=2,
         )
+
+        if not show_legend:
+            ax.get_legend().remove()
 
         if file_path:
             plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)

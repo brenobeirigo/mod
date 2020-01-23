@@ -20,6 +20,7 @@ import seaborn as sns
 context = "talk"
 fig_format = "pdf"
 
+
 def movingaverage(data, w, start=0, start_den=2):
     new_data = np.zeros(len(data))
     for i in range(len(data)):
@@ -132,8 +133,7 @@ if __name__ == "__main__":
     # ################################################################ #
 
     adhoc_compare["penalize"] = [
-        
-        "baseline_R_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([0-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10",
+        "base_LIN_V=0300-0000(R)_I=1_L[3]=(10-0-, 32-0-, 33-0-)_R=([0-8][L(05)]_T=[05h,+30m+04h+60m]_0.10(S)_1.00_0.10_A_4.80_5.00_0.00_0.00_0.00_B_2.40_10.00_0.00_0.00_1.00",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8][tabu=00])[L(05)]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([1-8][tabu=00])[L(05)][P]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
         "only1_LIN_cars=0300-0000(R)_t=1_levels[3]=(1-0, 3-300, 3-600)_rebal=([2-8][tabu=00])[L(05)]_[05h,+30m+04h+60m]_match=15_0.10(S)_1.00_0.10",
@@ -259,7 +259,6 @@ if __name__ == "__main__":
     #     "8 x RC1 + 4 x RC5 (unlimited)",
     # ]
 
-
     # adhoc_compare_labels["avoidflood"] = [
     # ]
 
@@ -308,8 +307,6 @@ if __name__ == "__main__":
 
     colors["pavfav"] = ["k", "r"]
 
-
-
     colors["exploration"] = [
         "k",
         "g",
@@ -322,18 +319,12 @@ if __name__ == "__main__":
         "#cab2d6",
     ]
 
-    
     # linewidth["penalize"] = [2, 2, 1, 2, 1, 2, 1]
 
-    
-
     # linewidth["policy"] = [1, 1, 1, 1, 1, 1, 1]
-    
 
     linewidth["pavfav"] = [1, 1, 1, 1, 1, 1, 1]
     markers["pavfav"] = [None, "o", "x"]
-
-    
 
     linewidth["exploration"] = [1, 1, 1, 1, 1, 1, 1]
     # markers["exploration"] = [None, "o", "x"]
@@ -359,7 +350,7 @@ if __name__ == "__main__":
     XLABEL = "Iteration"
     window = 30
     ITERATIONS = 500
-    
+
     markers_default = [None] * len(adhoc_compare[test_label])
     # markers = [None, "o", "*", "x", "|", None]
 
@@ -370,7 +361,7 @@ if __name__ == "__main__":
 
     for exp, sum_label in zip(
         adhoc_compare[test_label], adhoc_compare_labels[test_label]
-    ):  
+    ):
         folder = "O:/phd/output_paper/"
         path_all_stats = folder + exp + "/overall_stats.csv"
         config_exp = ConfigNetwork()
@@ -437,9 +428,9 @@ if __name__ == "__main__":
                 axs[i].plot(
                     data,
                     color=colors.get(test_label, colors_default)[j],
-                    linewidth=linewidth.get(
-                        test_label, [2] * len(label_data)
-                    )[j],
+                    linewidth=linewidth.get(test_label, [2] * len(label_data))[
+                        j
+                    ],
                     marker=markers.get(test_label, markers_default)[j],
                     alpha=0.25,
                     label="",
@@ -452,9 +443,7 @@ if __name__ == "__main__":
             axs[i].plot(
                 mavg,
                 color=colors.get(test_label, colors_default)[j],
-                linewidth=linewidth.get(test_label, [1] * len(label_data))[
-                    j
-                ],
+                linewidth=linewidth.get(test_label, [1] * len(label_data))[j],
                 marker=markers.get(test_label, markers_default)[j],
                 fillstyle="none",
                 markevery=25,
@@ -477,7 +466,7 @@ if __name__ == "__main__":
         frameon=False,
         bbox_to_anchor=(1, 0, 0, 1),  # (0.5, -0.15),
         ncol=1,
-        #title="Max. #cars/location"
+        # title="Max. #cars/location"
     )
 
     # plt.show()

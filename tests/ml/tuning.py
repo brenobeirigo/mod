@@ -185,18 +185,64 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.TRIP_REJECTION_PENALTY: [(("A", 0), ("B", 0))],
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
         ConfigNetwork.TRIP_BASE_FARE: [
-            (("A", 4.8), ("B", 2.4)),
-            (("A", 7.2), ("B", 4.8)),
-            (("A", 9.6), ("B", 7.2)),
-            (("A", 12.0), ("B", 9.6)),
+            (("A", 0), ("B", 2.4)),
+            (("A", 0), ("B", 4.8)),
+            # (("A", 0), ("B", 7.2)),
+            (("A", 0), ("B", 9.6)),
+            #(("A", 0), ("B", 12)),
         ],
         ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [
-            (("A", 5), ("B", 10)),
-            (("A", 10), ("B", 15)),
+            (("A", 0), ("B", 5)),
+            (("A", 0), ("B", 10)),
+            (("A", 0), ("B", 15)),
         ],
         ConfigNetwork.TRIP_CLASS_PROPORTION: [
-            (("A", 1), ("B", 0)),
+            # (("A", 1), ("B", 0)),
+            (("A", 0), ("B", 1)),
+        ],
+    }
+
+    # Changed sensitivity analsys to show the range of pk and fares instead
+    # of focusing on the user bases.
+    tuning_focus["sensitivity2"] = {
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [(("A", 0), ("B", 0))],
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        "SQ": [
+            # Fare=(2.4 -> 12) - pk=5
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 2.4)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 5)),
+            },
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 4.8)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 5)),
+            },
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 7.2)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 5)),
+            },
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 9.6)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 5)),
+            },
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 12)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 5)),
+            },
+            # Fare=12 - pk=10
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 12)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 10)),
+            },
+            # Fare=15 - pk=15
+            {
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 0), ("B", 12)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 15)),
+            },
+        ],
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [
             (("A", 0), ("B", 1)),
         ],
     }
@@ -327,8 +373,8 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.TRIP_REJECTION_PENALTY:[
             (("A", 0), ("B", 0)),
             (("A", 4.8), ("B", 2.4)),
-            (("A", 7.2), ("B", 4.8)),
-            (("A", 9.6), ("B", 7.2)),
+            # (("A", 7.2), ("B", 4.8)),
+            (("A", 9.6), ("B", 4.8)),
         ],
         "TOLERANCE_MAX_PICKUP": [
             # {
@@ -614,8 +660,12 @@ def save_outcome_tuning(test_label, exp_list):
     label = "myopic" if myopic else ""
 
     sorted_columns = headers + sorted(list(cols)) + columns
-    df_outcome.to_csv(f"{test_label}_outcome_tuning.csv", columns=sorted_columns, index=True)
-
+    # TODO config_exp is out of scope
+    df_outcome.to_csv(
+        f"{test_label}_{config_exp.method.replace('/','_')}_outcome_tuning.csv",
+        columns=sorted_columns,
+        index=True
+    )
     # except Exception as e:
     #     print(
     #         f"Could not save aggregated data (result still needs to be processed). Exception: {e}"

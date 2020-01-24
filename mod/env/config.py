@@ -33,8 +33,9 @@ TRIP_FILES = [
     for t in os.listdir(FOLDER_NYC_TRIPS) if t.endswith(".csv")
 ]
 
+i_training = TRIP_FILES.index(FILE_TRAINING)
 TRIP_FILES.remove(FILE_TRAINING)
-print(f"{len(TRIP_FILES)} trip files loaded ({len(TRIP_FILES)+1}, including training file).")
+print(f"{len(TRIP_FILES)} trip files loaded ({len(TRIP_FILES)+1}, including training file #{i_training+1} ).")
 
 # Car statuses
 IDLE = 0
@@ -699,6 +700,10 @@ class Config:
     @property
     def sl_config_label(self):
 
+        def proportion(sq):
+            # Proportion comes from prbability file
+            return ("P" if self.use_class_prob else f"{self.config[Config.TRIP_CLASS_PROPORTION][sq]:.2f}")
+
         """Path of saved fares per sq_class, o, d"""
         sl_config_label = "_".join(
             [
@@ -707,7 +712,7 @@ class Config:
                     f"{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:.2f}_"
                     f"{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:.2f}_"
                     f"{self.config[Config.TRIP_REJECTION_PENALTY][sq]:.2f}_"
-                    f"{self.config[Config.TRIP_CLASS_PROPORTION][sq]:.2f}"
+                    f"{proportion(sq)}"
                 )
                 for sq, base in self.config[Config.TRIP_BASE_FARE].items()
             ]
@@ -1969,7 +1974,7 @@ class ConfigNetwork(ConfigStandard):
             f"{self.discount_factor:3.2f}_"
             f"{self.stepsize_constant:3.2f}_"
             f"{self.sl_config_label}"
-            f"{prob}"
+            # f"{prob}"
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

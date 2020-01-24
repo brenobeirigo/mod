@@ -349,6 +349,7 @@ class EpisodeLog:
                 rejected_dist_total=np.sum(trip_rejections[sq]),
                 sl=len(delays)/total_trips[sq],
             )
+
         # TODO comment this section
         car_type_status_durations = defaultdict(lambda:defaultdict(list))
         # How much time each car have spent in each status (in minutes)?
@@ -462,24 +463,30 @@ class EpisodeLog:
             )
 
         if save_overall_stats:
-            df_stats = step_log.get_step_stats()
+            cols, df_stats = step_log.get_step_stats()
 
             # Add user stats
-            for sq, stats in self.adp.pk_delay[-1].items():
-                for label, v in stats.items():
-                    df_stats[f"{sq}_{label}"] = v
-            
-            # Add car stats
-            for car_type, stats in self.adp.car_time[-1].items():
-                for label, v in stats.items():
-                    df_stats[f"{car_type}_{label}"] = v
+            for sq, stats in sorted(self.adp.pk_delay[-1].items(), key=lambda sq_stats: sq_stats[0]):
+                for label, v in sorted(stats.items(), key=lambda label_v: label_v[0]):
+                    col = f"{sq}_{label}"
+                    cols.append(col)
+                    df_stats[col] = v
 
+            # Add car stats
+            for car_type, stats in sorted(self.adp.car_time[-1].items(), key=lambda car_type_stats: car_type_stats[0]):
+                for label, v in sorted(stats.items(), key=lambda label_v: label_v[0]):
+                    col = f"{car_type}_{label}"
+                    cols.append(col)
+                    df_stats[col] = v
+
+            cols.append("time")
             df_stats["time"] = pd.Series([processing_time])
             stats_file = self.output_path + "/overall_stats.csv"
             df_stats.to_csv(
                 stats_file,
                 mode="a",
                 index=False,
+                columns=cols,
                 header=not os.path.exists(stats_file)
             )
 
@@ -856,16 +863,19 @@ class StepLog:
 
 
     def get_step_stats(self):
-
+        columns = ["Episode", "Service rate", "Total reward"]
         self.step_stats = pd.DataFrame()
         self.step_stats["Episode"] = pd.Series([self.env.adp.n])
         self.step_stats["Service rate"] = pd.Series([self.env.adp.service_rate[-1]])
         self.step_stats["Total reward"] = pd.Series([self.env.adp.reward[-1]])
-        for car_type, weights in self.env.adp.weights.items():
-            for i, w in enumerate(weights[-1]):
-                self.step_stats[f"{car_type}_{i:02}"] = pd.Series([w])
 
-        return self.step_stats
+        for car_type, weights in sorted(self.env.adp.weights.items(), key=lambda car_type_weights: car_type_weights[0]):
+            for i, w in enumerate(weights[-1]):
+                col = f"{car_type}_{i:02}"
+                columns.append(col)
+                self.step_stats[col] = pd.Series([w])
+
+        return columns, self.step_stats
 
 
     def plot_service_status(self, file_path=None, file_format="png", dpi=150, show_legend=True):

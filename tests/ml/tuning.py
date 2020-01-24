@@ -52,7 +52,7 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 51
+ITERATIONS = 2
 
 
 log_config = {
@@ -357,6 +357,13 @@ def main(test_labels, focus, N_PROCESSES, method):
         Config.STEPSIZE_CONSTANT: [0.1],
         Config.HARMONIC_STEPSIZE: [1],
     }
+
+    # TUNING ADP
+    tuning_focus["prob"] = {
+        Config.FLEET_SIZE: [10],
+        Config.USE_CLASS_PROB: [True, False]
+    }
+
     # # Config.FLEET_SIZE: [300],
     # Config.FLEET_START: [
     #     # conf.FLEET_START_LAST,
@@ -523,6 +530,7 @@ def save_outcome_tuning(test_label, exp_list):
 
     d = defaultdict(list)
 
+    # Get all columns from all CSVs
     columns = [
         list(
             pd.read_csv(
@@ -532,21 +540,42 @@ def save_outcome_tuning(test_label, exp_list):
         )
         for _, label, config_exp in exp_list
     ]
+    # Join columns
     columns = set(it.chain.from_iterable(columns))
 
+    # Sort to keep consistency
+    columns = sorted(columns)
+    headers = [
+        "label",
+        "method",
+        "pav",
+        "fav",
+        "station",
+        "contract",
+        "start",
+        "time_increment",
+        "levels",
+        "reb_neigh",
+        "max_link",
+        "penalize",
+        "earliest_hour",
+        "repositioning",
+        "total_hours",
+        "termination_min",
+        "resize_factor",
+        "sample",
+        "discount_factor",
+        "stepsize_constant",
+    ]
     indexes = []
+    cols = set()
     for short_label, label, config_exp in exp_list:
         path_all_stats = config_exp.output_path + "overall_stats.csv"
         print(f'Saving at "{path_all_stats}".')
         df = pd.read_csv(path_all_stats, index_col="Episode")
         indexes.append(config_exp.label)
-        # config.test_label
-        # config.label_idle_annealing
-        # config.label_artificial
-        # config.label_lin
 
         d["label"].append(config_exp.sl_label)
-
         d["method"].append(config_exp.method)
         d["pav"].append(config_exp.fleet_size)
         d["fav"].append(config_exp.fav_fleet_size)
@@ -554,29 +583,28 @@ def save_outcome_tuning(test_label, exp_list):
         d["contract"].append(config_exp.label_max_contract)
         d["start"].append(config_exp.label_start)
         d["time_increment"].append(config_exp.time_increment)
-        # d["aggregation_levels"].append(config_exp.aggregation_levels)
         d["levels"].append(config_exp.label_levels)
         d["reb_neigh"].append(config_exp.label_reb_neigh)
-        # config_exp.label_explore
-        # config_exp.label_thomp
-        # config_exp.car_size_tabu
         d["max_link"].append(config_exp.label_max_link)
         d["penalize"].append(config_exp.label_penalize)
         d["earliest_hour"].append(config_exp.demand_earliest_hour)
         d["repositioning"].append(config_exp.offset_repositioning_min)
         d["total_hours"].append(config_exp.demand_total_hours)
         d["termination_min"].append(config_exp.offset_termination_min)
-        # config_exp.matching_delay
         d["resize_factor"].append(config_exp.demand_resize_factor)
         d["sample"].append(config_exp.label_sample)
         d["discount_factor"].append(config_exp.discount_factor)
         d["stepsize_constant"].append(config_exp.stepsize_constant)
-        for k,v in config_exp.sl_config_dict.items():
-            d[k].append(v)
-        # d["sl_config_label"].append(config_exp.sl_config_label)
 
+
+        for k, v in sorted(config_exp.sl_config_dict.items(), key=lambda kv: kv[0]):
+            cols.add(k)
+            d[k].append(v)
+
+        # Get the mean values of all columns
         for c in columns:
             if c in df.columns:
+                # TODO if training, take only last line
                 d[c].append(df[c].mean())
             else:
                 d[c].append(0)
@@ -584,7 +612,9 @@ def save_outcome_tuning(test_label, exp_list):
     df_outcome = pd.DataFrame(dict(d), index=indexes)
     # df_outcome = df_outcome[sorted(df_outcome.columns.values)]
     label = "myopic" if myopic else ""
-    df_outcome.to_csv(f"{test_label}_outcome_tuning.csv", index=True)
+
+    sorted_columns = headers + sorted(list(cols)) + columns
+    df_outcome.to_csv(f"{test_label}_outcome_tuning.csv", columns=sorted_columns, index=True)
 
     # except Exception as e:
     #     print(

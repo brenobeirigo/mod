@@ -527,7 +527,7 @@ class AmodNetworkHired(AmodNetwork):
 
         try:
             P = np.load(self.config.path_depot_list, allow_pickle=True)
-            print(f"{len(P)} FAV depots loaded.")
+            print(f"{len(P)} FAV depots loaded (\"{self.config.path_depot_list}\").")
 
         except:
 
@@ -1174,12 +1174,13 @@ class AmodNetworkHired(AmodNetwork):
         return len(self.available) + len(self.available_hired)
 
     def get_fleet_df(self):
-
+        print(f"Saving fleet data - #PAVs={len(self.cars)} - #FAVs={len(self.overall_hired)}.")
         d = defaultdict(list)
 
-        for car in itertools.chain(self.cars, self.hired_cars):
+        for car in itertools.chain(self.cars, self.overall_hired):
 
             d["id"].append(car.id)
+            d["type"].append(car.type)
             # Current node or destination
             d["point"].append(car.point)
             d["waypoint"].append(car.waypoint)
@@ -1197,7 +1198,6 @@ class AmodNetworkHired(AmodNetwork):
             d["remaining_distance"].append(car.remaining_distance)
             d["step_m"].append(car.step_m)
 
-            d["type"].append(car.type)
             d["idle_step_count"].append(car.idle_step_count)
             d["interrupted_rebalance_count"].append(car.interrupted_rebalance_count)
 

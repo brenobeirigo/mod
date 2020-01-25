@@ -25,7 +25,7 @@ FOLDER_TUNING = root + "/data/input/tuning/"
 FOLDER_OD_DATA = root + "/data/input/od_data/"
 FOLDER_NYC_TRIPS = root + f"/data/input/nyc/"
 
-FIST_CLASS_PROB = f"{FOLDER_NYC_TRIPS}1st_class_prob_dict.npy"
+FIST_CLASS_PROB = f"{FOLDER_NYC_TRIPS}1st_class_prob_info.npy"
 
 FILE_TRAINING = f"{FOLDER_NYC_TRIPS}tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv"
 TRIP_FILES = [

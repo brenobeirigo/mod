@@ -531,9 +531,13 @@ def get_min(h, m, s, min_bin_size=30):
     s = (h*3600 + m*60 + s)//(min_bin_size*60)
     return s
     
-def get_class(pk_id, pickup_datetime, prob_dict, min_bin_size=30):
+def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
     """Return 1 if request is """
 
+    if "time_bin" in prob_info:
+        min_bin_size = prob_info["time_bin"]
+
+    prob_dict = prob_info["data"]
     min_bin = get_min(
         pickup_datetime.hour,
         pickup_datetime.minute,
@@ -588,7 +592,7 @@ def get_trips(
         for time, elapsed_sec, count, o, d in trips:
                 # Use probability distribution from file
                 if prob_dict is not None:
-                    random_class = get_class(o, time, prob_dict, min_bin_size=30)
+                    random_class = get_class(o, time, prob_dict)
                     random_class = ("A" if random_class else "B")
                 else:
                     # Choose a class according to a probability

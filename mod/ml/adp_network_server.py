@@ -375,6 +375,10 @@ def alg_adp(
     if config.use_class_prob:
         print("Loading first-class probabilities...")
         prob_dict = np.load(conf.FIST_CLASS_PROB).item()
+        time_bin = prob_dict["time_bin"]
+        start_time = prob_dict["start"]
+        end_time = prob_dict["end"]
+        print(f"bin={time_bin}, start={start_time}, end={end_time}")
     else:
         prob_dict = None
 
@@ -1010,9 +1014,9 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
-                ConfigNetwork.DEPOT_SHARE: None,
+                ConfigNetwork.DEPOT_SHARE: 0.01,
                 ConfigNetwork.FAV_DEPOT_LEVEL: None,
-                ConfigNetwork.FAV_FLEET_SIZE: 0,
+                ConfigNetwork.FAV_FLEET_SIZE: 200,
                 ConfigNetwork.SEPARATE_FLEETS: False,
                 ConfigNetwork.MAX_CONTRACT_DURATION: True,
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
@@ -1021,11 +1025,11 @@ if __name__ == "__main__":
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
                 # Saving
                 ConfigNetwork.USE_SHORT_PATH: False,
-                ConfigNetwork.SAVE_TRIP_DATA: False,
-                ConfigNetwork.SAVE_FLEET_DATA: False,
+                ConfigNetwork.SAVE_TRIP_DATA: True,
+                ConfigNetwork.SAVE_FLEET_DATA: True,
 
                 # Load 1st class probabilities dictionary
-                ConfigNetwork.USE_CLASS_PROB: False,
+                ConfigNetwork.USE_CLASS_PROB: True,
             }
         )
 

@@ -282,6 +282,9 @@ class Config:
 
     def __init__(self, config):
 
+        self.current_iteration = 0
+        self.current_step = 0
+
         self.config = config
 
         # Creates directories
@@ -299,6 +302,10 @@ class Config:
     @property
     def method(self):
         return self.config[Config.METHOD]
+
+    @property
+    def main_path(self):
+        return f"{FOLDER_OUTPUT}{self.label}/"
 
     @property
     def output_path(self):
@@ -963,6 +970,11 @@ class Config:
         return self.folder_adp_log + f"{iteration:04}.log"
 
     @property
+    def iteration_step_seed(self):
+        seed = self.current_iteration * self.time_steps + self.current_step
+        print(seed,self.current_iteration,self.time_steps,self.current_step)
+        return seed
+    @property
     def iterations(self):
         return self.config[Config.ITERATIONS]
     @property
@@ -1240,6 +1252,9 @@ class ConfigStandard(Config):
 class ConfigNetwork(ConfigStandard):
     def __init__(self, config=None):
 
+        self.current_iteration = 0
+        self.current_step = 0
+
         if not config:
             config = dict()
 
@@ -1362,7 +1377,8 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.HARMONIC_STEPSIZE] = 1
         self.config[Config.STEPSIZE] = 0.1
         self.config[Config.UPDATE_METHOD] = WEIGHTED_UPDATE
-
+        self.current_iteration = 0
+        self.current_step = 0
         # MATCHING ################################################### #
         self.config[Config.MATCH_METHOD] = Config.MATCH_DISTANCE
         self.config[Config.MATCH_LEVEL] = 0
@@ -1575,55 +1591,6 @@ class ConfigNetwork(ConfigStandard):
     def depot_share(self):
         """Percentage of nodes which are depots"""
         return self.config[Config.DEPOT_SHARE]
-
-    def get_ab(self, mean, std, clip_a, clip_b, period=0.5):
-
-        bins = int((clip_b - clip_a) * 60 / period)
-
-        a, b = (clip_a - mean) / std, (clip_b - mean) / std
-
-        return a, b, bins
-
-    # TODO Regulate contract durations
-    def get_availability_pattern(self):
-
-        avail_a, avail_b, avail_bins = self.get_ab(
-            *self.fav_availability_features, period=self.time_increment
-        )
-        # print("    Contract duration:", avail_a, avail_b, avail_bins)
-        return avail_a, avail_b, avail_bins
-
-    def get_earliest_pattern(self):
-
-        ear_a, ear_b, ear_bins = self.get_ab(
-            *(self.fav_earliest_features[0:4]), period=self.time_increment
-        )
-
-        # print("Earliest service time:", ear_a, ear_b, ear_bins)
-        return ear_a, ear_b, ear_bins
-
-    def earliest_features(self):
-        AggLevel = namedtuple("EarliestDistribution", "mean, std, clip_a, clip_b")
-
-    def get_earliest_time(self, n_favs):
-
-        ear_a, ear_b, ear_bins = self.get_earliest_pattern()
-
-        # Earlist times of FAVs arriving in node n
-        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + self.fav_earliest_features[0]
-
-        return earliest_time
-
-    def get_contract_duration(self, n_favs):
-
-        avail_a, avail_b, avail_bins = self.get_availability_pattern()
-
-        # Contract durations of FAVs arriving in node n
-        contract_duration = (
-            truncnorm.rvs(avail_a, avail_b, size=n_favs) + self.fav_availability_features[0]
-        )
-
-        return contract_duration
 
     @property
     def edge_count(self):

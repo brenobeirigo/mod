@@ -17,6 +17,7 @@ import mod.env.decisions as du
 from copy import deepcopy
 import math
 import pandas as pd
+from scipy.stats import gamma, norm, truncnorm
 
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
@@ -569,6 +570,56 @@ class AmodNetworkHired(AmodNetwork):
 
         return P
 
+    
+    def get_ab(self, mean, std, clip_a, clip_b, period=0.5):
+
+        bins = int((clip_b - clip_a) * 60 / period)
+
+        a, b = (clip_a - mean) / std, (clip_b - mean) / std
+
+        return a, b, bins
+
+    # TODO Regulate contract durations
+    def get_availability_pattern(self):
+
+        avail_a, avail_b, avail_bins = self.get_ab(
+            *self.config.fav_availability_features, period=self.config.time_increment
+        )
+        # print("    Contract duration:", avail_a, avail_b, avail_bins)
+        return avail_a, avail_b, avail_bins
+
+    def get_earliest_pattern(self):
+
+        ear_a, ear_b, ear_bins = self.get_ab(
+            *(self.config.fav_earliest_features[0:4]), period=self.config.time_increment
+        )
+
+        # print("Earliest service time:", ear_a, ear_b, ear_bins)
+        return ear_a, ear_b, ear_bins
+
+    def earliest_features(self):
+        AggLevel = namedtuple("EarliestDistribution", "mean, std, clip_a, clip_b")
+
+    def get_earliest_time(self, n_favs):
+
+        ear_a, ear_b, ear_bins = self.get_earliest_pattern()
+
+        # Earlist times of FAVs arriving in node n
+        earliest_time = truncnorm.rvs(ear_a, ear_b, size=n_favs) + self.config.fav_earliest_features[0]
+
+        return earliest_time
+
+    def get_contract_duration(self, n_favs):
+
+        avail_a, avail_b, avail_bins = self.get_availability_pattern()
+
+        # Contract durations of FAVs arriving in node n
+        contract_duration = (
+            truncnorm.rvs(avail_a, avail_b, size=n_favs) + self.config.fav_availability_features[0]
+        )
+
+        return contract_duration
+
     def get_fav_depot_assignment(self, P=None):
 
         if not P:
@@ -587,6 +638,8 @@ class AmodNetworkHired(AmodNetwork):
         return fav_count_depot
 
     def get_fav_info(self, max_contract_duration=True):
+
+        random.seed(self.config.iteration_step_seed)
 
         fav_count_depot = self.get_fav_depot_assignment()
 
@@ -607,10 +660,10 @@ class AmodNetworkHired(AmodNetwork):
             depot_info[n] = list()
 
             # Earlist times of FAVs arriving in node n
-            earliest_time = self.config.get_earliest_time(n_favs)
+            earliest_time = self.get_earliest_time(n_favs)
 
             # Contract durations of FAVs arriving in node n
-            contract_duration = self.config.get_contract_duration(n_favs)
+            contract_duration = self.get_contract_duration(n_favs)
 
             # Earlist times and contract durations
             for e, c in zip(earliest_time, contract_duration):
@@ -1158,6 +1211,7 @@ class AmodNetworkHired(AmodNetwork):
     def reset(self, seed=1):
 
         super().reset(seed=seed)
+        np.random.seed(seed=seed)
         self.hired_cars = []
         self.overall_hired = []
         self.step_favs = self.get_hired_step()

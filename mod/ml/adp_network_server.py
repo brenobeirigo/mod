@@ -425,6 +425,7 @@ def alg_adp(
     print(f" - Iterating from {start:>4} to {config.iterations:>4}...")
 
     for n in range(start, config.iterations):
+        config.current_iteration = n
 
         t_update = 0
         t_mip = 0
@@ -523,6 +524,7 @@ def alg_adp(
 
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(it_step_trip_list):
+            config.current_step = step
 
             # Add trips from last step (when user backlogging is enabled)
             trips.extend(outstanding)

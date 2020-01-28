@@ -123,7 +123,7 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
-    if exp_setup.myopic or exp_setup.test or exp_setup.policy_random:
+    if exp_setup.myopic or exp_setup.test or exp_setup.policy_random or exp_setup.policy_reactive:
 
         rows = exp_setup.iterations
 
@@ -257,62 +257,117 @@ def main(test_labels, focus, N_PROCESSES, method):
             ConfigNetwork.METHOD_RANDOM,
         ],
     }
-
+    
     # TEST HIRING
     # Goal - Depot shares X FAV fleet size X Aggregation levels
     tuning_focus["hiring"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
-        "fleet" : [
+        "FLEET" : [
             {
                 ConfigNetwork.FLEET_SIZE: 300,
                 ConfigNetwork.FAV_FLEET_SIZE: 200,
             },
-            # {
-            #     ConfigNetwork.FLEET_SIZE: 300,
-            #     ConfigNetwork.FAV_FLEET_SIZE: 300,
-            # },
-            # {
-            #     ConfigNetwork.FLEET_SIZE: 0,
-            #     ConfigNetwork.FAV_FLEET_SIZE: 400,
-            # },
-            {
-                ConfigNetwork.FLEET_SIZE: 0,
-                ConfigNetwork.FAV_FLEET_SIZE: 500,
-            }
         ],
         ConfigNetwork.MAX_CONTRACT_DURATION: [True, False],
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
-        ConfigNetwork.TRIP_CLASS_PROPORTION: [
-            (("A", 1), ("B", 0)),
-            (("A", 0), ("B", 1)),
+        "CLASS_PROP": [
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 1), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: False,
+            },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
+                ConfigNetwork.USE_CLASS_PROB: False,
+            },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: True,
+            },
         ],
         # ConfigNetwork.FAV_AVAILABILITY_FEATURES:[
         #     (8, 1, 5, 9), (8, 1, 5, 9),
         # ],
         ConfigNetwork.AGGREGATION_LEVELS: [
-            [
-                (1, 0, 0, "-", 0, 2),
-                (1, 0, 0, "-", 0, 3),
-                (3, 2, 0, "-", 0, "-"),
-                (3, 3, 0, "-", 0, "-"),
-            ],
-            [
-                (1, 0, 0, "-", 0, 2),
-                (3, 2, 0, "-", 0, "-"),
-                (3, 3, 0, "-", 0, "-"),
-            ],
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (1, 0, 0, "-", 0, 3),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
             [
                 (1, 0, 0, "-", 0, 2),
                 (3, 2, 0, "-", 0, 3),
                 (3, 3, 0, "-", 0, "-"),
             ],
-            [
-                (1, 0, 0, "-", 0, 1),
-                (3, 2, 0, "-", 0, 2),
-                (3, 3, 0, "-", 0, 3)
-            ],
+            # [
+            #     (1, 0, 0, "-", 0, 1),
+            #     (3, 2, 0, "-", 0, 2),
+            #     (3, 3, 0, "-", 0, 3)
+            # ],
         ],
     }
+
+    # TEST HIRING LAYERS
+    # Goal - Aggregation levels that consider contracts
+    tuning_focus["hiring_layer"] = {
+        ConfigNetwork.DEPOT_SHARE: [0.1, 0.01],
+        "FLEET" : [
+            {
+                ConfigNetwork.FLEET_SIZE: 300,
+                ConfigNetwork.FAV_FLEET_SIZE: 200,
+            },
+        ],
+        ConfigNetwork.MAX_CONTRACT_DURATION: [True, False],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        "CLASS_PROP": [
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 1), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: False,
+            },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
+                ConfigNetwork.USE_CLASS_PROB: False,
+            },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: True,
+            },
+        ],
+        # ConfigNetwork.FAV_AVAILABILITY_FEATURES:[
+        #     (8, 1, 5, 9), (8, 1, 5, 9),
+        # ],
+        ConfigNetwork.AGGREGATION_LEVELS: [
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (1, 0, 0, "-", 0, 3),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
+            # contract 2 = 15
+            # contract 3 = 60
+            [
+                (1, 0, 0, 2, 0, 2),
+                (3, 2, 0, 3, 0, 3),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            # [
+            #     (1, 0, 0, "-", 0, 1),
+            #     (3, 2, 0, "-", 0, 2),
+            #     (3, 3, 0, "-", 0, 3)
+            # ],
+        ],
+    }
+
 
     # ENFORCING SERVICE LEVELS
     # Goal: What is the impact of each penalty mechanism in A and B?
@@ -404,10 +459,20 @@ def main(test_labels, focus, N_PROCESSES, method):
         Config.HARMONIC_STEPSIZE: [1],
     }
 
-    # TUNING ADP
+    # TUNING CLASS PROPORTION
+    # Use class probability (file) X random class probability
     tuning_focus["prob"] = {
-        Config.FLEET_SIZE: [10],
-        Config.USE_CLASS_PROB: [True, False]
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        "CLASS_PROP": [
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0.2), ("B", 0.8)),
+                ConfigNetwork.USE_CLASS_PROB: False,
+            },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: True,
+            },
+        ]
     }
 
     # # Config.FLEET_SIZE: [300],
@@ -521,6 +586,9 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.USE_SHORT_PATH: False,
         ConfigNetwork.SAVE_TRIP_DATA: False,
         ConfigNetwork.SAVE_FLEET_DATA: False,
+
+        # Load 1st class probabilities dictionary
+        ConfigNetwork.USE_CLASS_PROB: False,
     }
 
     # Creating folders to log episodes
@@ -674,6 +742,8 @@ def save_outcome_tuning(test_label, exp_list):
 
 if __name__ == "__main__":
 
+    print({k:v for k,v in enumerate(sys.argv)})
+
     try:
         test_label = sys.argv[1]
     except:
@@ -686,11 +756,13 @@ if __name__ == "__main__":
     
     try:
         method = sys.argv[3]
+        print("METHOD:", focus)
     except:
         print("Include tuning focus [sensitivity, sl, adp]")
         
     try:
         focus = sys.argv[4:]
+        print("FOCUS:", focus)
     except:
         print("Include tuning focus [sensitivity, sl, adp]")
     

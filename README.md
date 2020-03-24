@@ -19,11 +19,11 @@ decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, O
 
 ## Execution
 
+### Logging
 
 | Keyword | Function |
 |---------:|----------|
-|hire| Consider FAV hiring. Related settings: DEPOT_SHARE, FAV_FLEET_SIZE, MAX_CONTRACT_DURATION.|
-||level LOG_LEVEL| Choose logging level LOG_LEVEL = [INFO, DEBUG].|
+|level LOG_LEVEL| Choose logging level LOG_LEVEL = [INFO, DEBUG].|
 |log_mip | Save mip model (`.lp`) and mip solution log (`.log`) for each time step and iteration.|
 |log_adp | Log all ADP phases (MIP decisions, dual extraction, and VFA update).|
 |log_fleet | For each iteration `n`, save `cars_n.csv`  and `cars_result_n.csv` log files in `fleet/fleet_data/` comprising the information of each car in the beginning and in the end of iteration `n`, respectively. The following fields are considered for each vehicle: <br> `id, type, point, waypoint, previous, origin, middle_point, elapsed_distance, time_o_m, distance_o_m, elapsed, remaining_distance, step_m, idle_step_count, interrupted_rebalance_count, tabu, battery_level, trip, point_list, arrival_time, previous_arrival, previous_step, step, revenue, n_trips, distance_traveled, status, curret_trip, time_status, contract_duration`.|
@@ -31,9 +31,17 @@ decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, O
 |log_times | Log the times (per iteration) to create decisions, extract duals, realize decisions, update duals, setup costs, setup constraints, and optimize MIP. Also include the total time.|
 |save_plots| Save iteration's demand and fleet statuses for each step.|
 |save_df  | Save .csv dataframes with fleet (status, vehicle count) and demand (met, unmet) data|
+
+### Scenario configuration
+
+| Keyword | Function |
+|---------:|----------|
+|hire| Consider FAV hiring. Related settings: DEPOT_SHARE, FAV_FLEET_SIZE, MAX_CONTRACT_DURATION.|
 |n "number of iterations"| Set the number of iterations.|
 |FLEET_SIZE "number of vehicles" | Set the fleet size.|
+|backlog| Activate user backlogging. Rejected users are re-inserted into the demand with discounted maximum waiting time. E.g., if the period is `1 min` and a unmatched user can wait up to `10 min`, this user is re-inserted in the deamnd pool with maximum waiting time of `9 min`.|
 
+### Optimization methods
 The folowing keywords can be used to define the optimization method to assign and rebalance vehicles. For a single instance, each keyword creates a separate folder where you can find the results of each method.
 
 | Keyword | Method |

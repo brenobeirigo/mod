@@ -1,4 +1,5 @@
 # Mobility-on-demand fleet management application
+
 ## ADP config
 
 state = TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, CARORIGIN
@@ -16,7 +17,22 @@ The time between each assignment can be set by changing the variable STEP_DELAY 
 
     bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
-## Activating the environment
+## Creating the environoment
+
+Execute the following commands:
+
+    conda config --prepend channels conda-forge
+    conda create -n env_slevels python=3.7
+    conda activate env_slevels
+    conda install --strict-channel-priority osmnx
+    conda install gurobi
+    pip install h3
+    conda install gurobipy
+    conda install -c conda-forge --strict-channel-priority h3-py
+    conda istall bokeh
+
+
+To activate the environment use:
 
     C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels
     C:\Users\breno\Anaconda3\Scripts\activate env_slevels

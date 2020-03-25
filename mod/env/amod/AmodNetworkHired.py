@@ -190,7 +190,7 @@ class AmodNetworkHired(AmodNetwork):
             print(
                 f' - Loaded fares from "{self.config.get_path_od_penalties()}"'
             )
-            # self.sqod_revenue_dict = np.load("aod.npy", allow_pickle=True)
+
         except:
             n_nodes = len(nw.tenv.distance_matrix)
             od_costs_dict = np.zeros((n_nodes, n_nodes))

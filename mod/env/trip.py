@@ -542,7 +542,7 @@ def get_min(h, m, s, min_bin_size=30):
 
 
 def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
-    """Return 1 if request is """
+    """Return 1 if request belongs to first class """
 
     if "time_bin" in prob_info:
         min_bin_size = prob_info["time_bin"]

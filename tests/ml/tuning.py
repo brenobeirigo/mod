@@ -315,7 +315,7 @@ def main(test_labels, focus, N_PROCESSES, method):
     # TEST HIRING LAYERS
     # Goal - Aggregation levels that consider contracts
     tuning_focus["hiring_layer"] = {
-        ConfigNetwork.DEPOT_SHARE: [0.1, 0.01],
+        ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
         "FLEET" : [
             {
                 ConfigNetwork.FLEET_SIZE: 300,
@@ -360,6 +360,94 @@ def main(test_labels, focus, N_PROCESSES, method):
                 (3, 2, 0, 3, 0, 3),
                 (3, 3, 0, "-", 0, "-"),
             ],
+            # [
+            #     (1, 0, 0, "-", 0, 1),
+            #     (3, 2, 0, "-", 0, 2),
+            #     (3, 3, 0, "-", 0, 3)
+            # ],
+        ],
+    }
+
+
+    # TEST HIRING WITH ONLY FAV fleet
+    # Goal - Aggregation levels that consider contracts
+    tuning_focus["hiring500"] = {
+        ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01, 0.005, 0.001],
+        "FLEET" : [
+            {
+                ConfigNetwork.FLEET_SIZE: 0,
+                ConfigNetwork.FAV_FLEET_SIZE: 500,
+            },
+        ],
+        ConfigNetwork.MAX_CONTRACT_DURATION: [False],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
+        "CLASS_PROP": [
+            # {
+            #     ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 1), ("B", 0)),
+            #     ConfigNetwork.USE_CLASS_PROB: False,
+            # },
+            # {
+            #     ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
+            #     ConfigNetwork.USE_CLASS_PROB: False,
+            # },
+            {
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
+                ConfigNetwork.USE_CLASS_PROB: True,
+            },
+        ],
+
+        # ConfigNetwork.FAV_AVAILABILITY_FEATURES:[
+        #     (8, 1, 5, 9), (8, 1, 5, 9),
+        # ],
+        ConfigNetwork.AGGREGATION_LEVELS: [
+            # [
+            #     (1, 0, 0, "-", 0, 2),
+            #     (1, 0, 0, "-", 0, 3),
+            #     (3, 2, 0, "-", 0, "-"),
+            #     (3, 3, 0, "-", 0, "-"),
+            # ],
+            [
+                (1, 0, 0, "-", 0, '-'),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            # contract 2 = 15
+            # contract 3 = 60
+            [
+                (1, 0, 0, 2, 0, 2),
+                (3, 2, 0, 3, 0, 3),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [
+                (1, 0, 0, 2, 0, 3),
+                (1, 0, 0, 3, 0, "-"),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+
+            [
+                (3, 2, 0, 2, 0, 2),
+                (3, 3, 0, 3, 0, 3),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [   
+                (1, 0, 0, 1, 0, 2),
+                (1, 0, 0, 2, 0, 3),
+                (1, 0, 0, 3, 0, "-"),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [ 
+                (1, 0, 0, "-", 0, 2),
+                (3, 2, 0, "-", 0, 3),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            [ 
+                (1, 0, 0, 3, 0, 3),
+                (3, 2, 0, "-", 0, "-"),
+                (3, 3, 0, "-", 0, "-"),
+            ],
+            
             # [
             #     (1, 0, 0, "-", 0, 1),
             #     (3, 2, 0, "-", 0, 2),
@@ -454,9 +542,9 @@ def main(test_labels, focus, N_PROCESSES, method):
     # TUNING ADP
     tuning_focus["adp"] = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        Config.DISCOUNT_FACTOR: [1],
-        Config.STEPSIZE_CONSTANT: [0.1],
-        Config.HARMONIC_STEPSIZE: [1],
+        Config.DISCOUNT_FACTOR: [0.7, 0.5, 0.3],
+        #Config.STEPSIZE_CONSTANT: [0.1],
+        #Config.HARMONIC_STEPSIZE: [1],
     }
 
     # TUNING CLASS PROPORTION
@@ -464,15 +552,16 @@ def main(test_labels, focus, N_PROCESSES, method):
     tuning_focus["prob"] = {
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
         "CLASS_PROP": [
-            {
-                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0.2), ("B", 0.8)),
-                ConfigNetwork.USE_CLASS_PROB: False,
-            },
+            # {
+            #     ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0.2), ("B", 0.8)),
+            #     ConfigNetwork.USE_CLASS_PROB: False,
+            # },
             {
                 ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
                 ConfigNetwork.USE_CLASS_PROB: True,
             },
-        ]
+        ],
+        Config.DISCOUNT_FACTOR: [0.2, 0.5, 0.7],
     }
 
     # # Config.FLEET_SIZE: [300],
@@ -509,7 +598,7 @@ def main(test_labels, focus, N_PROCESSES, method):
 
     if method == "-train":
         m = ConfigNetwork.METHOD_ADP_TRAIN
-        ITERATIONS = 500
+        ITERATIONS = 1000
     elif method == "-reactive":
         m = ConfigNetwork.METHOD_REACTIVE
         ITERATIONS = 51
@@ -518,7 +607,7 @@ def main(test_labels, focus, N_PROCESSES, method):
         ITERATIONS = 51
     else:
         m = ConfigNetwork.METHOD_ADP_TRAIN
-        ITERATIONS = 500
+        ITERATIONS = 1000
 
 
     print(f"ITERATIONS: {ITERATIONS:04} - METHOD: {m}")

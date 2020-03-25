@@ -6,7 +6,11 @@ decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, O
 
 ## Running the simulator
 
+The command below will start the simulation on the port 5002.
+
     bokeh serve --show --port 5002 tests\ml\live_simulation.py
+
+The time between each assignment can be set by changing the variable STEP_DELAY (seconds) in the PlotTrack class.
 
 ## Running the service rate and fleet status graphs
 
@@ -46,8 +50,8 @@ The folowing keywords can be used to define the optimization method to assign an
 
 | Keyword | Method |
 |--------:|----------|
-|train  | Run ADP algorithm on the training dataset to create VFAs. Update the file progress.npy with the updated results for each visited state.|
-|test | Run ADP algorithm on the testing dataset and uses the VFAs (from training) to measure the impact of future decisions.|
+|train "n"| Run ADP algorithm on the training dataset to create VFAs. Update the file progress.npy with the updated results for each visited state every "n" iterations (by default, "n" is 1). |
+|test| Run ADP algorithm on the testing dataset and uses the VFAs (from training) to measure the impact of future decisions.|
 |myopic| Barebone assignment algorith with no rebalancing.|
 |policy_random| Assignment algorithm with random rebalancing.|
 |policy_reactive | Assignment algorithm and Alonso-Mora rebalancing (send vehicles to unmet requests but interrupt rebalancing at each period to check whether new requests can be picked up).

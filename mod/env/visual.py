@@ -29,9 +29,8 @@ FOLDER_FLEET = "/fleet/"
 FOLDER_SERVICE = "/service/"
 PROGRESS_FILENAME = "progress.npy"
 
+
 class EpisodeLog:
-
-
     def get_od_lists(self, amod):
 
         # ---------------------------------------------------------------- #
@@ -100,20 +99,24 @@ class EpisodeLog:
         else:
             label = self.config.label
 
-        return f"{conf.FOLDER_OUTPUT}{label}/{PROGRESS_FILENAME}" 
+        return f"{conf.FOLDER_OUTPUT}{label}/{PROGRESS_FILENAME}"
 
     def create_folders(self):
-        
+
         print("Creating folders at:" + self.config.output_path)
         # If config is not None, then the experiments should be saved
         if self.config:
             self.output_folder_delay = self.config.output_path + FOLDER_TIME
             self.output_folder_fleet = self.config.output_path + FOLDER_FLEET
-            self.output_folder_service = self.config.output_path + FOLDER_SERVICE
+            self.output_folder_service = (
+                self.config.output_path + FOLDER_SERVICE
+            )
             self.output_folder_adp_logs = self.config.output_path + ADP_LOGS
             self.folder_delay_data = self.output_folder_delay + "data/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
-            self.folder_demand_status_data = self.output_folder_service + "data/"
+            self.folder_demand_status_data = (
+                self.output_folder_service + "data/"
+            )
             # Creating folders to log MIP models
             self.config.folder_mip = self.config.output_path + "/mip/"
             self.config.folder_mip_log = self.config.folder_mip + "log/"
@@ -148,7 +151,16 @@ class EpisodeLog:
                     f"\n - {self.output_folder_service}"
                 )
 
-    def __init__(self, save_progress, config=None, n=0, reward=list(), service_rate=list(), weights=list(), adp=None):
+    def __init__(
+        self,
+        save_progress,
+        config=None,
+        n=0,
+        reward=list(),
+        service_rate=list(),
+        weights=list(),
+        adp=None,
+    ):
         self.config = config
         self.adp = adp
         self.save_progress = save_progress
@@ -199,24 +211,28 @@ class EpisodeLog:
             a = dict()
             for k, v in self.adp.weights.items():
                 a[k] = v[-1]
-            
+
             stats_str = []
             for sq, stats in self.adp.pk_delay[-1].items():
                 label_values = ", ".join(
                     [
-                        f"{label}={v:2.2f}" if isinstance(v, float) else f"{label}={v:>5}"
+                        f"{label}={v:2.2f}"
+                        if isinstance(v, float)
+                        else f"{label}={v:>5}"
                         for label, v in stats.items()
                     ]
                 )
                 stats_str.append(f"{sq}[{label_values}]")
             sq_delay_stats = ", ".join(stats_str)
             delay_info = f"delays=({sq_delay_stats})"
-            
+
             stats_str_cars = []
             for car_type, stats in self.adp.car_time[-1].items():
                 label_values = ", ".join(
                     [
-                        f"{label}={v:>6.2f}" if isinstance(v, float) else f"{label}={v:>5}"
+                        f"{label}={v:>6.2f}"
+                        if isinstance(v, float)
+                        else f"{label}={v:>5}"
                         for label, v in stats.items()
                     ]
                 )
@@ -260,12 +276,7 @@ class EpisodeLog:
         )
 
     def plot_trip_delays(
-        self,
-        rejected,
-        serviced,
-        file_path=None,
-        file_format="png",
-        dpi=150,
+        self, rejected, serviced, file_path=None, file_format="png", dpi=150,
     ):
 
         sns.set_context("talk", font_scale=1.4)
@@ -277,22 +288,27 @@ class EpisodeLog:
             total = n_rejected + n_serviced
             total_trips += total
 
-            plt.hist(delays, label=f"{sq}(S={n_serviced:>5}, R={n_rejected:>5}) {n_serviced/total:6.2%}")
+            plt.hist(
+                delays,
+                label=f"{sq}(S={n_serviced:>5}, R={n_rejected:>5}) {n_serviced/total:6.2%}",
+            )
 
         plt.title(f"{total_trips}")
         plt.xlabel("Delay (min)")
-        
+
         # Configure y axis
         plt.ylabel("#Trips")
         plt.legend(
             loc="center left",
             frameon=False,
-            bbox_to_anchor=(1, 0, 0.5, 1), #(0.5, -0.15),
+            bbox_to_anchor=(1, 0, 0.5, 1),  # (0.5, -0.15),
             ncol=1,
         )
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+            plt.savefig(
+                f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi
+            )
         else:
             plt.show()
         plt.close()
@@ -306,7 +322,7 @@ class EpisodeLog:
         save_df=True,
         save_learning=True,
         save_after_iteration=1,
-        save_overall_stats=True
+        save_overall_stats=True,
     ):
 
         # # Process trip data ######################################## #
@@ -326,10 +342,14 @@ class EpisodeLog:
             # If None -> Trip was rejected
             if t.pk_delay is not None:
                 trip_delays[t.sq_class].append(t.pk_delay)
-                trip_distances[t.sq_class].append(nw.get_distance(t.o.id, t.d.id))
+                trip_distances[t.sq_class].append(
+                    nw.get_distance(t.o.id, t.d.id)
+                )
             else:
                 # Append travel distance of rejected trip
-                trip_rejections[t.sq_class].append(nw.get_distance(t.o.id, t.d.id))
+                trip_rejections[t.sq_class].append(
+                    nw.get_distance(t.o.id, t.d.id)
+                )
 
         delays_stats = dict()
 
@@ -347,17 +367,19 @@ class EpisodeLog:
                 rejected_dist_mean=np.mean(trip_rejections[sq]),
                 rejected_dist_median=np.median(trip_rejections[sq]),
                 rejected_dist_total=np.sum(trip_rejections[sq]),
-                sl=len(delays)/total_trips[sq],
+                sl=len(delays) / total_trips[sq],
             )
 
         # TODO comment this section
-        car_type_status_durations = defaultdict(lambda:defaultdict(list))
+        car_type_status_durations = defaultdict(lambda: defaultdict(list))
         # How much time each car have spent in each status (in minutes)?
         # dict(dict(dict()))
         # CAR TYPE -> STATUS -> TOTAL DURATION
         for c in it.chain(step_log.env.cars, step_log.env.overall_hired):
             for status, duration in c.time_status.items():
-                car_type_status_durations[c.type][status].append(np.sum(duration))
+                car_type_status_durations[c.type][status].append(
+                    np.sum(duration)
+                )
 
         # Remove status level (insert it as label, such as "STATUS_total")
         # dict(dict())
@@ -368,17 +390,21 @@ class EpisodeLog:
             overall_duration = 0
             for status, durations in status_durations.items():
                 # Create status
-                status_label = conf.status_label_dict[status].lower().replace(" ","_")
+                status_label = (
+                    conf.status_label_dict[status].lower().replace(" ", "_")
+                )
                 total = np.sum(durations)
-                overall_duration+=total
+                overall_duration += total
                 # mean = np.mean(durations)
                 d = {
                     f"{status_label}_total": total,
                     # f"{status_label}_mean": mean
-                    }
+                }
                 car_type_status_dict[car_type].update(d)
-            car_type_status_dict[car_type].update({"total_duration":overall_duration})
-                
+            car_type_status_dict[car_type].update(
+                {"total_duration": overall_duration}
+            )
+
         self.adp.pk_delay.append(delays_stats)
         self.adp.car_time.append(car_type_status_dict)
 
@@ -406,7 +432,6 @@ class EpisodeLog:
             #     dpi=150,
             # )
 
-            
             if total_trips:
                 self.plot_trip_delays(
                     trip_rejections,
@@ -419,14 +444,15 @@ class EpisodeLog:
             if step_log.env.config.fleet_size > 0:
                 step_log.plot_fleet_status(
                     step_log.pav_statuses,
-                    file_path=self.output_folder_fleet + f"{self.adp.n:04}_pav",
+                    file_path=self.output_folder_fleet
+                    + f"{self.adp.n:04}_pav",
                     file_format="pdf",
                     dpi=150,
                     omit_cruising=False,
                     show_legend=False,
                 )
             # step_log.plot_fleet_status_all(
-            #     step_log.car_statuses, step_log.pav_statuses, step_log.fav_statuses, 
+            #     step_log.car_statuses, step_log.pav_statuses, step_log.fav_statuses,
             #     file_path=self.output_folder_fleet + f"{self.adp.n:04}_fav",
             #     file_format="png",
             #     dpi=150,
@@ -434,7 +460,8 @@ class EpisodeLog:
             if step_log.env.config.fav_fleet_size > 0:
                 step_log.plot_fleet_status(
                     step_log.fav_statuses,
-                    file_path=self.output_folder_fleet + f"{self.adp.n:04}_fav",
+                    file_path=self.output_folder_fleet
+                    + f"{self.adp.n:04}_fav",
                     file_format="pdf",
                     dpi=150,
                     omit_cruising=False,
@@ -466,15 +493,24 @@ class EpisodeLog:
             cols, df_stats = step_log.get_step_stats()
 
             # Add user stats
-            for sq, stats in sorted(self.adp.pk_delay[-1].items(), key=lambda sq_stats: sq_stats[0]):
-                for label, v in sorted(stats.items(), key=lambda label_v: label_v[0]):
+            for sq, stats in sorted(
+                self.adp.pk_delay[-1].items(), key=lambda sq_stats: sq_stats[0]
+            ):
+                for label, v in sorted(
+                    stats.items(), key=lambda label_v: label_v[0]
+                ):
                     col = f"{sq}_{label}"
                     cols.append(col)
                     df_stats[col] = v
 
             # Add car stats
-            for car_type, stats in sorted(self.adp.car_time[-1].items(), key=lambda car_type_stats: car_type_stats[0]):
-                for label, v in sorted(stats.items(), key=lambda label_v: label_v[0]):
+            for car_type, stats in sorted(
+                self.adp.car_time[-1].items(),
+                key=lambda car_type_stats: car_type_stats[0],
+            ):
+                for label, v in sorted(
+                    stats.items(), key=lambda label_v: label_v[0]
+                ):
                     col = f"{car_type}_{label}"
                     cols.append(col)
                     df_stats[col] = v
@@ -487,11 +523,11 @@ class EpisodeLog:
                 mode="a",
                 index=False,
                 columns=cols,
-                header=not os.path.exists(stats_file)
+                header=not os.path.exists(stats_file),
             )
 
         # Save what was learned so far
-        if save_learning and self.adp and self.adp.n%save_learning == 0:
+        if save_learning and self.adp and self.adp.n % save_learning == 0:
 
             # t1 = time.time()
             # adp_data = self.adp.current_data
@@ -547,9 +583,9 @@ class EpisodeLog:
             self.adp.n,
             self.adp.reward,
             self.adp.service_rate,
-            self.adp.weights
+            self.adp.weights,
         ) = self.adp.read_progress(self.progress_path)
-        
+
         # print("After reading")
         # pprint(self.adp.values)
 
@@ -558,6 +594,7 @@ class EpisodeLog:
     ):
 
         sns.set_context("paper")
+
         def plot_series(weights, car_type="AV"):
             series_list = [list(a) for a in zip(*weights)]
 
@@ -574,7 +611,11 @@ class EpisodeLog:
             # plt.xticks(np.arange(self.adp.n))
 
             if file_path:
-                plt.savefig(f"{file_path}_{car_type}.{file_format}", bbox_inches="tight", dpi=dpi)
+                plt.savefig(
+                    f"{file_path}_{car_type}.{file_format}",
+                    bbox_inches="tight",
+                    dpi=dpi,
+                )
             else:
                 plt.show()
 
@@ -596,7 +637,9 @@ class EpisodeLog:
         plt.ylabel("Reward")
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+            plt.savefig(
+                f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi
+            )
         else:
             plt.show()
 
@@ -609,7 +652,9 @@ class EpisodeLog:
         plt.ylabel("Service rate (%)")
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+            plt.savefig(
+                f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi
+            )
         else:
             plt.show()
 
@@ -632,13 +677,18 @@ class StepLog:
 
     def compute_fleet_status(self, step):
         """Save the status of each car in step (fleet snapshot)"""
-        
+
         # Fleet step happens after trip step
         self.n = step
 
         # Get number of cars per status in a time step
         # and aggregate battery level
-        dict_status, pav_status, fav_status, battery_level = self.env.get_fleet_status()
+        (
+            dict_status,
+            pav_status,
+            fav_status,
+            battery_level,
+        ) = self.env.get_fleet_status()
 
         # Fleet aggregate battery level
         self.total_battery.append(battery_level)
@@ -656,7 +706,6 @@ class StepLog:
         total = len(serviced) + len(rejected)
         self.total_list.append(total)
 
-
     @property
     def total_reward(self):
         return sum(self.reward_list)
@@ -664,11 +713,11 @@ class StepLog:
     @property
     def serviced(self):
         return sum(self.serviced_list)
-    
+
     @property
     def rejected(self):
         return sum(self.rejected_list)
-    
+
     @property
     def total(self):
         return sum(self.total_list)
@@ -741,8 +790,16 @@ class StepLog:
             f"        Total profit: {self.total_reward:.2f}"
         )
 
-
-    def plot_fleet_status(self, car_statuses, file_path=None, file_format="png", dpi=150, earliest_hour=0, omit_cruising=True, show_legend=True):
+    def plot_fleet_status(
+        self,
+        car_statuses,
+        file_path=None,
+        file_format="png",
+        dpi=150,
+        earliest_hour=0,
+        omit_cruising=True,
+        show_legend=True,
+    ):
 
         sns.set_context("talk", font_scale=1.4)
 
@@ -750,13 +807,11 @@ class StepLog:
         linewidth = 2
         lenght_tick = 6
         if omit_cruising:
-            car_statuses[Car.SERVICING] = (
-                np.array(car_statuses[Car.CRUISING])
-                + np.array(car_statuses[Car.ASSIGN])
-            )
+            car_statuses[Car.SERVICING] = np.array(
+                car_statuses[Car.CRUISING]
+            ) + np.array(car_statuses[Car.ASSIGN])
             del car_statuses[Car.CRUISING]
             del car_statuses[Car.ASSIGN]
-        
 
         for status_code, status_count_step in car_statuses.items():
             status_label = Car.status_label_dict[status_code]
@@ -765,19 +820,29 @@ class StepLog:
                 status_count_step[:-1],
                 linewidth=linewidth,
                 label=status_label,
-                color=self.env.config.color_fleet_status[status_code]
+                color=self.env.config.color_fleet_status[status_code],
             )
 
         matrix_status_count = np.array(list(car_statuses.values()))
         total_count = np.sum(matrix_status_count, axis=0)
-        plt.plot(steps[:-1], total_count[:-1], linewidth=linewidth, color="magenta", label="Total")
+        plt.plot(
+            steps[:-1],
+            total_count[:-1],
+            linewidth=linewidth,
+            color="magenta",
+            label="Total",
+        )
 
-        termination = self.n-self.env.config.offset_termination_steps
+        termination = self.n - self.env.config.offset_termination_steps
         repositioning = self.env.config.offset_repositioning_steps
 
         # Demarcate offsets
-        plt.axvline(repositioning, color='k', linewidth=linewidth, linestyle="--")
-        plt.axvline(termination, color='k', linewidth=linewidth, linestyle="--")
+        plt.axvline(
+            repositioning, color="k", linewidth=linewidth, linestyle="--"
+        )
+        plt.axvline(
+            termination, color="k", linewidth=linewidth, linestyle="--"
+        )
 
         # TODO automatic xticks
         fig = plt.gcf()
@@ -788,17 +853,30 @@ class StepLog:
 
         plt.xticks(
             xticks,
-            ["", "5AM", "", "6AM", "", "7AM", "", "8AM", "", "9AM", "", "10AM"]
+            [
+                "",
+                "5AM",
+                "",
+                "6AM",
+                "",
+                "7AM",
+                "",
+                "8AM",
+                "",
+                "9AM",
+                "",
+                "10AM",
+            ],
         )
         plt.tick_params(labelsize=25)
 
         plt.tick_params(
-            direction='out',
+            direction="out",
             # length=lenght_tick,
             width=linewidth,
-            colors='k',
-            grid_color='k',
-            grid_alpha=0.5
+            colors="k",
+            grid_color="k",
+            grid_alpha=0.5,
         )
 
         # x_ticks = 6
@@ -808,14 +886,20 @@ class StepLog:
         # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
 
         # Configure x axis
-        plt.xlim([0, self.env.config.time_steps-1])
-        plt.ylim([0, max(self.env.config.fleet_size, self.env.config.fav_fleet_size)+10])
+        plt.xlim([0, self.env.config.time_steps - 1])
+        plt.ylim(
+            [
+                0,
+                max(self.env.config.fleet_size, self.env.config.fav_fleet_size)
+                + 10,
+            ]
+        )
 
         # plt.ylim([0, self.env.config.fleet_size])
         # plt.xlabel(f"Steps ({self.env.config.time_increment} min)")
 
         plt.xlabel("Time")
-        
+
         # Configure y axis
         plt.ylabel("# Vehicles")
         ax = plt.gca()
@@ -827,7 +911,7 @@ class StepLog:
         plt.legend(
             loc="center left",
             frameon=False,
-            bbox_to_anchor=(1, 0, 0.5, 1), #(0.5, -0.15),
+            bbox_to_anchor=(1, 0, 0.5, 1),  # (0.5, -0.15),
             ncol=1,
         )
 
@@ -835,7 +919,9 @@ class StepLog:
             ax.get_legend().remove()
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+            plt.savefig(
+                f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi
+            )
         else:
             plt.show()
         plt.close()
@@ -844,7 +930,9 @@ class StepLog:
 
         self.step_df = pd.DataFrame()
         for status_code, status_count_step in self.car_statuses.items():
-            self.step_df[Car.status_label_dict[status_code]] = pd.Series(status_count_step)
+            self.step_df[Car.status_label_dict[status_code]] = pd.Series(
+                status_count_step
+            )
 
         self.step_df.index.name = "step"
 
@@ -854,22 +942,30 @@ class StepLog:
 
         self.step_demand_status = pd.DataFrame()
         self.step_demand_status["Total demand"] = pd.Series(self.total_list)
-        self.step_demand_status["Serviced demand"] = pd.Series(self.serviced_list)
-        self.step_demand_status["Battery level"] = pd.Series(self.total_battery)
+        self.step_demand_status["Serviced demand"] = pd.Series(
+            self.serviced_list
+        )
+        self.step_demand_status["Battery level"] = pd.Series(
+            self.total_battery
+        )
         self.step_demand_status["Reward"] = pd.Series(self.total_reward)
         self.step_demand_status.index.name = "step"
 
         return self.step_demand_status
 
-
     def get_step_stats(self):
         columns = ["Episode", "Service rate", "Total reward"]
         self.step_stats = pd.DataFrame()
         self.step_stats["Episode"] = pd.Series([self.env.adp.n])
-        self.step_stats["Service rate"] = pd.Series([self.env.adp.service_rate[-1]])
+        self.step_stats["Service rate"] = pd.Series(
+            [self.env.adp.service_rate[-1]]
+        )
         self.step_stats["Total reward"] = pd.Series([self.env.adp.reward[-1]])
 
-        for car_type, weights in sorted(self.env.adp.weights.items(), key=lambda car_type_weights: car_type_weights[0]):
+        for car_type, weights in sorted(
+            self.env.adp.weights.items(),
+            key=lambda car_type_weights: car_type_weights[0],
+        ):
             for i, w in enumerate(weights[-1]):
                 col = f"{car_type}_{i:02}"
                 columns.append(col)
@@ -877,15 +973,16 @@ class StepLog:
 
         return columns, self.step_stats
 
-
-    def plot_service_status(self, file_path=None, file_format="png", dpi=150, show_legend=True):
+    def plot_service_status(
+        self, file_path=None, file_format="png", dpi=150, show_legend=True
+    ):
 
         sns.set_context("talk", font_scale=1.4)
 
         linewidth = 2
         lenght_tick = 6
 
-        termination = self.n-self.env.config.offset_termination_steps
+        termination = self.n - self.env.config.offset_termination_steps
         repositioning = self.env.config.offset_repositioning_steps
 
         steps = np.arange(self.n)
@@ -893,8 +990,20 @@ class StepLog:
         fig, ax1 = plt.subplots()
         ax1.set_xlabel("Time")
         ax1.set_ylabel("Cumulative n. of requests")
-        ax1.plot(steps, np.cumsum(self.total_list), linewidth=linewidth, label="Total", color="magenta")
-        ax1.plot(steps, np.cumsum(self.serviced_list), linewidth=linewidth, label="Serviced", color="k")
+        ax1.plot(
+            steps,
+            np.cumsum(self.total_list),
+            linewidth=linewidth,
+            label="Total",
+            color="magenta",
+        )
+        ax1.plot(
+            steps,
+            np.cumsum(self.serviced_list),
+            linewidth=linewidth,
+            label="Serviced",
+            color="k",
+        )
         ax1.legend()
 
         # Plot battery
@@ -905,7 +1014,9 @@ class StepLog:
             )
 
             # Closest power of 10
-            max_battery_level_10 = 10 ** round(np.math.log10(max_battery_level))
+            max_battery_level_10 = 10 ** round(
+                np.math.log10(max_battery_level)
+            )
 
             list_battery_level_kwh = (
                 np.array(self.total_battery)
@@ -937,8 +1048,12 @@ class StepLog:
             pass
 
             # Demarcate offsets
-        plt.axvline(repositioning, color='k', linewidth=linewidth, linestyle="--")
-        plt.axvline(termination, color='k', linewidth=linewidth, linestyle="--")
+        plt.axvline(
+            repositioning, color="k", linewidth=linewidth, linestyle="--"
+        )
+        plt.axvline(
+            termination, color="k", linewidth=linewidth, linestyle="--"
+        )
 
         fig = plt.gcf()
         fig.set_size_inches(10, 10)
@@ -948,17 +1063,30 @@ class StepLog:
 
         plt.xticks(
             xticks,
-            ["", "5AM", "", "6AM", "", "7AM", "", "8AM", "", "9AM", "", "10AM"]
+            [
+                "",
+                "5AM",
+                "",
+                "6AM",
+                "",
+                "7AM",
+                "",
+                "8AM",
+                "",
+                "9AM",
+                "",
+                "10AM",
+            ],
         )
         plt.tick_params(labelsize=25)
 
         plt.tick_params(
-            direction='out',
+            direction="out",
             # length=lenght_tick,
             width=linewidth,
-            colors='k',
-            grid_color='k',
-            grid_alpha=0.5
+            colors="k",
+            grid_color="k",
+            grid_alpha=0.5,
         )
 
         # x_ticks = 6
@@ -968,7 +1096,7 @@ class StepLog:
         # plt.xticks(xticks, [f'{tick//60}h' for tick in xticks])
 
         # Configure x axis
-        plt.xlim([0, self.env.config.time_steps-1])
+        plt.xlim([0, self.env.config.time_steps - 1])
         plt.ylim([0, 4000])
 
         ax = plt.gca()
@@ -995,7 +1123,9 @@ class StepLog:
             ax.get_legend().remove()
 
         if file_path:
-            plt.savefig(f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi)
+            plt.savefig(
+                f"{file_path}.{file_format}", bbox_inches="tight", dpi=dpi
+            )
         else:
             plt.show()
         plt.close()
@@ -1056,7 +1186,9 @@ def plot_centers(
     set_center_ids_level = defaultdict(set)
 
     # Lines connecting region centers to nodes
-    center_lines_xy = defaultdict(lambda: {"xs": [], "ys": [], "o": [], "d": [], "level": []})
+    center_lines_xy = defaultdict(
+        lambda: {"xs": [], "ys": [], "o": [], "d": [], "level": []}
+    )
     center_lines_sp_xy = defaultdict(lambda: {"xs": [], "ys": []})
 
     for p in list_center_level:
@@ -1098,7 +1230,6 @@ def plot_centers(
                 center_lines_xy[level]["xs"].append([center_point.x, p.x])
                 center_lines_xy[level]["ys"].append([center_point.y, p.y])
 
-
                 # ("index", "$index"),
                 # ("(x,y)", "($x, $y)"),
                 # ("Origin", "@o"),
@@ -1112,8 +1243,9 @@ def plot_centers(
 
     return list_center_level, center_lines_xy, center_lines_sp_xy
 
-STRAIGHT_LINE = 'OD'
-SP_LINE = 'SP'
+
+STRAIGHT_LINE = "OD"
+SP_LINE = "SP"
 
 
 def get_center_elements(points, levels, direct_lines=True, sp_lines=False):

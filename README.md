@@ -1,4 +1,5 @@
 # Mobility-on-demand fleet management application
+
 ## ADP config
 
 state = TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, CARORIGIN
@@ -6,48 +7,92 @@ decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, O
 
 ## Running the simulator
 
+The command below will start the simulation on the port 5002.
+
     bokeh serve --show --port 5002 tests\ml\live_simulation.py
+
+The time between each assignment can be set by changing the variable STEP_DELAY (seconds) in the PlotTrack class.
 
 ## Running the service rate and fleet status graphs
 
     bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
-## Activating the environment
+## Creating the environoment
+
+Execute the following commands:
+
+    conda config --prepend channels conda-forge
+    conda create -n env_slevels python=3.7
+    conda activate env_slevels
+    conda install --strict-channel-priority osmnx
+    conda install gurobi
+    pip install h3
+    conda install gurobipy
+    conda install -c conda-forge --strict-channel-priority h3-py
+    conda istall bokeh
+
+
+To activate the environment use:
 
     C:\Users\LocalAdmin\Anaconda353\Scripts\activate env_slevels
     C:\Users\breno\Anaconda3\Scripts\activate env_slevels
 
 ## Execution
 
+### Logging
 
 | Keyword | Function |
-|---------|----------|
-|save_df  | Save .csv dataframes with fleet (status, vehicle count) and demand (met, unmet) data|
-|use_duas | Extract duals from solution and use them to approximate the value function of the states.|
-|save_progress| Update a progress file (progress.npy) after n iterations (default n=1) with the current value functions.|
+|---------:|----------|
 |level LOG_LEVEL| Choose logging level LOG_LEVEL = [INFO, DEBUG].|
 |log_mip | Save mip model (`.lp`) and mip solution log (`.log`) for each time step and iteration.|
+|log_adp | Log all ADP phases (MIP decisions, dual extraction, and VFA update).|
+|log_fleet | For each iteration `n`, save `cars_n.csv`  and `cars_result_n.csv` log files in `fleet/fleet_data/` comprising the information of each car in the beginning and in the end of iteration `n`, respectively. The following fields are considered for each vehicle: <br> `id, type, point, waypoint, previous, origin, middle_point, elapsed_distance, time_o_m, distance_o_m, elapsed, remaining_distance, step_m, idle_step_count, interrupted_rebalance_count, tabu, battery_level, trip, point_list, arrival_time, previous_arrival, previous_step, step, revenue, n_trips, distance_traveled, status, curret_trip, time_status, contract_duration`.|
+|log_trips | For each iteration `n`, save (1) `trips_n.csv`  and (2) `trips_result_n.csv` log files in `trip_samples_data/` comprising the information of each trip request in the beginning and in the end of iteration `n`, respectively. <br>The following fields are considered in (1): <br> `placement_datetime, pk_id, dp_id, sq_class, max_delay, tolerance, passenger_count, pickup_latitude, pickup_longitude, dropoff_latitude, dropoff_longitude`.<br>The following fields are considered in (2): <br> `placement_datetime,pk_id,dp_id,sq_class,max_delay,tolerance,passenger_count,pickup_latitude,pickup_longitude,dropoff_latitude,dropoff_longitude,pickup_step,pickup_delay,pickup_datetime,dropoff_time,dropoff_datetime,picked_by`.|
+|log_times | Log the times (per iteration) to create decisions, extract duals, realize decisions, update duals, setup costs, setup constraints, and optimize MIP. Also include the total time.|
 |save_plots| Save iteration's demand and fleet statuses for each step.|
-|n N_ITERATON| Set the number of iterations.|
-|FLEET_SIZE | Set the fleet size.|
+|save_df  | Save .csv dataframes with fleet (status, vehicle count) and demand (met, unmet) data|
 
-Example to log adp and mip execution, save progress.npy file, and plots.
+### Scenario configuration
 
-    python mod\ml\adp_network_server.py TEST_NAME -save_progress 10 -log_adp -log_mip -save_plots -save_df -level DEBUG -n 300 -FLEET_SIZE 500
+| Keyword | Function |
+|---------:|----------|
+|hire| Consider FAV hiring. Related settings: DEPOT_SHARE, FAV_FLEET_SIZE, MAX_CONTRACT_DURATION.|
+|n "number of iterations"| Set the number of iterations.|
+|FLEET_SIZE "number of vehicles" | Set the fleet size.|
+|backlog| Activate user backlogging. Rejected users are re-inserted into the demand with discounted maximum waiting time. E.g., if the period is `1 min` and a unmatched user can wait up to `10 min`, this user is re-inserted in the deamnd pool with maximum waiting time of `9 min`.|
 
-Execution (only save progress):
+### Optimization methods
+The folowing keywords can be used to define the optimization method to assign and rebalance vehicles. For a single instance, each keyword creates a separate folder where you can find the results of each method.
 
-    python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -save_progress 10
+| Keyword | Method |
+|--------:|----------|
+|train "n"| Run ADP algorithm on the training dataset to create VFAs. Update the file progress.npy with the updated results for each visited state every "n" iterations (by default, "n" is 1). |
+|test| Run ADP algorithm on the testing dataset and uses the VFAs (from training) to measure the impact of future decisions.|
+|myopic| Barebone assignment algorith with no rebalancing.|
+|policy_random| Assignment algorithm with random rebalancing.|
+|policy_reactive | Assignment algorithm and Alonso-Mora rebalancing (send vehicles to unmet requests but interrupt rebalancing at each period to check whether new requests can be picked up).
+## Demand
+
+Enable `USE_CLASS_PROB` to load probabilities of picking up users of different classes throughout time and space.
+If disabled, user membership to classes is defined at random according to the proportions defined in `TRIP_CLASS_PROPORTION`. For example, to consider 80% of the demand is comprised of "B" users and the remaining is comprised of "A" users, we can do as follows:
+
+    TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1))
+
+## Execution
+
+Example to create a case study named "R" considering 300 vehicles. The method will run on the training instance (defined in the file `config.py`) for 500 iterations. Additionally, all plots will be saved (fleet usage, demand, and user delays).
+
+    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots
 
 Hiring:
 
-    python mod\ml\adp_network_server.py hiring -FLEET_SIZE 300 -n 500 -save_progress 10 -save_plots -hire
+    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots -hire
 
 Batch file (`.bat`):
 
     call C:\Users\LocalAdmin\Anaconda3\Scripts\activate env_slevels
     call cd C:\Users\LocalAdmin\OneDrive\leap_forward\phd_project\reb\code\mod\
-    call python mod\ml\adp_network_server.py REB_T -FLEET_SIZE 500 -n 2000 -save_df -save_progress
+    call python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots
 
 ## Memory profiling
 
@@ -122,18 +167,4 @@ If you define `amod = AmodNetworkHired(config, online=True)` the following is ac
         self.penalty = self.loaded_penalty
 
 If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.
-
-## Logging
-
-### Trips and vehicles
-
-Set configuration parameters to `True` to save `.csv` log files.
-
-To save trip data set:
-
-    SAVE_TRIP_DATA = True
-
-To save fleet data set:
-
-    SAVE_FLEET_DATA = True
 

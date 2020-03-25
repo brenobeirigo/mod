@@ -132,6 +132,7 @@ trip_od_list = dict()
 # List of trips and trip counts per step (key is file path)
 trip_demand_dict = dict()
 
+
 def load_trips_ods_from(tripdata_path, config):
 
     global trip_od_list
@@ -194,31 +195,38 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
 
             if show_service_data:
                 if t.pk_delay is not None:
-                    pickup_datetime = (
-                        t.placement
-                        + timedelta(minutes=t.pk_delay)
+                    pickup_datetime = t.placement + timedelta(
+                        minutes=t.pk_delay
                     )
                     pickup_datetime_str = datetime.strftime(
-                        pickup_datetime,
-                        "%Y-%m-%d %H:%M:%S"
+                        pickup_datetime, "%Y-%m-%d %H:%M:%S"
                     )
 
                 if t.dropoff_time is not None:
-                    dropoff_datetime = (
-                        earliest_datetime + timedelta(minutes=t.dropoff_time)
+                    dropoff_datetime = earliest_datetime + timedelta(
+                        minutes=t.dropoff_time
                     )
 
                     dropoff_datetime_str = datetime.strftime(
-                        dropoff_datetime,
-                        "%Y-%m-%d %H:%M:%S"
+                        dropoff_datetime, "%Y-%m-%d %H:%M:%S"
                     )
 
-                d['pickup_step'].append(t.pk_step if t.pk_step is not None else "-")
-                d['pickup_delay'].append(t.pk_delay if t.pk_delay is not None else "-")
-                d['pickup_datetime'].append(pickup_datetime_str if t.pk_delay is not None else "-")
-                d['dropoff_time'].append(t.dropoff_time if t.dropoff_time is not None else "-")
-                d['dropoff_datetime'].append(dropoff_datetime_str if t.dropoff_time is not None else "-")
-                d['picked_by'].append(t.picked_by)
+                d["pickup_step"].append(
+                    t.pk_step if t.pk_step is not None else "-"
+                )
+                d["pickup_delay"].append(
+                    t.pk_delay if t.pk_delay is not None else "-"
+                )
+                d["pickup_datetime"].append(
+                    pickup_datetime_str if t.pk_delay is not None else "-"
+                )
+                d["dropoff_time"].append(
+                    t.dropoff_time if t.dropoff_time is not None else "-"
+                )
+                d["dropoff_datetime"].append(
+                    dropoff_datetime_str if t.dropoff_time is not None else "-"
+                )
+                d["picked_by"].append(t.picked_by)
 
     df = pd.DataFrame.from_dict(dict(d))
     return df
@@ -273,7 +281,7 @@ def get_trip_count_step(
 
     if max_steps:
         trip_count_step = trip_count_step[
-            earliest_step: earliest_step + max_steps
+            earliest_step : earliest_step + max_steps
         ]
 
     return trip_count_step
@@ -320,7 +328,7 @@ def get_step_trip_list(
     try:
         print(f"Trying to load processed trip data from '{path_npy}'")
         t1 = time.time()
-        step_trip_list = np.load(path_npy)
+        step_trip_list = np.load(path_npy, allow_pickle=True)
         print(f"Trip list loaded (took {time.time() - t1:10.6f} seconds)")
 
     except Exception as e:
@@ -527,10 +535,12 @@ def get_trips_random_ods(
 
     return step_trip_list
 
+
 def get_min(h, m, s, min_bin_size=30):
-    s = (h*3600 + m*60 + s)//(min_bin_size*60)
+    s = (h * 3600 + m * 60 + s) // (min_bin_size * 60)
     return s
-    
+
+
 def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
     """Return 1 if request is """
 
@@ -542,9 +552,9 @@ def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
         pickup_datetime.hour,
         pickup_datetime.minute,
         pickup_datetime.second,
-        min_bin_size=min_bin_size
+        min_bin_size=min_bin_size,
     )
-    
+
     try:
         prob = prob_dict[pk_id][min_bin]
         if random.random() <= prob:
@@ -567,7 +577,7 @@ def get_trips(
     resize_factor=1,
     seed=None,
     prob_dict=None,
-):  
+):
 
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
@@ -590,30 +600,30 @@ def get_trips(
     for step, trips in enumerate(step_trips_resized):
         trip_list = list()
         for time, elapsed_sec, count, o, d in trips:
-                # Use probability distribution from file
-                if prob_dict is not None:
-                    random_class = get_class(o, time, prob_dict)
-                    random_class = ("A" if random_class else "B")
-                else:
-                    # Choose a class according to a probability
-                    random_class = random.choices(
-                        population=list(class_proportion.keys()),
-                        weights=list(class_proportion.values()),
-                        k=1,
-                    )[0]
+            # Use probability distribution from file
+            if prob_dict is not None:
+                random_class = get_class(o, time, prob_dict)
+                random_class = "A" if random_class else "B"
+            else:
+                # Choose a class according to a probability
+                random_class = random.choices(
+                    population=list(class_proportion.keys()),
+                    weights=list(class_proportion.values()),
+                    k=1,
+                )[0]
 
-                trip_list.append(
-                    ClassedTrip(
-                        points[o],
-                        points[d],
-                        offset_start + step,
-                        random_class,
-                        elapsed_sec=elapsed_sec,
-                        placement=time,
-                        max_delay=max_delay[random_class],
-                        tolerance=tolerance[random_class],
-                    )
+            trip_list.append(
+                ClassedTrip(
+                    points[o],
+                    points[d],
+                    offset_start + step,
+                    random_class,
+                    elapsed_sec=elapsed_sec,
+                    placement=time,
+                    max_delay=max_delay[random_class],
+                    tolerance=tolerance[random_class],
                 )
+            )
         step_trip_list.append(trip_list)
 
     # Populate last steps with empty lists

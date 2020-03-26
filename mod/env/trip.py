@@ -63,6 +63,7 @@ class ClassedTrip(Trip):
         placement=None,
         max_delay=10,
         tolerance=5,
+        distance_km=None,
     ):
         super().__init__(o, d, time)
         self.sq_class = sq_class
@@ -77,6 +78,7 @@ class ClassedTrip(Trip):
         # Min/Max class delays
         self.max_delay = max_delay
         self.tolerance = tolerance
+        self.distance_km = distance_km
 
         # Min/Max delays discounting announcement
         self.max_delay_from_placement = (
@@ -232,7 +234,9 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
     return df
 
 
-def get_ny_demand(config, tripdata_path, points, seed=None, prob_dict=None):
+def get_ny_demand(
+    config, tripdata_path, points, seed=None, prob_dict=None, centroid_level=0
+):
 
     step_trip_od_list = load_trips_ods_from(tripdata_path, config)
 
@@ -251,6 +255,7 @@ def get_ny_demand(config, tripdata_path, points, seed=None, prob_dict=None):
             resize_factor=config.demand_resize_factor,
             seed=seed,
             prob_dict=prob_dict,
+            centroid_level=centroid_level,
         )
 
         # Count number of trips per step
@@ -380,6 +385,9 @@ def get_step_trip_list(
                 # Destination id
                 dp_id = df_slice.iloc[i]["dp_id"]
 
+                # Distance in kilometers
+                trip_dist_km = df_slice.iloc[i]["trip_distance"]
+
                 # Trip info tuple is added to step
                 trip_list.append(
                     (
@@ -388,6 +396,7 @@ def get_step_trip_list(
                         int(passenger_count),
                         int(pk_id),
                         int(dp_id),
+                        float(trip_dist_km),
                     )
                 )
 
@@ -577,6 +586,7 @@ def get_trips(
     resize_factor=1,
     seed=None,
     prob_dict=None,
+    centroid_level=0,
 ):
 
     # Populate first steps with empty lists
@@ -599,7 +609,7 @@ def get_trips(
 
     for step, trips in enumerate(step_trips_resized):
         trip_list = list()
-        for time, elapsed_sec, count, o, d in trips:
+        for time, elapsed_sec, count, o, d, distance_km in trips:
             # Use probability distribution from file
             if prob_dict is not None:
                 random_class = get_class(o, time, prob_dict)
@@ -612,16 +622,19 @@ def get_trips(
                     k=1,
                 )[0]
 
+            # Points become region centroids (point id only if
+            # centroid_level=0)
             trip_list.append(
                 ClassedTrip(
-                    points[o],
-                    points[d],
+                    points[points[o].id_level(centroid_level)],
+                    points[points[d].id_level(centroid_level)],
                     offset_start + step,
                     random_class,
                     elapsed_sec=elapsed_sec,
                     placement=time,
                     max_delay=max_delay[random_class],
                     tolerance=tolerance[random_class],
+                    distance_km=distance_km,
                 )
             )
         step_trip_list.append(trip_list)

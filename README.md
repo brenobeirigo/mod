@@ -168,3 +168,17 @@ If you define `amod = AmodNetworkHired(config, online=True)` the following is ac
 
 If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.
 
+## Tuning
+
+
+| Keyword | Method |
+|--------:|----------|
+|TEST_LABEL| Label of all tuning instances (default "TUNE") .|
+|N_PROCESSES| Number of tuning istances executed in parallel (by default, 2).|
+|FOCUS| Key to select pre-configured tuning instances.|
+|METHOD| Which optimization method is used in the tuning (-train, -test, -reactive, -myopic).|
+
+Example:
+
+    python tests\ml\tuning.py <TEST_LABEL> <N_PROCESSES>  <METHOD> <FOCUS>
+    python tests\ml\tuning.py SH 9 -train hiring

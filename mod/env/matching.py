@@ -135,8 +135,11 @@ def car_min_rebal_constr(m, x_var, fleet_size, n_targets):
         Optimal rebalancing constraints.
     """
     flow_cars_dict = m.addConstr(
-            x_var.sum(du.REBALANCE_DECISION, "*", "*", "*", "*", "*", "*", "*", "*") == min(fleet_size, n_targets),
-            f"CAR_REBAL"
+        x_var.sum(
+            du.REBALANCE_DECISION, "*", "*", "*", "*", "*", "*", "*", "*"
+        )
+        == min(fleet_size, n_targets),
+        f"CAR_REBAL",
     )
 
     return flow_cars_dict
@@ -221,12 +224,12 @@ def max_cars_node_constrs(
         # Depots are unrestricted (unlimited number of vehicles)
         if pos not in unrestricted:
 
-            n_cars_link = max(
+            n_cars_node = max(
                 0, max_cars_node - len(vehicles_arriving_at[pos])
             )
 
             flood_avoidance_constrs[pos] = m.addConstr(
-                constrs <= n_cars_link, f"MAX_CARS_LINK[{pos}]"
+                constrs <= n_cars_node, f"MAX_CARS_LINK[{pos}]"
             )
 
     return flood_avoidance_constrs
@@ -617,7 +620,7 @@ def service_trips(
     if log_mip:
 
         # Add .log for rebalancing second phase
-        rebal_label = ("_reb" if reactive else "")
+        rebal_label = "_reb" if reactive else ""
 
         m.setParam("LogToConsole", 0)
         folder_epi_log = f"{env.config.folder_mip_log}episode_{iteration:04}/"
@@ -627,8 +630,12 @@ def service_trips(
             os.makedirs(folder_epi_log)
             os.makedirs(folder_epi_lp)
 
-        m.Params.LogFile = f"{folder_epi_log}mip_{time_step:04}{rebal_label}.log"
-        m.Params.ResultFile = f"{folder_epi_lp}mip_{time_step:04}{rebal_label}.lp"
+        m.Params.LogFile = (
+            f"{folder_epi_log}mip_{time_step:04}{rebal_label}.log"
+        )
+        m.Params.ResultFile = (
+            f"{folder_epi_lp}mip_{time_step:04}{rebal_label}.lp"
+        )
 
         logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
         logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
@@ -643,7 +650,7 @@ def service_trips(
     # ################################################################ #
     # ################################################################ #
     # ################################################################ #
-    
+
     la.log_attribute_cars_dict(logger_name, env.attribute_cars_dict)
 
     # Number of trips per class
@@ -668,8 +675,7 @@ def service_trips(
         # Only idle cars can rebalance to targets
         # Get REBALANCE and STAY decisions
         decision_cars, n_cars_can_rebalance = du.get_rebalancing_decisions(
-            env,
-            targets,
+            env, targets,
         )
 
         logger.debug(
@@ -797,7 +803,11 @@ def service_trips(
 
     # If myopic, do not include post decision costs
     # If random, discard rebalance costs and add them later
-    elif env.config.myopic or env.config.policy_random or env.config.policy_reactive:
+    elif (
+        env.config.myopic
+        or env.config.policy_random
+        or env.config.policy_reactive
+    ):
         contribution = quicksum(
             env.cost_func(d, ignore_rebalance_costs=True) * x_var[d]
             for d in x_var
@@ -863,7 +873,9 @@ def service_trips(
 
         # Service quality constraints
         if env.config.sq_guarantee:
-            sq_flow_dict = sq_constrs(m, x_var, decision_class, class_count_dict)
+            sq_flow_dict = sq_constrs(
+                m, x_var, decision_class, class_count_dict
+            )
 
         # Car is obliged to charged if battery reaches minimum level
         # Car flow conservation
@@ -874,7 +886,7 @@ def service_trips(
             )
 
     # Limit the number of cars per node (not in reactive rebalance)
-    if env.config.max_cars_link and not env.config.policy_reactive:
+    if env.config.max_cars_link is not None and not env.config.policy_reactive:
 
         # decisions_time_pos = defaultdict(list)
         decisions_destination = defaultdict(int)
@@ -885,6 +897,12 @@ def service_trips(
             if d[du.CAR_TYPE] == Car.TYPE_HIRED:
                 if d[du.CAR_ORIGIN] == d[du.DESTINATION]:
                     continue
+
+            # if d[du.ACTION] == du.TRIP_DECISION:
+            #     continue
+
+            # if d[du.ACTION] == du.STAY_DECISION:
+            #     continue
 
             # Cars arriving at destination
             decisions_destination[d[du.DESTINATION]] += x_var[d]
@@ -1009,7 +1027,7 @@ def service_trips(
                 for t_r in rejected
             ]
         )
-        final_obj = reward-applied_penalties
+        final_obj = reward - applied_penalties
 
         logger.debug(
             f"### Objective Function (costs and post costs) - {m.objVal:6.2f} "

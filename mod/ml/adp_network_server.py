@@ -8,6 +8,7 @@ from pprint import pprint
 import numpy as np
 import json
 import itertools
+
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
@@ -59,9 +60,14 @@ def get_sim_config(update_dict):
     config = ConfigNetwork()
 
     # Pull graph info
-    region, label, node_count, center_count, edge_count, region_type = (
-        nw.query_info()
-    )
+    (
+        region,
+        label,
+        node_count,
+        center_count,
+        edge_count,
+        region_type,
+    ) = nw.query_info()
 
     info = (
         "##############################################################"
@@ -117,7 +123,7 @@ def get_sim_config(update_dict):
             ConfigNetwork.N_CLOSEST_NEIGHBORS_EXPLORE: ((2, 16), (3, 16)),
             # ConfigNetwork.REBALANCE_REACH: 2,
             ConfigNetwork.REBALANCE_MULTILEVEL: False,
-            ConfigNetwork.LEVEL_DIST_LIST: [0, 60, 300, 600],
+            ConfigNetwork.LEVEL_DIST_LIST: [0, 150, 300, 600],
             # Aggregation (temporal, spatial, contract, car type)
             # # FAVs and PAVS BEST HIERARCHICAL AGGREGATION
             # ConfigNetwork.AGGREGATION_LEVELS: [
@@ -163,17 +169,52 @@ def get_sim_config(update_dict):
             #     ),
             # ],
             # #### ONLY PAVs - BEST PERFORMANCE HiERARCHICAL AGGREGATION
+            # ConfigNetwork.AGGREGATION_LEVELS: [
+            #     adp.AggLevel(
+            #         temporal=1,
+            #         spatial=adp.DISAGGREGATE,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=3,
+            #         spatial=2,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            #     adp.AggLevel(
+            #         temporal=3,
+            #         spatial=3,
+            #         battery=adp.DISAGGREGATE,
+            #         contract=adp.DISCARD,
+            #         car_type=adp.DISAGGREGATE,
+            #         car_origin=adp.DISCARD,
+            #     ),
+            # ],
+            # #### ONLY PAVs - BEST PERFORMANCE HiERARCHICAL AGGREGATION
             ConfigNetwork.AGGREGATION_LEVELS: [
+                # adp.AggLevel(
+                #     temporal=1,
+                #     spatial=adp.DISAGGREGATE,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISCARD,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISCARD,
+                # ),
                 adp.AggLevel(
                     temporal=1,
-                    spatial=adp.DISAGGREGATE,
+                    spatial=1,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
                     car_type=adp.DISAGGREGATE,
                     car_origin=adp.DISCARD,
                 ),
                 adp.AggLevel(
-                    temporal=3,
+                    temporal=1,
                     spatial=2,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -181,7 +222,7 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
                 adp.AggLevel(
-                    temporal=3,
+                    temporal=1,
                     spatial=3,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -189,7 +230,8 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
             ],
-            ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2, 3],
+            # ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2, 3],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 5, 7, 10],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
@@ -237,34 +279,16 @@ def get_sim_config(update_dict):
             ConfigNetwork.DEMAND_CENTER_LEVEL: 0,
             # Demand scenario
             ConfigNetwork.DEMAND_SCENARIO: conf.SCENARIO_NYC,
-            ConfigNetwork.TRIP_REJECTION_PENALTY: (
-                ("A", 0),
-                ("B", 0),
-            ),
-            ConfigNetwork.TRIP_BASE_FARE: (
-                ("A", 4.8),
-                ("B", 2.4),
-            ),
-            ConfigNetwork.TRIP_DISTANCE_RATE_KM: (
-                ("A", 1),
-                ("B", 1),
-            ),
-            ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
-                ("A", 5),
-                ("B", 5),
-            ),
-            ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
-                ("A", 5),
-                ("B", 10),
-            ),
-            ConfigNetwork.TRIP_CLASS_PROPORTION: (
-                ("A", 0),
-                ("B", 1),
-            ),
+            ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+            ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
+            ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
+            ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
+            ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+            ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
             # -------------------------------------------------------- #
             # LEARNING ############################################### #
             # -------------------------------------------------------- #
-            ConfigNetwork.DISCOUNT_FACTOR: 1,
+            ConfigNetwork.DISCOUNT_FACTOR: 0.1,
             ConfigNetwork.HARMONIC_STEPSIZE: 1,
             ConfigNetwork.STEPSIZE_CONSTANT: 0.1,
             ConfigNetwork.STEPSIZE_RULE: adp.STEPSIZE_MCCLAIN,
@@ -355,7 +379,9 @@ def alg_adp(
     # ---------------------------------------------------------------- #
 
     amod = AmodNetworkHired(config, online=True)
-    episode_log = EpisodeLog(amod.config.save_progress, config=config, adp=amod.adp)
+    episode_log = EpisodeLog(
+        amod.config.save_progress, config=config, adp=amod.adp
+    )
     if plot_track:
         plot_track.set_env(amod)
 
@@ -374,7 +400,7 @@ def alg_adp(
 
     if config.use_class_prob:
         print("Loading first-class probabilities...")
-        prob_dict = np.load(conf.FIST_CLASS_PROB).item()
+        prob_dict = np.load(conf.FIST_CLASS_PROB, allow_pickle=True).item()
         time_bin = prob_dict["time_bin"]
         start_time = prob_dict["start"]
         end_time = prob_dict["end"]
@@ -385,7 +411,7 @@ def alg_adp(
     print(f"Loading demand scenario '{config.demand_scenario}'...")
 
     try:
-        if config.myopic or config.policy_random:
+        if config.myopic or config.policy_random or config.policy_reactive:
             print("Ignore training.")
         else:
             # Load last episode
@@ -449,25 +475,32 @@ def alg_adp(
         elif config.demand_scenario == conf.SCENARIO_NYC:
 
             # Load a random .csv file with trips from NYC
-            # trips_file_path = random.choice(conf.TRIP_FILES)
             if config.train:
-                trips_file_path = conf.FILE_TRAINING
+                trips_file_path = random.choice(conf.PATHS_TRAINING_TRIPS)
                 test_i = n
                 # print(f"  -> Trip file - {trips_file_path}")
             else:
                 # If testing, select different trip files
-                test_i = n % len(conf.TRIP_FILES)
-                trips_file_path = conf.TRIP_FILES[test_i]
+                test_i = n % len(conf.PATHS_TESTING_TRIPS)
+                trips_file_path = conf.PATHS_TESTING_TRIPS[test_i]
                 # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
 
             step_trip_list, step_trip_count = tp.get_ny_demand(
-                config, trips_file_path, amod.points, seed=n, prob_dict=prob_dict,
+                config,
+                trips_file_path,
+                amod.points,
+                seed=n,
+                prob_dict=prob_dict,
+                centroid_level=amod.config.centroid_level,
             )
 
             # Save random data (trip samples)
             if amod.config.save_trip_data:
                 df = tp.get_df(step_trip_list)
-                df.to_csv(f"{config.sampled_tripdata_path}trips_{test_i:04}.csv", index=False)
+                df.to_csv(
+                    f"{config.sampled_tripdata_path}trips_{test_i:04}.csv",
+                    index=False,
+                )
 
         # Log events of iteration n
         logger = la.get_logger(
@@ -503,8 +536,7 @@ def alg_adp(
             # Save car distribution
             df_cars = amod.get_fleet_df()
             df_cars.to_csv(
-                f"{config.fleet_data_path}cars_{test_i:04}.csv",
-                index=False,
+                f"{config.fleet_data_path}cars_{test_i:04}.csv", index=False
             )
 
         # ------------------------------------------------------------ #
@@ -572,11 +604,10 @@ def alg_adp(
             # from the intermediate nodes in along the shortest path
             # to the rebalancing target.
             amod.update_fleet_status(
-                step + 1,
-                use_rebalancing_cars=amod.config.policy_reactive
+                step + 1, use_rebalancing_cars=amod.config.policy_reactive
             )
             t_update += time.time() - t1
-            
+
             # Show the top highest vehicle count per position
             # amod.show_count_vehicles_top(step, 5)
 
@@ -732,7 +763,7 @@ def alg_adp(
                 logger.debug(f"\n# REB. COSTS: {rebal_costs:6.2f}")
 
             t_reactive_rebalance = time.time() - t_reactive_rebalance_1
-    
+
             t1 = time.time()
             # What each vehicle is doing?
             la.log_fleet_activity(
@@ -782,18 +813,18 @@ def alg_adp(
         # LAST UPDATE (Closing the episode)
         amod.update_fleet_status(step + 1)
 
-        df = tp.get_df(
-            it_step_trip_list,
-            show_service_data=True,
-            earliest_datetime=config.demand_earliest_datetime
-        )
-
         # Save random data (fleet and trips)
         if amod.config.save_trip_data:
 
+            df = tp.get_df(
+                it_step_trip_list,
+                show_service_data=True,
+                earliest_datetime=config.demand_earliest_datetime,
+            )
+
             df.to_csv(
                 f"{config.sampled_tripdata_path}trips_result_{test_i:04}.csv",
-                index=False
+                index=False,
             )
 
         if amod.config.save_fleet_data:
@@ -801,7 +832,7 @@ def alg_adp(
             df_cars = amod.get_fleet_df()
             df_cars.to_csv(
                 f"{config.fleet_data_path}cars_result_{test_i:04}.csv",
-                index=False
+                index=False,
             )
 
         # -------------------------------------------------------------#
@@ -867,11 +898,20 @@ if __name__ == "__main__":
         test_label = "TESTDE"
 
     hire = "-hire" in args
+    backlog = "-backlog" in args
+
+    # Enable logs
     log_adp = "-log_adp" in args
     log_mip = "-log_mip" in args
+    log_times = "-log_times" in args
+    log_fleet = "-log_fleet" in args
+    log_trips = "-log_trips" in args
+
+    # Save supply and demand plots and dataframes
     save_plots = "-save_plots" in args
     save_df = "-save_df" in args
-    log_times = "-log_times" in args
+
+    # Optimization methods
     myopic = "-myopic" in args
     policy_random = "-random" in args
     policy_reactive = "-reactive" in args
@@ -904,7 +944,7 @@ if __name__ == "__main__":
         save_progress_interval = None
         print("Progress will not be saved!")
     else:
-        raise("Error! Which method?")
+        raise ("Error! Which method?")
 
     print("METHOD:", method)
 
@@ -921,6 +961,12 @@ if __name__ == "__main__":
         fleet_size = 100
 
     try:
+        fav_fleet_size_i = args.index(f"-{ConfigNetwork.FAV_FLEET_SIZE}")
+        fav_fleet_size = int(args[fav_fleet_size_i + 1])
+    except:
+        fav_fleet_size = 0
+
+    try:
         log_level_i = args.index("-level")
         log_level_label = args[log_level_i + 1]
         log_level = la.levels[log_level_label]
@@ -929,59 +975,39 @@ if __name__ == "__main__":
 
     print(f"###### STARTING EXPERIMENTS. METHOD: {method}")
 
-    instance_name = (
-        None
-    )  # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
+    instance_name = None  # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
     if instance_name:
         print(f'Loading settings from "{instance_name}"')
         start_config = ConfigNetwork.load(instance_name)
     else:
         start_config = get_sim_config(
-            {   
+            {
                 ConfigNetwork.ITERATIONS: n_iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
                 ConfigNetwork.FLEET_SIZE: fleet_size,
                 # DEMAND ############################################# #
                 ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-                ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
-                ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-                ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+                ConfigNetwork.DEMAND_TOTAL_HOURS: 6,
+                ConfigNetwork.DEMAND_EARLIEST_HOUR: 6,
+                ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
                 ConfigNetwork.TIME_INCREMENT: 1,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
-                ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+                ConfigNetwork.ALLOW_USER_BACKLOGGING: backlog,
                 ConfigNetwork.SQ_GUARANTEE: False,
                 # ConfigNetwork.TRIP_REJECTION_PENALTY: {
                 #     "A": 4.8,
                 #     "B": 2.4,
                 # },
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (
-                    ("A", 4.8),
-                    ("B", 2.4),
-                ),
-                ConfigNetwork.TRIP_BASE_FARE: (
-                     ("A", 4.8),
-                     ("B", 2.4),
-                ),
-                ConfigNetwork.TRIP_DISTANCE_RATE_KM: (
-                    ("A", 1),
-                    ("B", 1),
-                ),
-                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (
-                    ("A", 5),
-                    ("B", 5),
-                ),
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (
-                    ("A", 5),
-                    ("B", 10),
-                ),
-                ConfigNetwork.TRIP_CLASS_PROPORTION: (
-                    ("A", 0.2),
-                    ("B", 0.8),
-                ),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 0)),
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
+                ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 0)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 15)),
+                ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.METHOD: method,
                 ConfigNetwork.SAVE_PROGRESS: save_progress_interval,
@@ -1002,14 +1028,15 @@ if __name__ == "__main__":
                 ConfigNetwork.CAR_SIZE_TABU: 0,
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
-                ConfigNetwork.PENALIZE_REBALANCE: False,
+                ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    (1, 8),
-                    # (1, 4),
-                    # (2, 4),
+                    (1, 6),
+                    (2, 6),
+                    # (3, 3),
                     # (3, 4),
                 ),
+                ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
                 ConfigNetwork.MAX_CARS_LINK: 5,
@@ -1018,7 +1045,7 @@ if __name__ == "__main__":
                 # FAV configuration
                 ConfigNetwork.DEPOT_SHARE: 0.01,
                 ConfigNetwork.FAV_DEPOT_LEVEL: None,
-                ConfigNetwork.FAV_FLEET_SIZE: 200,
+                ConfigNetwork.FAV_FLEET_SIZE: fav_fleet_size,
                 ConfigNetwork.SEPARATE_FLEETS: False,
                 ConfigNetwork.MAX_CONTRACT_DURATION: True,
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
@@ -1027,11 +1054,10 @@ if __name__ == "__main__":
                 ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
                 # Saving
                 ConfigNetwork.USE_SHORT_PATH: False,
-                ConfigNetwork.SAVE_TRIP_DATA: True,
-                ConfigNetwork.SAVE_FLEET_DATA: True,
-
+                ConfigNetwork.SAVE_TRIP_DATA: log_trips,
+                ConfigNetwork.SAVE_FLEET_DATA: log_fleet,
                 # Load 1st class probabilities dictionary
-                ConfigNetwork.USE_CLASS_PROB: True,
+                ConfigNetwork.USE_CLASS_PROB: False,
             }
         )
 

@@ -9,7 +9,7 @@ from collections import defaultdict
 import numpy as np
 import random
 from pprint import pprint
-from mod.env.config import FOLDER_EPISODE_TRACK, FAV_DATA_PATH
+from mod.env.config import FOLDER_EPISODE_TRACK
 import requests
 import functools
 from mod.env.amod.AmodNetwork import AmodNetwork

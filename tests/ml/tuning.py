@@ -123,7 +123,12 @@ def run_adp(exp):
 
     exp_name, label, exp_setup = exp
 
-    if exp_setup.myopic or exp_setup.test or exp_setup.policy_random or exp_setup.policy_reactive:
+    if (
+        exp_setup.myopic
+        or exp_setup.test
+        or exp_setup.policy_random
+        or exp_setup.policy_reactive
+    ):
 
         rows = exp_setup.iterations
 
@@ -134,10 +139,10 @@ def run_adp(exp):
             )
 
             rows = exp_setup.iterations - len(df.index)
-            print(f"{rows} tests left to perform for instance \"{exp_name}\".")
+            print(f'{rows} tests left to perform for instance "{exp_name}".')
 
         except Exception as e:
-            print(f"No stats for \'{exp_setup.label}\'. Exception {e}")
+            print(f"No stats for '{exp_setup.label}'. Exception {e}")
 
         exp_setup.config[ConfigNetwork.ITERATIONS] = max(0, rows)
 
@@ -189,7 +194,7 @@ def main(test_labels, focus, N_PROCESSES, method):
             (("A", 0), ("B", 4.8)),
             # (("A", 0), ("B", 7.2)),
             (("A", 0), ("B", 9.6)),
-            #(("A", 0), ("B", 12)),
+            # (("A", 0), ("B", 12)),
         ],
         ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [
@@ -242,9 +247,7 @@ def main(test_labels, focus, N_PROCESSES, method):
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 0), ("B", 15)),
             },
         ],
-        ConfigNetwork.TRIP_CLASS_PROPORTION: [
-            (("A", 0), ("B", 1)),
-        ],
+        ConfigNetwork.TRIP_CLASS_PROPORTION: [(("A", 0), ("B", 1)),],
     }
 
     # TEST METHODS
@@ -257,12 +260,12 @@ def main(test_labels, focus, N_PROCESSES, method):
             ConfigNetwork.METHOD_RANDOM,
         ],
     }
-    
+
     # TEST HIRING
     # Goal - Depot shares X FAV fleet size X Aggregation levels
     tuning_focus["hiring"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
-        "FLEET" : [
+        "FLEET": [
             {
                 ConfigNetwork.FLEET_SIZE: 300,
                 ConfigNetwork.FAV_FLEET_SIZE: 200,
@@ -316,7 +319,7 @@ def main(test_labels, focus, N_PROCESSES, method):
     # Goal - Aggregation levels that consider contracts
     tuning_focus["hiring_layer"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01],
-        "FLEET" : [
+        "FLEET": [
             {
                 ConfigNetwork.FLEET_SIZE: 300,
                 ConfigNetwork.FAV_FLEET_SIZE: 200,
@@ -355,11 +358,7 @@ def main(test_labels, focus, N_PROCESSES, method):
             # ],
             # contract 2 = 15
             # contract 3 = 60
-            [
-                (1, 0, 0, 2, 0, 2),
-                (3, 2, 0, 3, 0, 3),
-                (3, 3, 0, "-", 0, "-"),
-            ],
+            [(1, 0, 0, 2, 0, 2), (3, 2, 0, 3, 0, 3), (3, 3, 0, "-", 0, "-"),],
             # [
             #     (1, 0, 0, "-", 0, 1),
             #     (3, 2, 0, "-", 0, 2),
@@ -368,16 +367,12 @@ def main(test_labels, focus, N_PROCESSES, method):
         ],
     }
 
-
     # TEST HIRING WITH ONLY FAV fleet
     # Goal - Aggregation levels that consider contracts
     tuning_focus["hiring500"] = {
         ConfigNetwork.DEPOT_SHARE: [1, 0.1, 0.01, 0.005, 0.001],
-        "FLEET" : [
-            {
-                ConfigNetwork.FLEET_SIZE: 0,
-                ConfigNetwork.FAV_FLEET_SIZE: 500,
-            },
+        "FLEET": [
+            {ConfigNetwork.FLEET_SIZE: 0, ConfigNetwork.FAV_FLEET_SIZE: 500,},
         ],
         ConfigNetwork.MAX_CONTRACT_DURATION: [False],
         ConfigNetwork.N_CLOSEST_NEIGHBORS: [((1, 8),)],  # , ((1, 4),(2,4))],
@@ -395,7 +390,6 @@ def main(test_labels, focus, N_PROCESSES, method):
                 ConfigNetwork.USE_CLASS_PROB: True,
             },
         ],
-
         # ConfigNetwork.FAV_AVAILABILITY_FEATURES:[
         #     (8, 1, 5, 9), (8, 1, 5, 9),
         # ],
@@ -407,47 +401,37 @@ def main(test_labels, focus, N_PROCESSES, method):
             #     (3, 3, 0, "-", 0, "-"),
             # ],
             [
-                (1, 0, 0, "-", 0, '-'),
+                (1, 0, 0, "-", 0, "-"),
                 (3, 2, 0, "-", 0, "-"),
                 (3, 3, 0, "-", 0, "-"),
             ],
             # contract 2 = 15
             # contract 3 = 60
-            [
-                (1, 0, 0, 2, 0, 2),
-                (3, 2, 0, 3, 0, 3),
-                (3, 3, 0, "-", 0, "-"),
-            ],
+            [(1, 0, 0, 2, 0, 2), (3, 2, 0, 3, 0, 3), (3, 3, 0, "-", 0, "-"),],
             [
                 (1, 0, 0, 2, 0, 3),
                 (1, 0, 0, 3, 0, "-"),
                 (3, 2, 0, "-", 0, "-"),
                 (3, 3, 0, "-", 0, "-"),
             ],
-
+            [(3, 2, 0, 2, 0, 2), (3, 3, 0, 3, 0, 3), (3, 3, 0, "-", 0, "-"),],
             [
-                (3, 2, 0, 2, 0, 2),
-                (3, 3, 0, 3, 0, 3),
-                (3, 3, 0, "-", 0, "-"),
-            ],
-            [   
                 (1, 0, 0, 1, 0, 2),
                 (1, 0, 0, 2, 0, 3),
                 (1, 0, 0, 3, 0, "-"),
                 (3, 2, 0, "-", 0, "-"),
                 (3, 3, 0, "-", 0, "-"),
             ],
-            [ 
+            [
                 (1, 0, 0, "-", 0, 2),
                 (3, 2, 0, "-", 0, 3),
                 (3, 3, 0, "-", 0, "-"),
             ],
-            [ 
+            [
                 (1, 0, 0, 3, 0, 3),
                 (3, 2, 0, "-", 0, "-"),
                 (3, 3, 0, "-", 0, "-"),
             ],
-            
             # [
             #     (1, 0, 0, "-", 0, 1),
             #     (3, 2, 0, "-", 0, 2),
@@ -455,7 +439,6 @@ def main(test_labels, focus, N_PROCESSES, method):
             # ],
         ],
     }
-
 
     # ENFORCING SERVICE LEVELS
     # Goal: What is the impact of each penalty mechanism in A and B?
@@ -501,7 +484,6 @@ def main(test_labels, focus, N_PROCESSES, method):
         ],
     }
 
-
     # ENFORCING SERVICE LEVELS
     # Goal: What is the impact of each penalty mechanism in A and B?
     # 1 - PAV baseline
@@ -513,7 +495,7 @@ def main(test_labels, focus, N_PROCESSES, method):
             ((1, 8),),
             # ((1, 4), (2, 4))
         ],
-        ConfigNetwork.TRIP_REJECTION_PENALTY:[
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
             (("A", 4.8), ("B", 2.4)),
             # (("A", 7.2), ("B", 4.8)),
@@ -543,8 +525,24 @@ def main(test_labels, focus, N_PROCESSES, method):
     tuning_focus["adp"] = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
         Config.DISCOUNT_FACTOR: [0.7, 0.5, 0.3],
-        #Config.STEPSIZE_CONSTANT: [0.1],
-        #Config.HARMONIC_STEPSIZE: [1],
+        # Config.STEPSIZE_CONSTANT: [0.1],
+        # Config.HARMONIC_STEPSIZE: [1],
+    }
+
+    # TUNING ADP
+    tuning_focus["adp15"] = {
+        Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
+        Config.DISCOUNT_FACTOR: [1, 0.7, 0.5, 0.3, 0.1],
+        # Config.STEPSIZE_CONSTANT: [0.1],
+        # Config.HARMONIC_STEPSIZE: [1],
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: [
+            ((1, 6), (2, 6)),
+            ((0, 6), (1, 6)),
+        ],
+        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: [
+            (("A", 5), ("B", 15)),
+            (("A", 5), ("B", 10)),
+        ],
     }
 
     # TUNING CLASS PROPORTION
@@ -595,10 +593,9 @@ def main(test_labels, focus, N_PROCESSES, method):
     pprint(tuning_focus)
     tuning_params = tuning_focus[focus]
 
-
     if method == "-train":
         m = ConfigNetwork.METHOD_ADP_TRAIN
-        ITERATIONS = 1000
+        ITERATIONS = 500
     elif method == "-reactive":
         m = ConfigNetwork.METHOD_REACTIVE
         ITERATIONS = 51
@@ -607,33 +604,36 @@ def main(test_labels, focus, N_PROCESSES, method):
         ITERATIONS = 51
     else:
         m = ConfigNetwork.METHOD_ADP_TRAIN
-        ITERATIONS = 1000
-
+        ITERATIONS = 500
 
     print(f"ITERATIONS: {ITERATIONS:04} - METHOD: {m}")
 
     shared_settings = {
         ConfigNetwork.ITERATIONS: ITERATIONS,
         ConfigNetwork.TEST_LABEL: test_label,
-        ConfigNetwork.DISCOUNT_FACTOR: 1,
-        ConfigNetwork.FLEET_SIZE: 300,
+        ConfigNetwork.DISCOUNT_FACTOR: 0.1,
+        ConfigNetwork.FLEET_SIZE: 200,
         # DEMAND ############################################# #
         ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
-        ConfigNetwork.DEMAND_TOTAL_HOURS: 4,
-        ConfigNetwork.DEMAND_EARLIEST_HOUR: 5,
-        ConfigNetwork.OFFSET_TERMINATION_MIN: 60,
+        ConfigNetwork.DEMAND_TOTAL_HOURS: 6,
+        ConfigNetwork.DEMAND_EARLIEST_HOUR: 6,
+        ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
         ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-        ConfigNetwork.TIME_INCREMENT: 1,
+        ConfigNetwork.TIME_INCREMENT: 5,
         ConfigNetwork.DEMAND_SAMPLING: True,
         # Service quality
         ConfigNetwork.MATCHING_DELAY: 15,
         ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
         ConfigNetwork.SQ_GUARANTEE: False,
-        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 2.4)),
+        # ConfigNetwork.TRIP_REJECTION_PENALTY: {
+        #     "A": 4.8,
+        #     "B": 2.4,
+        # },
+        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 0)),
         ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
         ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
-        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 5)),
-        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 10)),
+        ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 0)),
+        ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 15)),
         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
         # ADP EXECUTION ###################################### #
         ConfigNetwork.METHOD: m,
@@ -656,6 +656,13 @@ def main(test_labels, focus, N_PROCESSES, method):
         # is False
         ConfigNetwork.PENALIZE_REBALANCE: True,
         ConfigNetwork.REACHABLE_NEIGHBORS: False,
+        ConfigNetwork.N_CLOSEST_NEIGHBORS: (
+            (1, 6),
+            (2, 6),
+            # (3, 3),
+            # (3, 4),
+        ),
+        ConfigNetwork.CENTROID_LEVEL: 1,
         # FLEET ############################################## #
         # Car operation
         ConfigNetwork.MAX_CARS_LINK: 5,
@@ -675,7 +682,6 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.USE_SHORT_PATH: False,
         ConfigNetwork.SAVE_TRIP_DATA: False,
         ConfigNetwork.SAVE_FLEET_DATA: False,
-
         # Load 1st class probabilities dictionary
         ConfigNetwork.USE_CLASS_PROB: False,
     }
@@ -798,9 +804,9 @@ def save_outcome_tuning(test_label, exp_list):
         d["sample"].append(config_exp.label_sample)
         d["discount_factor"].append(config_exp.discount_factor)
         d["stepsize_constant"].append(config_exp.stepsize_constant)
-
-
-        for k, v in sorted(config_exp.sl_config_dict.items(), key=lambda kv: kv[0]):
+        for k, v in sorted(
+            config_exp.sl_config_dict.items(), key=lambda kv: kv[0]
+        ):
             cols.add(k)
             d[k].append(v)
 
@@ -821,7 +827,7 @@ def save_outcome_tuning(test_label, exp_list):
     df_outcome.to_csv(
         f"{test_label}_{config_exp.method.replace('/','_')}_outcome_tuning.csv",
         columns=sorted_columns,
-        index=True
+        index=True,
     )
     # except Exception as e:
     #     print(
@@ -831,10 +837,11 @@ def save_outcome_tuning(test_label, exp_list):
 
 if __name__ == "__main__":
 
-    print({k:v for k,v in enumerate(sys.argv)})
+    print({k: v for k, v in enumerate(sys.argv)})
 
     try:
         test_label = sys.argv[1]
+        print("TEST LABEL:", test_label)
     except:
         test_label = "TUNE"
 
@@ -842,19 +849,19 @@ if __name__ == "__main__":
         N_PROCESSES = int(sys.argv[2])
     except:
         N_PROCESSES = 2
-    
+
     try:
         method = sys.argv[3]
-        print("METHOD:", focus)
+        print("METHOD:", method)
     except:
-        print("Include tuning focus [sensitivity, sl, adp]")
-        
+        print("Include method [-train, -test, -myopic, -reactive]")
+
     try:
         focus = sys.argv[4:]
         print("FOCUS:", focus)
     except:
         print("Include tuning focus [sensitivity, sl, adp]")
-    
+
     exp_list = []
     for f in focus:
         print(f"---> Focus: {f}")

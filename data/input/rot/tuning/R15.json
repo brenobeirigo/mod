@@ -1,0 +1,674 @@
+{
+    "shared_settings": {
+        "ACTIVATE_THOMPSON": false,
+        "ADP_IGNORE_ZEROS": true,
+        "ALLOW_USER_BACKLOGGING": false,
+        "CAR_SIZE_TABU": 0,
+        "CENTROID_LEVEL": 1,
+        "DEMAND_EARLIEST_HOUR": 6,
+        "DEMAND_RESIZE_FACTOR": 0.1,
+        "DEMAND_SAMPLING": true,
+        "DEMAND_TOTAL_HOURS": 6,
+        "DEPOT_SHARE": 0.01,
+        "DISCOUNT_FACTOR": 0.1,
+        "FAV_DEPOT_LEVEL": null,
+        "FAV_FLEET_SIZE": 0,
+        "FLEET_SIZE": 200,
+        "FLEET_START": "FLEET_START_RANDOM",
+        "IDLE_ANNEALING": null,
+        "ITERATIONS": 500,
+        "LINEARIZE_INTEGER_MODEL": false,
+        "MATCHING_DELAY": 15,
+        "MAX_CARS_LINK": 5,
+        "MAX_CONTRACT_DURATION": true,
+        "MAX_IDLE_STEP_COUNT": null,
+        "MAX_TARGETS": 6,
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                1,
+                6
+            ],
+            [
+                2,
+                6
+            ]
+        ],
+        "OFFSET_REPOSITIONING_MIN": 30,
+        "OFFSET_TERMINATION_MIN": 30,
+        "PARKING_RATE_MIN": 0,
+        "PENALIZE_REBALANCE": false,
+        "REACHABLE_NEIGHBORS": false,
+        "SAVE_FLEET_DATA": false,
+        "SAVE_PROGRESS": 10,
+        "SAVE_TRIP_DATA": false,
+        "SEPARATE_FLEETS": false,
+        "SQ_GUARANTEE": false,
+        "TEST_LABEL": "TEST",
+        "TIME_INCREMENT": 5,
+        "TIME_MAX_CARS_LINK": 5,
+        "TRIP_BASE_FARE": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                2.4
+            ]
+        ],
+        "TRIP_CLASS_PROPORTION": [
+            [
+                "A",
+                0
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_DISTANCE_RATE_KM": [
+            [
+                "A",
+                1
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                15
+            ]
+        ],
+        "TRIP_REJECTION_PENALTY": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "TRIP_TOLERANCE_DELAY_MIN": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "USE_ARTIFICIAL_DUALS": false,
+        "USE_CLASS_PROB": false,
+        "USE_SHORT_PATH": false
+    },
+    "tuning_settings": {
+        "DISCOUNT_FACTOR": [
+            1,
+            0.7,
+            0.5,
+            0.3,
+            0.1
+        ],
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                [
+                    1,
+                    6
+                ],
+                [
+                    2,
+                    6
+                ]
+            ],
+            [
+                [
+                    0,
+                    6
+                ],
+                [
+                    1,
+                    6
+                ]
+            ]
+        ],
+        "STEPSIZE_RULE": [
+            "MCCL"
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    15
+                ]
+            ],
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    10
+                ]
+            ]
+        ]
+    }
+}{
+    "shared_settings": {
+        "ACTIVATE_THOMPSON": false,
+        "ADP_IGNORE_ZEROS": true,
+        "ALLOW_USER_BACKLOGGING": false,
+        "CAR_SIZE_TABU": 0,
+        "CENTROID_LEVEL": 1,
+        "DEMAND_EARLIEST_HOUR": 6,
+        "DEMAND_RESIZE_FACTOR": 0.1,
+        "DEMAND_SAMPLING": true,
+        "DEMAND_TOTAL_HOURS": 6,
+        "DEPOT_SHARE": 0.01,
+        "DISCOUNT_FACTOR": 0.1,
+        "FAV_DEPOT_LEVEL": null,
+        "FAV_FLEET_SIZE": 0,
+        "FLEET_SIZE": 200,
+        "FLEET_START": "FLEET_START_RANDOM",
+        "IDLE_ANNEALING": null,
+        "ITERATIONS": 500,
+        "LINEARIZE_INTEGER_MODEL": false,
+        "MATCHING_DELAY": 15,
+        "MAX_CARS_LINK": 5,
+        "MAX_CONTRACT_DURATION": true,
+        "MAX_IDLE_STEP_COUNT": null,
+        "MAX_TARGETS": 6,
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                1,
+                6
+            ],
+            [
+                2,
+                6
+            ]
+        ],
+        "OFFSET_REPOSITIONING_MIN": 30,
+        "OFFSET_TERMINATION_MIN": 30,
+        "PARKING_RATE_MIN": 0,
+        "PENALIZE_REBALANCE": false,
+        "REACHABLE_NEIGHBORS": false,
+        "SAVE_FLEET_DATA": false,
+        "SAVE_PROGRESS": 10,
+        "SAVE_TRIP_DATA": false,
+        "SEPARATE_FLEETS": false,
+        "SQ_GUARANTEE": false,
+        "TEST_LABEL": "TEST",
+        "TIME_INCREMENT": 5,
+        "TIME_MAX_CARS_LINK": 5,
+        "TRIP_BASE_FARE": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                2.4
+            ]
+        ],
+        "TRIP_CLASS_PROPORTION": [
+            [
+                "A",
+                0
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_DISTANCE_RATE_KM": [
+            [
+                "A",
+                1
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                15
+            ]
+        ],
+        "TRIP_REJECTION_PENALTY": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "TRIP_TOLERANCE_DELAY_MIN": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "USE_ARTIFICIAL_DUALS": false,
+        "USE_CLASS_PROB": false,
+        "USE_SHORT_PATH": false
+    },
+    "tuning_settings": {
+        "DISCOUNT_FACTOR": [
+            1,
+            0.7,
+            0.5,
+            0.3,
+            0.1
+        ],
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                [
+                    1,
+                    6
+                ],
+                [
+                    2,
+                    6
+                ]
+            ],
+            [
+                [
+                    0,
+                    6
+                ],
+                [
+                    1,
+                    6
+                ]
+            ]
+        ],
+        "STEPSIZE_RULE": [
+            "MCCL"
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    15
+                ]
+            ],
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    10
+                ]
+            ]
+        ]
+    }
+}{
+    "shared_settings": {
+        "ACTIVATE_THOMPSON": false,
+        "ADP_IGNORE_ZEROS": true,
+        "ALLOW_USER_BACKLOGGING": false,
+        "CAR_SIZE_TABU": 0,
+        "CENTROID_LEVEL": 1,
+        "DEMAND_EARLIEST_HOUR": 6,
+        "DEMAND_RESIZE_FACTOR": 0.1,
+        "DEMAND_SAMPLING": true,
+        "DEMAND_TOTAL_HOURS": 6,
+        "DEPOT_SHARE": 0.01,
+        "DISCOUNT_FACTOR": 0.1,
+        "FAV_DEPOT_LEVEL": null,
+        "FAV_FLEET_SIZE": 0,
+        "FLEET_SIZE": 200,
+        "FLEET_START": "FLEET_START_RANDOM",
+        "IDLE_ANNEALING": null,
+        "ITERATIONS": 500,
+        "LINEARIZE_INTEGER_MODEL": false,
+        "MATCHING_DELAY": 15,
+        "MAX_CARS_LINK": 5,
+        "MAX_CONTRACT_DURATION": true,
+        "MAX_IDLE_STEP_COUNT": null,
+        "MAX_TARGETS": 6,
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                1,
+                6
+            ],
+            [
+                2,
+                6
+            ]
+        ],
+        "OFFSET_REPOSITIONING_MIN": 30,
+        "OFFSET_TERMINATION_MIN": 30,
+        "PARKING_RATE_MIN": 0,
+        "PENALIZE_REBALANCE": false,
+        "REACHABLE_NEIGHBORS": false,
+        "SAVE_FLEET_DATA": false,
+        "SAVE_PROGRESS": 10,
+        "SAVE_TRIP_DATA": false,
+        "SEPARATE_FLEETS": false,
+        "SQ_GUARANTEE": false,
+        "TEST_LABEL": "TEST",
+        "TIME_INCREMENT": 5,
+        "TIME_MAX_CARS_LINK": 5,
+        "TRIP_BASE_FARE": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                2.4
+            ]
+        ],
+        "TRIP_CLASS_PROPORTION": [
+            [
+                "A",
+                0
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_DISTANCE_RATE_KM": [
+            [
+                "A",
+                1
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                15
+            ]
+        ],
+        "TRIP_REJECTION_PENALTY": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "TRIP_TOLERANCE_DELAY_MIN": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "USE_ARTIFICIAL_DUALS": false,
+        "USE_CLASS_PROB": false,
+        "USE_SHORT_PATH": false
+    },
+    "tuning_settings": {
+        "DISCOUNT_FACTOR": [
+            1,
+            0.7,
+            0.5,
+            0.3,
+            0.1
+        ],
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                [
+                    1,
+                    6
+                ],
+                [
+                    2,
+                    6
+                ]
+            ],
+            [
+                [
+                    0,
+                    6
+                ],
+                [
+                    1,
+                    6
+                ]
+            ]
+        ],
+        "STEPSIZE_RULE": [
+            "MCCL"
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    15
+                ]
+            ],
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    10
+                ]
+            ]
+        ]
+    }
+}{
+    "shared_settings": {
+        "ACTIVATE_THOMPSON": false,
+        "ADP_IGNORE_ZEROS": true,
+        "ALLOW_USER_BACKLOGGING": false,
+        "CAR_SIZE_TABU": 0,
+        "CENTROID_LEVEL": 1,
+        "DEMAND_EARLIEST_HOUR": 6,
+        "DEMAND_RESIZE_FACTOR": 0.1,
+        "DEMAND_SAMPLING": true,
+        "DEMAND_TOTAL_HOURS": 6,
+        "DEPOT_SHARE": 0.01,
+        "DISCOUNT_FACTOR": 0.1,
+        "FAV_DEPOT_LEVEL": null,
+        "FAV_FLEET_SIZE": 0,
+        "FLEET_SIZE": 200,
+        "FLEET_START": "FLEET_START_RANDOM",
+        "IDLE_ANNEALING": null,
+        "ITERATIONS": 500,
+        "LINEARIZE_INTEGER_MODEL": false,
+        "MATCHING_DELAY": 15,
+        "MAX_CARS_LINK": 5,
+        "MAX_CONTRACT_DURATION": true,
+        "MAX_IDLE_STEP_COUNT": null,
+        "MAX_TARGETS": 6,
+        "METHOD": "adp/train",
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                1,
+                6
+            ],
+            [
+                2,
+                6
+            ]
+        ],
+        "OFFSET_REPOSITIONING_MIN": 30,
+        "OFFSET_TERMINATION_MIN": 30,
+        "PARKING_RATE_MIN": 0,
+        "PENALIZE_REBALANCE": false,
+        "REACHABLE_NEIGHBORS": false,
+        "SAVE_FLEET_DATA": false,
+        "SAVE_PROGRESS": 10,
+        "SAVE_TRIP_DATA": false,
+        "SEPARATE_FLEETS": false,
+        "SQ_GUARANTEE": false,
+        "TEST_LABEL": "R15",
+        "TIME_INCREMENT": 5,
+        "TIME_MAX_CARS_LINK": 5,
+        "TRIP_BASE_FARE": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                2.4
+            ]
+        ],
+        "TRIP_CLASS_PROPORTION": [
+            [
+                "A",
+                0
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_DISTANCE_RATE_KM": [
+            [
+                "A",
+                1
+            ],
+            [
+                "B",
+                1
+            ]
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                15
+            ]
+        ],
+        "TRIP_REJECTION_PENALTY": [
+            [
+                "A",
+                4.8
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "TRIP_TOLERANCE_DELAY_MIN": [
+            [
+                "A",
+                5
+            ],
+            [
+                "B",
+                0
+            ]
+        ],
+        "USE_ARTIFICIAL_DUALS": false,
+        "USE_CLASS_PROB": false,
+        "USE_SHORT_PATH": false
+    },
+    "tuning_settings": {
+        "DISCOUNT_FACTOR": [
+            1,
+            0.7,
+            0.5,
+            0.3,
+            0.1
+        ],
+        "N_CLOSEST_NEIGHBORS": [
+            [
+                [
+                    1,
+                    6
+                ],
+                [
+                    2,
+                    6
+                ]
+            ],
+            [
+                [
+                    0,
+                    6
+                ],
+                [
+                    1,
+                    6
+                ]
+            ]
+        ],
+        "STEPSIZE_RULE": [
+            "MCCL"
+        ],
+        "TRIP_MAX_PICKUP_DELAY": [
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    15
+                ]
+            ],
+            [
+                [
+                    "A",
+                    5
+                ],
+                [
+                    "B",
+                    10
+                ]
+            ]
+        ]
+    }
+}

@@ -570,16 +570,23 @@ class AmodNetworkHired(AmodNetwork):
 
         except:
 
-            # If FAVs start from region centers
-            if self.config.fav_depot_level:
+            # If FAVs start from region centers (highest level is chosen)
+            if self.config.fav_depot_level or self.config.centroid_level > 0:
+
+                level = max(
+                    (
+                        0
+                        if self.config.fav_depot_level is None
+                        else self.config.fav_depot_level
+                    ),
+                    self.config.centroid_level,
+                )
 
                 # Node id list
                 N = list(
                     set(
                         [
-                            self.points[p].id_level(
-                                self.config.fav_depot_level
-                            )
+                            self.points[p].id_level(level)
                             for p in range(self.config.node_count)
                         ]
                     )

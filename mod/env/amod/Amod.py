@@ -581,6 +581,13 @@ class Amod:
 
         Car.count = 0
 
+        if self.config.centroid_level > 0:
+            # Transform origin points in centroids
+            new_origins = [
+                self.points[p.id_level(self.config.centroid_level)]
+                for p in new_origins
+            ]
+
         self.cars = [
             Car(
                 point,

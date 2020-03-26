@@ -42,7 +42,12 @@ class AmodNetwork(Amod):
         self.decision_dict = None
 
         # Defining map points with aggregation_levels
-        self.points, distance_levels, level_count, points_level = nw.query_point_list(
+        (
+            self.points,
+            distance_levels,
+            level_count,
+            points_level,
+        ) = nw.query_point_list(
             step=self.config.step_seconds,
             projection=self.config.projection,
             level_dist_list=self.config.level_dist_list,
@@ -128,6 +133,19 @@ class AmodNetwork(Amod):
                 n_neighbors=n,
             )
             targets.update(step_targets)
+
+        # print(
+        #     [
+        #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        #         for d in targets
+        #     ]
+        # )
+
+        # targets = [
+        #     d
+        #     for d in targets
+        #     if self.get_travel_time(nw.get_distance(center, d)) <= 5
+        # ]
         return targets
 
     # @functools.lru_cache(maxsize=None)

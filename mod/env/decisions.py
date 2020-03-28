@@ -186,7 +186,7 @@ def get_virtual_decisions(trips):
     return decisions
 
 
-def get_decisions(env, trips, min_battery_level=None):
+def get_decisions(env, trips):
     """Get list of decision tuples.
 
     Parameters
@@ -195,9 +195,6 @@ def get_decisions(env, trips, min_battery_level=None):
         Amod environment
     trips : list
         Trips placed in the current time step
-    min_battery_level : int, optional
-        Create recharging decisions with car battery level is lower, by
-        default None
 
     Returns
     -------
@@ -280,7 +277,7 @@ def get_decisions(env, trips, min_battery_level=None):
             else:
                 if isinstance(car, HiredCar):
                     # Car can always rebalance to its home station.
-                    # Makes sense when parking costs are cheaper at 
+                    # Makes sense when parking costs are cheaper at
                     # home station.
                     neighbors.add(car.depot.id)
 
@@ -315,7 +312,10 @@ def get_decisions(env, trips, min_battery_level=None):
             decisions.update(d_rebalance)
 
         # Recharge ################################################### #
-        if min_battery_level and car.battery_level < min_battery_level:
+        if (
+            env.config.enable_recharging
+            and car.battery_level < env.config.battery_levels
+        ):
             decisions.add(recharge_decision(car))
 
         for trip in trips:

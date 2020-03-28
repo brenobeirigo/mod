@@ -554,11 +554,8 @@ def service_trips(
     env,
     trips,
     time_step,
-    charge=True,
     iteration=None,
     log_mip=False,
-    universal_service=False,
-    use_artificial_duals=True,
     log_times=True,
     car_type_hide=None,
     reactive=False,
@@ -575,17 +572,11 @@ def service_trips(
         List of trips
     time_step : int
         Time step after receiving trips
-    charge : bool, optional
-        Apply the charging constraint, by default True
     log_iteration : int, optional
         Iteration number tp log
     sq_guarantee : bool, optional
         If True, users are serviced accoring to their class
-    universal_service : bool, optional
-        If True, All users must be serviced 
-    use_artificial_duals : bool, optional
-        If True, insert arficial dual in all region centers associated
-        to the rejected trips.
+    
 
     Returns
     -------
@@ -742,9 +733,7 @@ def service_trips(
 
         # Trip, stay, and rebalance decisions
         decision_cars, decision_return, decision_class = du.get_decisions(
-            env,
-            trips,
-            # max_battery_level=env.config.battery_levels,
+            env, trips
         )
 
         # virtual_decisions = du.get_virtual_decisions(env, trips)
@@ -868,7 +857,10 @@ def service_trips(
 
         # Trip flow conservation
         flow_trips = trip_flow_constrs(
-            m, x_var, attribute_trips_dict, universal_service=universal_service
+            m,
+            x_var,
+            attribute_trips_dict,
+            universal_service=env.config.universal_service,
         )
 
         # Service quality constraints
@@ -879,7 +871,7 @@ def service_trips(
 
         # Car is obliged to charged if battery reaches minimum level
         # Car flow conservation
-        if charge:
+        if env.config.enable_recharging:
             max_battery = env.config.battery_levels
             car_recharge_dict = recharge_constrs(
                 m, x_var, env.attribute_cars_dict, max_battery
@@ -1000,7 +992,7 @@ def service_trips(
         t_realize_decision = time.time() - t1_realize_decision
 
         # Add artificial value functions to each lost demand
-        if use_artificial_duals:
+        if env.config.use_artificial_duals:
 
             t1_artificial_duals = time.time()
             # realize_decision modifies attribute_trips_dict leaving

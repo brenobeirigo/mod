@@ -6,7 +6,6 @@ import random
 from collections import defaultdict
 from pprint import pprint
 import numpy as np
-import json
 import itertools
 
 # Adding project folder to import modules
@@ -26,33 +25,16 @@ from mod.env.config import ConfigNetwork
 import mod.env.config as conf
 
 
-from mod.env.car import Car, HiredCar
+from mod.env.car import Car
 from mod.env.trip import get_trip_count_step, get_trips_random_ods
 import mod.env.trip as tp
 import mod.env.network as nw
 
 from mod.env.simulator import PlotTrack
-from mod.env.trip import ClassedTrip
 
 
 # Reproducibility of the experiments
 random.seed(1)
-
-
-def move(arrival_t, current_t, lin, next_lin):
-    # Subtract
-    base_lin = np.zeros(len(lin))
-    ones = np.ones(len(lin) - current_t)
-    sub_range_ones = np.arange(current_t, len(lin))
-    np.put(base_lin, sub_range_ones, ones)
-    lin -= base_lin
-
-    # Add
-    base_next_lin = np.zeros(len(next_lin))
-    ones = np.ones(len(next_lin) - arrival_t)
-    add_range_ones = np.arange(arrival_t, len(lin))
-    np.put(base_next_lin, add_range_ones, ones)
-    next_lin += base_next_lin
 
 
 def get_sim_config(update_dict):
@@ -310,36 +292,13 @@ def get_sim_config(update_dict):
     return config
 
 
-def hire_cars_centers(amod, contract_duration_h, step, rc_level=2):
-    # Hired fleet is appearing in trip origins
-
-    hired_cars = [
-        HiredCar(
-            amod.points[c],
-            amod.config.min_contract_duration,
-            current_step=step,
-            current_arrival=step * amod.config.time_increment,
-            duration_level=amod.config.contract_duration_level,
-            # battery_level_miles_max=amod.battery_size_distances,
-        )
-        for c in amod.points_level[rc_level]
-        # if random.random() < 1
-    ]
-
-    return hired_cars
-
-
 def alg_adp(
     plot_track,
     config,
     # PLOT ########################################################### #
     step_delay=PlotTrack.STEP_DELAY,
-    enable_charging=False,
     # LOG ############################################################ #
     skip_steps=1,
-    # HIRING ######################################################### #
-    sq_guarantee=False,
-    universal_service=False,
     # TRIPS ########################################################## #
     classed_trips=True,
     # Create service rate and fleet status plots for each iteration
@@ -349,24 +308,7 @@ def alg_adp(
     save_df=True,
     # Save total reward, total service rate, and weights after iteration
     save_overall_stats=True,
-    log_config_dict={
-        # la.LOG_DUALS: True,
-        # la.LOG_FLEET_ACTIVITY: True,
-        # la.LOG_VALUE_UPDATE: True,
-        # la.LOG_COSTS: True,
-        # la.LOG_SOLUTIONS: True,
-        # la.LOG_WEIGHTS: True,
-        # la.LOG_ALL: True,
-        # la.LOG_LEVEL: la.DEBUG,
-        # la.LEVEL_FILE: la.DEBUG,
-        # la.LEVEL_CONSOLE: la.INFO,
-        # la.FORMATTER_FILE: la.FORMATTER_TERSE,
-    },
-    log_mip=False,
-    # If True, saves time details in file times.csv
-    log_times=False,
-    linearize_integer_model=False,
-    use_artificial_duals=False,
+    log_config_dict=None,
 ):
     # Set tabu size (vehicles cannot visit nodes in tabu)
     Car.SIZE_TABU = config.car_size_tabu
@@ -601,7 +543,7 @@ def alg_adp(
             # available_hired)
             t1 = time.time()
             # If policy is reactive, rebalancing cars can be rerouted
-            # from the intermediate nodes in along the shortest path
+            # from the intermediate nodes along the shortest path
             # to the rebalancing target.
             amod.update_fleet_status(
                 step + 1, use_rebalancing_cars=amod.config.policy_reactive
@@ -655,19 +597,10 @@ def alg_adp(
                 trips,
                 # Service step (+1 trip placement step)
                 step + 1,
-                # Guarantee lowest pickup delay for a share of users
-                # sq_guarantee=sq_guarantee,
-                # All users are picked up
-                universal_service=universal_service,
-                # Allow recharging
-                charge=enable_charging,
                 # # Save mip .lp and .log of iteration n
                 iteration=n,
-                log_mip=log_mip,
-                # Use hierarchical aggregation to update values
-                use_artificial_duals=use_artificial_duals,
-                # linearize_integer_model=linearize_integer_model,
-                log_times=log_times,
+                log_mip=log_config_dict[la.LOG_MIP],
+                log_times=log_config_dict[la.LOG_TIMES],
                 car_type_hide=Car.TYPE_FLEET,
             )
 
@@ -682,20 +615,11 @@ def alg_adp(
                     rejected,
                     # Service step (+1 trip placement step)
                     step + 1,
-                    # Guarantee lowest pickup delay for a share of users
-                    # sq_guarantee=sq_guarantee,
-                    # All users are picked up
-                    universal_service=universal_service,
-                    # Allow recharging
-                    charge=enable_charging,
-                    # # Save mip .lp and .log of iteration n
+                    # Save mip .lp and .log of iteration n
                     iteration=n,
-                    log_mip=log_mip,
-                    # Use hierarchical aggregation to update values
-                    use_artificial_duals=use_artificial_duals,
-                    # linearize_integer_model=linearize_integer_model,
-                    log_times=log_times,
                     car_type_hide=Car.TYPE_FLEET,
+                    log_times=log_config_dict[la.LOG_TIMES],
+                    log_mip=log_config_dict[la.LOG_MIP],
                 )
 
                 revenue += (revenue_fav,)
@@ -742,19 +666,10 @@ def alg_adp(
                     rejected,
                     # Service step (+1 trip placement step)
                     step + 1,
-                    # Guarantee lowest pickup delay for a share of users
-                    # sq_guarantee=sq_guarantee,
-                    # All users are picked up
-                    universal_service=universal_service,
-                    # Allow recharging
-                    charge=enable_charging,
                     # # Save mip .lp and .log of iteration n
                     iteration=n,
-                    log_mip=log_mip,
-                    # Use hierarchical aggregation to update values
-                    use_artificial_duals=use_artificial_duals,
-                    # linearize_integer_model=linearize_integer_model,
-                    log_times=log_times,
+                    log_mip=log_config_dict[la.LOG_MIP],
+                    log_times=log_config_dict[la.LOG_TIMES],
                     car_type_hide=Car.TYPE_FLEET,
                     reactive=True,
                 )
@@ -777,7 +692,7 @@ def alg_adp(
             t_log += time.time() - t1
 
             t1 = time.time()
-            if save_plots or save_df:
+            if log_config_dict[la.SAVE_PLOTS] or log_config_dict[la.SAVE_DF]:
                 logger.debug("  - Computing fleet status...")
                 # Compute fleet status after making decision in step - 1
                 # What each car is doing when trips are arriving?
@@ -846,8 +761,8 @@ def alg_adp(
             step_log,
             it_step_trip_list,
             time.time() - start_time,
-            save_df=save_df,
-            plots=save_plots,
+            save_df=log_config_dict[la.SAVE_DF],
+            plots=log_config_dict[la.SAVE_PLOTS],
             save_learning=amod.config.save_progress,
             save_overall_stats=save_overall_stats,
         )
@@ -859,12 +774,21 @@ def alg_adp(
         logger.info(
             f"####### "
             f"[Episode {n+1:>5}] "
-            f"- {episode_log.last_episode_stats()} serviced={step_log.serviced}, rejected={step_log.rejected}, total={step_log.total} t(episode={t_epi:.2f}, t_log={t_log:.2f}, t_mip={t_mip:.2f}, t_save_plots={t_save_plots:.2f}, t_up={t_update:.2f}, , t_add_record={t_add_record:.2f})"
+            f"- {episode_log.last_episode_stats()} "
+            f"serviced={step_log.serviced}, "
+            f"rejected={step_log.rejected}, "
+            f"total={step_log.total} "
+            f"t(episode={t_epi:.2f}, "
+            f"t_log={t_log:.2f}, "
+            f"t_mip={t_mip:.2f}, "
+            f"t_save_plots={t_save_plots:.2f}, "
+            f"t_up={t_update:.2f}, "
+            f"t_add_record={t_add_record:.2f})"
             f"#######"
         )
 
         # If True, saves time details in file times.csv
-        if log_times:
+        if log_config_dict[la.LOG_TIMES]:
             print("weighted values:", len(amod.adp.weighted_values))
             # print("get_state:", amod.adp.get_state.cache_info())
             # print("preview_decision:", amod.preview_decision.cache_info())
@@ -897,7 +821,6 @@ if __name__ == "__main__":
     except:
         test_label = "TESTDE"
 
-    hire = "-hire" in args
     backlog = "-backlog" in args
 
     # Enable logs
@@ -987,12 +910,13 @@ if __name__ == "__main__":
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
                 ConfigNetwork.FLEET_SIZE: fleet_size,
                 # DEMAND ############################################# #
+                ConfigNetwork.UNIVERSAL_SERVICE: False,
                 ConfigNetwork.DEMAND_RESIZE_FACTOR: 0.1,
                 ConfigNetwork.DEMAND_TOTAL_HOURS: 6,
                 ConfigNetwork.DEMAND_EARLIEST_HOUR: 6,
                 ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-                ConfigNetwork.TIME_INCREMENT: 1,
+                ConfigNetwork.TIME_INCREMENT: 5,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
@@ -1043,11 +967,15 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
+                # Functions
                 ConfigNetwork.DEPOT_SHARE: 0.01,
                 ConfigNetwork.FAV_DEPOT_LEVEL: None,
                 ConfigNetwork.FAV_FLEET_SIZE: fav_fleet_size,
                 ConfigNetwork.SEPARATE_FLEETS: False,
                 ConfigNetwork.MAX_CONTRACT_DURATION: True,
+                # mean, std, clip_a, clip_b
+                # ConfigNetwork.FAV_EARLIEST_FEATURES = (8, 1, 5, 9)
+                # ConfigNetwork.FAV_AVAILABILITY_FEATURES = (2, 1, 1, 4)
                 # ConfigNetwork.PARKING_RATE_MIN = 1.50/60 # 1.50/h
                 # ConfigNetwork.PARKING_RATE_MIN = 0.1*20/60
                 # ,  # = rebalancing 1 min
@@ -1058,6 +986,7 @@ if __name__ == "__main__":
                 ConfigNetwork.SAVE_FLEET_DATA: log_fleet,
                 # Load 1st class probabilities dictionary
                 ConfigNetwork.USE_CLASS_PROB: False,
+                ConfigNetwork.ENABLE_RECHARGING: False,
             }
         )
 
@@ -1069,6 +998,10 @@ if __name__ == "__main__":
         la.LOG_COSTS: True,
         la.LOG_SOLUTIONS: False,
         la.LOG_WEIGHTS: False,
+        la.LOG_MIP: log_mip,
+        la.LOG_TIMES: log_times,
+        la.SAVE_PLOTS: save_plots,
+        la.SAVE_DF: save_df,
         la.LOG_ALL: log_adp,
         la.LOG_LEVEL: (log_level if not log_adp else la.DEBUG),
         la.LEVEL_FILE: la.DEBUG,
@@ -1078,15 +1011,4 @@ if __name__ == "__main__":
 
     print("PROGRESS", start_config.save_progress)
 
-    alg_adp(
-        None,
-        start_config,
-        sq_guarantee=hire,
-        universal_service=False,
-        log_config_dict=log_config,
-        log_mip=log_mip,
-        log_times=log_times,
-        save_plots=save_plots,
-        save_df=save_df,
-        use_artificial_duals=start_config.use_artificial_duals,
-    )
+    alg_adp(None, start_config, log_config_dict=log_config)

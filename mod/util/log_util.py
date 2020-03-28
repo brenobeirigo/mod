@@ -33,6 +33,12 @@ LEVEL_CONSOLE = "level_console"
 LOG_LEVEL = "log_level"
 FORMATTER_FILE = "formatter_file"
 
+LOG_MIP = "log_mip"
+# If True, saves time details in file times.csv
+LOG_TIMES = "log_times"
+SAVE_PLOTS = "save_plots"
+SAVE_DF = "save_df"
+
 # Save all logs for all iterations
 log_dict = dict()
 
@@ -492,7 +498,12 @@ class LogAux:
         LOG_SOLUTIONS=True,
         LOG_ATTRIBUTE_CARS=True,
         log_all=False,
+        log_mip=False,
+        log_times=False,
+        save_plots=False,
+        save_df=False,
     ):
+
         self.LOG_SOLUTIONS = LOG_SOLUTIONS and log_all
         self.LOG_WEIGHTS = LOG_WEIGHTS and log_all
         self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE and log_all
@@ -525,6 +536,10 @@ def get_logger(
     LOG_SOLUTIONS=True,
     LOG_ATTRIBUTE_CARS=True,
     log_all=False,
+    log_mip=False,
+    log_times=False,
+    save_plots=False,
+    save_df=False,
 ):
     try:
         return log_dict[name].logger
@@ -545,8 +560,11 @@ def get_logger(
             LOG_SOLUTIONS=LOG_SOLUTIONS,
             LOG_ATTRIBUTE_CARS=LOG_ATTRIBUTE_CARS,
             log_all=log_all,
+            log_mip=log_mip,
+            log_times=log_times,
+            save_plots=save_plots,
+            save_df=save_df,
         )
         log_dict[name] = logger
 
         return log_dict[name].logger
-

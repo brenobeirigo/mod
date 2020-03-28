@@ -192,6 +192,7 @@ class Config:
     DESTINATION_CENTERS = "DESTINATION_CENTERS"
 
     # Recharging
+    ENABLE_RECHARGING = "ENABLE_RECHARGING"
     RECHARGE_THRESHOLD = "RECHARGE_THRESHOLD"
     RECHARGE_BASE_FARE = "RECHARGE_BASE_FARE"
     RECHARGE_COST_DISTANCE = "RECHARGE_COST_DISTANCE"
@@ -288,6 +289,7 @@ class Config:
     ALLOW_USER_BACKLOGGING = "ALLOW_USER_BACKLOGGING"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
+    UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -378,6 +380,11 @@ class Config:
     ####################################################################
     ### Battery info ###################################################
     ####################################################################
+
+    @property
+    def enable_recharging(self):
+        """Battery charging will be considered in the ADP"""
+        return self.config[Config.ENABLE_RECHARGING]
 
     @property
     def recharge_base_fare(self):
@@ -664,6 +671,11 @@ class Config:
     ####################################################################
     ### Demand #########################################################
     ####################################################################
+
+    @property
+    def universal_service(self):
+        # True if all users must be picked up
+        return self.config[Config.UNIVERSAL_SERVICE]
 
     @property
     def demand_scenario(self):

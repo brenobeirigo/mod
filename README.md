@@ -5,6 +5,13 @@
 state = TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, CARORIGIN
 decision = ACTION, POSITION, BATTERY, CONTRACT_DURATION, CAR_TYPE, CAR_ORIGIN, ORIGIN, DESTINATION, SQ_CLASS, N_DECISIONS
 
+## Loading intances from files
+
+Indicate the instance file by setting variable:
+
+    instance_name = f"INSTANCE_PATH/exp_settings.json"
+
+
 ## Running the simulator
 
 The command below will start the simulation on the port 5002.

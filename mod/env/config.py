@@ -269,6 +269,7 @@ class Config:
     METHOD_ADP_TRAIN = "adp/train"
     METHOD_ADP_TEST = "adp/test"
     METHOD_RANDOM = "random"
+    METHOD_OPTIMAL = "optimal"
     METHOD_REACTIVE = "reactive"
     METHOD_MYOPIC = "myopic"
     METHOD = "METHOD"
@@ -599,6 +600,10 @@ class Config:
     @property
     def policy_reactive(self):
         return self.config[Config.METHOD] == Config.METHOD_REACTIVE
+
+    @property
+    def policy_optimal(self):
+        return self.config[Config.METHOD] == Config.METHOD_OPTIMAL
 
     @property
     def time_increment(self):

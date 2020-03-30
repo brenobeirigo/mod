@@ -12,7 +12,7 @@ import itertools
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.matching import service_trips
+from mod.env.matching import service_trips, optimal_rebalancing, play_decisions
 import mod.util.log_util as la
 
 from mod.env.amod.AmodNetworkHired import AmodNetworkHired
@@ -491,10 +491,17 @@ def alg_adp(
 
         start_time = time.time()
 
+        # Outstanding trips between steps (user backlogging)
         outstanding = list()
 
         # Trips from this iteration (make sure it can be used again)
         it_step_trip_list = deepcopy(step_trip_list)
+
+        # Get decisions for optimal rebalancing
+        if config.method == ConfigNetwork.METHOD_OPTIMAL:
+            it_decisions, it_step_trip_list = optimal_rebalancing(
+                amod, it_step_trip_list
+            )
 
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(it_step_trip_list):
@@ -590,19 +597,29 @@ def alg_adp(
             #     print(tt.info())
 
             t1 = time.time()
-            revenue, serviced, rejected = service_trips(
-                # Amod environment with configuration file
-                amod,
-                # Trips to be matched
-                trips,
-                # Service step (+1 trip placement step)
-                step + 1,
-                # # Save mip .lp and .log of iteration n
-                iteration=n,
-                log_mip=log_config_dict[la.LOG_MIP],
-                log_times=log_config_dict[la.LOG_TIMES],
-                car_type_hide=Car.TYPE_FLEET,
-            )
+            if config.method == ConfigNetwork.METHOD_OPTIMAL:
+                print(
+                    f"it={step:04} - Playing decisions {len(it_decisions[step])}"
+                )
+                revenue, serviced, rejected = play_decisions(
+                    amod, trips, step + 1, it_decisions[step]
+                )
+                print(revenue, len(serviced), len(rejected))
+
+            else:
+                revenue, serviced, rejected = service_trips(
+                    # Amod environment with configuration file
+                    amod,
+                    # Trips to be matched
+                    trips,
+                    # Service step (+1 trip placement step)
+                    step + 1,
+                    # # Save mip .lp and .log of iteration n
+                    iteration=n,
+                    log_mip=log_config_dict[la.LOG_MIP],
+                    log_times=log_config_dict[la.LOG_TIMES],
+                    car_type_hide=Car.TYPE_FLEET,
+                )
 
             if amod.config.separate_fleets:
                 # print(f"Trips: {len(trips)} - Revenue: {revenue} - Serviced: {len(serviced)} - Rejected: {len(rejected)}")
@@ -647,7 +664,7 @@ def alg_adp(
             if amod.config.policy_reactive and rejected:
                 logger.debug(
                     "####################"
-                    f"[{step:04}] REACTIVE REBALANCE "
+                    f"[{n:04}]-[{step:04}] REACTIVE REBALANCE "
                     "####################"
                 )
                 logger.debug("Rejected requests (rebalancing targets):")
@@ -721,9 +738,10 @@ def alg_adp(
             # print(step, "weighted value:", amod.adp.get_weighted_value.cache_info())
             # print(step, "preview decision:", amod.preview_decision.cache_info())
             # print(step, "preview decision:", amod.preview_move.cache_info())
-            # print("aaaaaaaaaaaaaaaaaaa")
             # amod.adp.get_weighted_value.cache_clear()
             # self.post_cost.cache_clear()
+
+            amod.print_fleet_stats()  # filter_status=[Car.ASSIGN])
 
         # LAST UPDATE (Closing the episode)
         amod.update_fleet_status(step + 1)
@@ -821,6 +839,12 @@ if __name__ == "__main__":
     except:
         test_label = "TESTDE"
 
+    try:
+        iterations = args.index("-n")
+        n_iterations = int(args[iterations + 1])
+    except:
+        n_iterations = 400
+
     backlog = "-backlog" in args
 
     # Enable logs
@@ -840,6 +864,7 @@ if __name__ == "__main__":
     policy_reactive = "-reactive" in args
     train = "-train" in args
     test = "-test" in args
+    optimal = "-optimal" in args
 
     if policy_random:
         print("RANDOM")
@@ -862,20 +887,20 @@ if __name__ == "__main__":
             save_progress_interval = 1
         print(f"Saving progress every {save_progress_interval} iteration.")
         method = ConfigNetwork.METHOD_ADP_TRAIN
+
     elif test:
         method = ConfigNetwork.METHOD_ADP_TEST
         save_progress_interval = None
         print("Progress will not be saved!")
+
+    elif optimal:
+        method = ConfigNetwork.METHOD_OPTIMAL
+        n_iterations = 1
+
     else:
         raise ("Error! Which method?")
 
     print("METHOD:", method)
-
-    try:
-        iterations = args.index("-n")
-        n_iterations = int(args[iterations + 1])
-    except:
-        n_iterations = 400
 
     try:
         fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
@@ -916,7 +941,7 @@ if __name__ == "__main__":
                 ConfigNetwork.DEMAND_EARLIEST_HOUR: 6,
                 ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-                ConfigNetwork.TIME_INCREMENT: 5,
+                ConfigNetwork.TIME_INCREMENT: 10,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
@@ -956,14 +981,14 @@ if __name__ == "__main__":
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                     (1, 6),
-                    (2, 6),
+                    # (2, 6),
                     # (3, 3),
                     # (3, 4),
                 ),
                 ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
-                ConfigNetwork.MAX_CARS_LINK: 5,
+                ConfigNetwork.MAX_CARS_LINK: None,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration

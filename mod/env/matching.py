@@ -252,7 +252,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
 
     print("\nSetting up contribution...")
     contribution = quicksum(
-        env.cost_func(du.simple_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
+        env.cost_func(du.convert_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
         for d, i, j, t in cars_ijt
     )
 
@@ -334,7 +334,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
             print(" - Decisions:")
             step_decisions = sorted(
                 [
-                    du.simple_decision(d[0], d[1], d[2], n=d[4])
+                    du.convert_decision(d[0], d[1], d[2], n=d[4])
                     for d in step_decisions
                 ],
                 key=lambda x: (x[du.ACTION], x[du.ORIGIN], x[du.DESTINATION]),

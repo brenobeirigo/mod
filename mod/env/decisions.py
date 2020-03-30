@@ -41,6 +41,27 @@ N_DECISIONS = 9
 DISCARD = "-"
 
 
+def convert_decision(action, o, d, n=DISCARD):
+
+    if o == d:
+        action = STAY_DECISION
+
+    user = "B" if action == TRIP_DECISION else DISCARD
+
+    return (
+        (action,)
+        + (o,)
+        + (1,)
+        + ("Inf",)
+        + (0,)
+        + (DISCARD,)
+        + (o,)
+        + (d,)
+        + (user,)
+        + (n,)
+    )
+
+
 def stay_decision(car):
     """Stay in current position"""
     return (

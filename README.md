@@ -93,7 +93,7 @@ Example to create a case study named "R" considering 300 vehicles. The method wi
 
 Hiring:
 
-    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots -hire
+    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots -FAV_FLEET_SIZE 200
 
 Batch file (`.bat`):
 

@@ -182,8 +182,7 @@ def main(test_labels, focus, N_PROCESSES, method):
 
     # BASE FARE SENSITIVITY ANALYSIS
     # Goal - Does your penalty mechanism really works? Or the same results
-    # can be achieved my manipulating the base fares?
-    # 1 - PAV baseline
+    # can be achieved my manipulating the base predicted_trips    # 1 - PAV baseline
     # 2 - PAV baseline + 2 x Base fares
     # 3 - PAV baseline + 3 x Base fares
     tuning_focus["sensitivity"] = {

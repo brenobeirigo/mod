@@ -422,6 +422,10 @@ def get_decisions(env, trips):
     return decisions, decisions_return, decision_class
 
 
+def shorten_decision(d):
+    return (label_dict[d[ACTION]], d[ORIGIN], d[DESTINATION], d[N_DECISIONS])
+
+
 def get_rebalancing_decisions(env, targets):
     """Stay and rebalancing decisions for the reactive rebalancing
     policy.

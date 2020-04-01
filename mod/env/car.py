@@ -406,7 +406,7 @@ class Car:
         self.trip.pk_step = self.step + pk_step
 
         # How long to pick up the user
-        self.trip.pk_delay = pk_duration
+        self.trip.pk_delay = self.trip.backlog_delay + pk_duration
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step

@@ -24,6 +24,8 @@ class Trip:
         self.picked_by = None
         self.dropoff_time = None
         self.pk_delay = None
+        # Accrue backlogging delay
+        self.backlog_delay = 0
 
     def attribute(self, level):
         return (self.o.id_level(level), self.d.id_level(level))
@@ -87,6 +89,7 @@ class ClassedTrip(Trip):
 
     def update_delay(self, period_min):
         self.max_delay_from_placement -= period_min
+        self.backlog_delay += period_min
         return self.max_delay_from_placement
 
     @property
@@ -104,6 +107,7 @@ class ClassedTrip(Trip):
             f"o={self.o.level_ids},"
             f"d={self.d.level_ids},"
             f"sq={self.sq_class},"
+            f"bklog={self.backlog_delay},"
             f"time={self.time:03}}}"
         )
 

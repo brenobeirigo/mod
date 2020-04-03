@@ -272,6 +272,8 @@ class Config:
     METHOD_OPTIMAL = "optimal"
     METHOD_REACTIVE = "reactive"
     METHOD_MYOPIC = "myopic"
+    METHOD_MPC = "mpc"
+    MPC_FORECASTING_HORIZON = "MPC_FORECASTING_HORIZON"
     METHOD = "METHOD"
     ITERATIONS = "ITERATIONS"
 
@@ -604,6 +606,14 @@ class Config:
     @property
     def policy_optimal(self):
         return self.config[Config.METHOD] == Config.METHOD_OPTIMAL
+
+    @property
+    def policy_mpc(self):
+        return self.config[Config.METHOD] == Config.METHOD_MPC
+
+    @property
+    def mpc_forecasting_horizon(self):
+        return self.config[Config.MPC_FORECASTING_HORIZON]
 
     @property
     def time_increment(self):

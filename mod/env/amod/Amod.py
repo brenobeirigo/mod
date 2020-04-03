@@ -517,21 +517,16 @@ class Amod:
         pprint(self.cars)
 
     def print_fleet_stats(self, filter_status=[]):
-        count_status = dict()
-
-        # Start all car statuses with 0
-        for s in Car.status_list:
-            count_status[s] = 0
+        fleet_stats_str = ""
 
         # Count how many car per status
         for c in self.cars:
             if filter_status and c.status not in filter_status:
                 continue
 
-            print(c.status_log())
-            count_status[c.status] += 1
+            fleet_stats_str += c.status_log() + "\n"
 
-        # pprint(dict(count_status))
+        return fleet_stats_str
 
     def get_fleet_stats_summary(self):
         count_status = dict()

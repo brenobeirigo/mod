@@ -958,11 +958,20 @@ class AmodNetworkHired(AmodNetwork):
         # inbound to their stations.
         self.cars_inbound_to = defaultdict(list)
 
+        self.level_step_inbound_cars = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(list))
+        )
+
         # Vehicles stopped at location do not visit tabu list
         self.cars_location_tabu = defaultdict(set)
 
         # List of cars per region center
         self.count_car_region = defaultdict(lambda: defaultdict(int))
+
+        # List of free cars per region center
+        self.count_available_car_region = defaultdict(lambda: defaultdict(int))
+
+        # Avaialable carss
 
         # Idle company-owned cars
         available = []
@@ -983,6 +992,12 @@ class AmodNetworkHired(AmodNetwork):
             # Discard busy vehicles
             if not car.busy:
                 available.append(car)
+
+                # Free car count per region center
+                for g in range(len(self.config.level_dist_list)):
+                    self.count_available_car_region[g][
+                        car.point.id_level(g)
+                    ] += 1
 
                 self.attribute_cars_dict[car.attribute].append(car)
 
@@ -1012,9 +1027,14 @@ class AmodNetworkHired(AmodNetwork):
                 # Busy cars arriving at each location
                 self.cars_inbound_to[car.point.id].append(car)
 
-            # # Car count per region center
-            # for g in range(len(self.config.level_dist_list)):
-            #     self.count_car_region[g][self.points[car.point.id].id_level(g)]+= 1
+            # Car count per region center
+            for g in range(len(self.config.level_dist_list)):
+                self.count_car_region[g][car.point.id_level(g)] += 1
+
+                # When each car will become available
+                self.level_step_inbound_cars[g][car.point.id_level(g)][
+                    car.step
+                ].append(car)
 
         # Idle hired cars
         available_hired = []
@@ -1051,6 +1071,12 @@ class AmodNetworkHired(AmodNetwork):
             elif not car.busy:
                 available_hired.append(car)
 
+                # Free car count per region center
+                for g in range(len(self.config.level_dist_list)):
+                    self.count_available_car_region[g][
+                        car.point.id_level(g)
+                    ] += 1
+
                 self.attribute_cars_dict[car.attribute].append(car)
 
                 # Get accessible neighbors from each car position
@@ -1080,9 +1106,9 @@ class AmodNetworkHired(AmodNetwork):
 
                 # print(f"{car.previous.id} -> {car.point.id} - timestep=({time_step}) ({car.elapsed}) - middle={car.middle_point} - elapsed={car.elapsed}")
 
-            # # Car count per region center
-            # for g in range(len(self.config.level_dist_list)):
-            #     self.count_car_region[g][self.points[car.point.id].id_level(g)] += 1
+            # Car count per region center
+            for g in range(len(self.config.level_dist_list)):
+                self.count_car_region[g][car.point.id_level(g)] += 1
 
         self.available = available
         self.available_hired = available_hired
@@ -1260,6 +1286,8 @@ class AmodNetworkHired(AmodNetwork):
         pav_status_count = defaultdict(int)
         for s in Car.status_list:
             status_count[s] = 0
+            pav_status_count[s] = 0
+            fav_status_count[s] = 0
 
         total_battery_level = 0
         for c in self.cars:

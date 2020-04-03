@@ -118,10 +118,10 @@ class EpisodeLog:
                 self.output_folder_service + "data/"
             )
             # Creating folders to log MIP models
-            self.config.folder_mip = self.config.output_path + "/mip/"
+            self.config.folder_mip = self.config.output_path + "mip/"
             self.config.folder_mip_log = self.config.folder_mip + "log/"
             self.config.folder_mip_lp = self.config.folder_mip + "lp/"
-            self.config.folder_adp_log = self.config.output_path + "/logs/"
+            self.config.folder_adp_log = self.config.output_path + "logs/"
 
             # Creating folders to log episodes
             if not os.path.exists(self.output_folder_delay):
@@ -360,14 +360,14 @@ class EpisodeLog:
                 delay_median=np.median(delays),
                 delay_total=np.sum(delays),
                 serviced=len(delays),
-                serviced_dist_mean=np.mean(trip_distances[sq]),
-                serviced_dist_median=np.median(trip_distances[sq]),
-                serviced_dist_total=np.sum(trip_distances[sq]),
-                rejected=len(trip_rejections[sq]),
-                rejected_dist_mean=np.mean(trip_rejections[sq]),
-                rejected_dist_median=np.median(trip_rejections[sq]),
-                rejected_dist_total=np.sum(trip_rejections[sq]),
-                sl=len(delays) / total_trips[sq],
+                serviced_dist_mean=np.mean(trip_distances.get(sq, [0])),
+                serviced_dist_median=np.median(trip_distances.get(sq, [0])),
+                serviced_dist_total=np.sum(trip_distances.get(sq, [0])),
+                rejected=len(trip_rejections.get(sq, [0])),
+                rejected_dist_mean=np.mean(trip_rejections.get(sq, [0])),
+                rejected_dist_median=np.median(trip_rejections.get(sq, [0])),
+                rejected_dist_total=np.sum(trip_rejections.get(sq, [0])),
+                sl=len(delays) / total_trips.get(sq, 0),
             )
 
         # TODO comment this section

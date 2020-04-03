@@ -49,7 +49,7 @@ To activate the environment use:
 ### Logging
 
 | Keyword | Function |
-|---------:|----------|
+|--------:|----------|
 |level LOG_LEVEL| Choose logging level LOG_LEVEL = [INFO, DEBUG].|
 |log_mip | Save mip model (`.lp`) and mip solution log (`.log`) for each time step and iteration.|
 |log_adp | Log all ADP phases (MIP decisions, dual extraction, and VFA update).|
@@ -62,22 +62,24 @@ To activate the environment use:
 ### Scenario configuration
 
 | Keyword | Function |
-|---------:|----------|
+|--------:|----------|
 |hire| Consider FAV hiring. Related settings: DEPOT_SHARE, FAV_FLEET_SIZE, MAX_CONTRACT_DURATION.|
 |n "number of iterations"| Set the number of iterations.|
 |FLEET_SIZE "number of vehicles" | Set the fleet size.|
 |backlog| Activate user backlogging. Rejected users are re-inserted into the demand with discounted maximum waiting time. E.g., if the period is `1 min` and a unmatched user can wait up to `10 min`, this user is re-inserted in the deamnd pool with maximum waiting time of `9 min`.|
 
 ### Optimization methods
+
 The folowing keywords can be used to define the optimization method to assign and rebalance vehicles. For a single instance, each keyword creates a separate folder where you can find the results of each method.
 
 | Keyword | Method |
-|--------:|----------|
+|--------:|--------|
 |train "n"| Run ADP algorithm on the training dataset to create VFAs. Update the file progress.npy with the updated results for each visited state every "n" iterations (by default, "n" is 1). |
 |test| Run ADP algorithm on the testing dataset and uses the VFAs (from training) to measure the impact of future decisions.|
 |myopic| Barebone assignment algorith with no rebalancing.|
 |policy_random| Assignment algorithm with random rebalancing.|
 |policy_reactive | Assignment algorithm and Alonso-Mora rebalancing (send vehicles to unmet requests but interrupt rebalancing at each period to check whether new requests can be picked up).
+
 ## Demand
 
 Enable `USE_CLASS_PROB` to load probabilities of picking up users of different classes throughout time and space.
@@ -144,6 +146,7 @@ Example:
     m.setParam("Method", 1)
 
 ### Gurobi MIP focus
+
 If you believe the solver is having no trouble finding good quality solutions, and wish to focus more attention on proving optimality, select MIPFocus=2.
 If the best objective bound is moving very slowly (or not at all), you may want to try MIPFocus=3 to focus on the bound ([info](https://www.gurobi.com/documentation/8.1/refman/mipfocus.html)).
 
@@ -154,6 +157,7 @@ Example:
     m.setParam("MIPFocus", 1)
 
 ### AMoD
+
 
 ## Online and loaded data
 
@@ -179,7 +183,7 @@ If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.
 
 
 | Keyword | Method |
-|--------:|----------|
+|--------:|--------|
 |TEST_LABEL| Label of all tuning instances (default "TUNE") .|
 |N_PROCESSES| Number of tuning istances executed in parallel (by default, 2).|
 |FOCUS| Key to select pre-configured tuning instances.|

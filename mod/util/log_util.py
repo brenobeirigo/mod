@@ -12,18 +12,35 @@ FORMATTER_VERBOSE = logging.Formatter(
     "%(asctime)s — %(name)s — %(levelname)s — %(message)s"
 )
 
+# NOTSET 0, DEBUG 10, INFO 20, WARNING 30, ERROR 40, CRITICAL 50
 DEBUG = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
+NOTSET = logging.NOTSET
+CRITICAL = logging.CRITICAL
 
 # Dictionary of available levels
-levels = {"INFO": INFO, "DEBUG": DEBUG, "WARNING": WARNING}
+levels = {
+    "INFO": INFO,
+    "DEBUG": DEBUG,
+    "WARNING": WARNING,
+    "NOTSET": NOTSET,
+    "CRITICAL": CRITICAL,
+}
+level_labels = {
+    INFO: "INFO",
+    DEBUG: "DEBUG",
+    WARNING: "WARNING",
+    NOTSET: "NOTSET",
+    CRITICAL: "CRITICAL",
+}
 
 # Log options
 LOG_WEIGHTS = "LOG_WEIGHTS"
 LOG_VALUE_UPDATE = "LOG_VALUE_UPDATE"
 LOG_DUALS = "LOG_DUALS"
 LOG_FLEET_ACTIVITY = "LOG_FLEET_ACTIVITY"
+LOG_STEP_SUMMARY = "LOG_STEP_SUMMARY"
 LOG_COSTS = "LOG_COSTS"
 LOG_SOLUTIONS = "LOG_SOLUTIONS"
 
@@ -67,6 +84,13 @@ def create_logger(
     log_file,
     formatter_file=FORMATTER_VERBOSE,
 ):
+    print(
+        f"\n#### Creating logger..."
+        f"\n       id = {name}"
+        f"\n    level = {level_labels[log_level]}, "
+        f"console = {level_labels[level_console]}, "
+        f"file = {level_labels[level_file]}\n"
+    )
 
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
@@ -228,11 +252,10 @@ def log_fleet_activity(
 
         logger_obj = log_dict[name]
 
-        if logger_obj.LOG_FLEET_ACTIVITY:
-
+        if skip_steps > 0 and step % skip_steps == 0:
             logger = logger_obj.logger
 
-            if skip_steps > 0 and step % skip_steps == 0:
+            if logger_obj.LOG_STEP_SUMMARY:
 
                 logger.debug("")
                 logger.debug(
@@ -241,7 +264,9 @@ def log_fleet_activity(
                     "----------------------------------------"
                 )
 
-                logger.debug(step_log.info())
+                logger.info(step_log.info())
+
+            if logger_obj.LOG_FLEET_ACTIVITY:
 
                 car_status_list = step_log.env.get_car_status_list(
                     filter_status=filter_status
@@ -249,6 +274,28 @@ def log_fleet_activity(
 
                 for c in car_status_list:
                     logger.debug(c)
+
+            # if log_config_dict[la.SAVE_PLOTS]:
+            #     stats_summary = amod.get_fleet_stats_summary()
+            #     statuses = ", ".join(
+            #         [
+            #             f"{Car.status_label_dict[status_code]}: {status_count:>4}"
+            #             for status_code, status_count in stats_summary.items()
+            #         ]
+            #     )
+
+            #     logger.info(
+            #         f"## {step+1:>3} - revenue = {revenue:>8.2f}, "
+            #         f"serviced = {len(serviced):>4}, "
+            #         f"rejected = {len(rejected):>4}, "
+            #         f"outstanding = {len(outstanding):>4} "
+            #         f"####### {statuses}"
+            #     )
+
+            #     car_log_str = amod.print_fleet_stats(
+            #         filter_status=[Car.ASSIGN]
+            #     )
+            #     logger.debug(car_log_str)
 
     except Exception as e:
         print(f"Can't log fleet activity! Exception: {e}")
@@ -494,6 +541,7 @@ class LogAux:
         LOG_VALUE_UPDATE=True,
         LOG_DUALS=True,
         LOG_FLEET_ACTIVITY=True,
+        LOG_STEP_SUMMARY=True,
         LOG_COSTS=True,
         LOG_SOLUTIONS=True,
         LOG_ATTRIBUTE_CARS=True,
@@ -504,13 +552,14 @@ class LogAux:
         save_df=False,
     ):
 
-        self.LOG_SOLUTIONS = LOG_SOLUTIONS and log_all
-        self.LOG_WEIGHTS = LOG_WEIGHTS and log_all
-        self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE and log_all
-        self.LOG_DUALS = LOG_DUALS and log_all
-        self.LOG_FLEET_ACTIVITY = LOG_FLEET_ACTIVITY and log_all
-        self.LOG_COSTS = LOG_COSTS and log_all
-        self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS and log_all
+        self.LOG_SOLUTIONS = LOG_SOLUTIONS or log_all
+        self.LOG_WEIGHTS = LOG_WEIGHTS or log_all
+        self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE or log_all
+        self.LOG_DUALS = LOG_DUALS or log_all
+        self.LOG_FLEET_ACTIVITY = LOG_FLEET_ACTIVITY or log_all
+        self.LOG_STEP_SUMMARY = LOG_STEP_SUMMARY or log_all
+        self.LOG_COSTS = LOG_COSTS or log_all
+        self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS or log_all
         self.logger = create_logger(
             logger_name,
             log_level,
@@ -532,6 +581,7 @@ def get_logger(
     LOG_VALUE_UPDATE=False,
     LOG_DUALS=False,
     LOG_FLEET_ACTIVITY=False,
+    LOG_STEP_SUMMARY=False,
     LOG_COSTS=False,
     LOG_SOLUTIONS=True,
     LOG_ATTRIBUTE_CARS=True,
@@ -556,6 +606,7 @@ def get_logger(
             LOG_VALUE_UPDATE=LOG_VALUE_UPDATE,
             LOG_DUALS=LOG_DUALS,
             LOG_FLEET_ACTIVITY=LOG_FLEET_ACTIVITY,
+            LOG_STEP_SUMMARY=LOG_STEP_SUMMARY,
             LOG_COSTS=LOG_COSTS,
             LOG_SOLUTIONS=LOG_SOLUTIONS,
             LOG_ATTRIBUTE_CARS=LOG_ATTRIBUTE_CARS,

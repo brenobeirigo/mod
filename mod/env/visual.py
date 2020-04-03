@@ -23,10 +23,10 @@ FOLDER_TRAINING = "/adp/train"
 FOLDER_MYOPIC = "/myopic"
 FOLDER_POLICY_RANDOM = "/random"
 
-ADP_LOGS = "/adp_logs/"
-FOLDER_TIME = "/time/"
-FOLDER_FLEET = "/fleet/"
-FOLDER_SERVICE = "/service/"
+ADP_LOGS = "adp_logs/"
+FOLDER_TIME = "time/"
+FOLDER_FLEET = "fleet/"
+FOLDER_SERVICE = "service/"
 PROGRESS_FILENAME = "progress.npy"
 
 
@@ -123,25 +123,22 @@ class EpisodeLog:
             self.config.folder_mip_lp = self.config.folder_mip + "lp/"
             self.config.folder_adp_log = self.config.output_path + "logs/"
 
-            # Creating folders to log episodes
-            if not os.path.exists(self.output_folder_delay):
-                os.makedirs(self.output_folder_delay)
-                os.makedirs(self.folder_delay_data)
+            folders = [
+                self.output_folder_delay,
+                self.folder_delay_data,
+                self.output_folder_fleet,
+                self.folder_fleet_status_data,
+                self.output_folder_service,
+                self.folder_demand_status_data,
+                self.config.folder_mip_log,
+                self.config.folder_mip_lp,
+                self.config.folder_adp_log,
+            ]
 
-            if not os.path.exists(self.output_folder_fleet):
-                os.makedirs(self.output_folder_fleet)
-                os.makedirs(self.folder_fleet_status_data)
-
-            if not os.path.exists(self.output_folder_service):
-                os.makedirs(self.output_folder_service)
-                os.makedirs(self.folder_demand_status_data)
-
-            if not os.path.exists(self.config.folder_mip):
-                os.makedirs(self.config.folder_mip_log)
-                os.makedirs(self.config.folder_mip_lp)
-
-            if not os.path.exists(self.config.folder_adp_log):
-                os.makedirs(self.config.folder_adp_log)
+            # Creating folders
+            for f in folders:
+                if not os.path.exists(f):
+                    os.makedirs(f)
 
                 print(
                     f"\n### Saving episodes at:"
@@ -745,27 +742,47 @@ class StepLog:
             total = 0
 
         status, status_pav, status_fav, battery = self.env.get_fleet_status()
-        statuses = [
-            f"{Car.status_label_dict[status_code]}={status_count:>4}"
-            for status_code, status_count in status.items()
-        ]
+        statuses = ", ".join(
+            [
+                f"{Car.status_label_dict[status_code]}: {status_count:>4}"
+                for status_code, status_count in status.items()
+            ]
+        )
 
-        pav_statuses = [
-            f"{Car.status_label_dict[status_code]}={status_count:>4}"
-            for status_code, status_count in status_pav.items()
-        ]
+        pav_statuses = (
+            f" | PAV: "
+            + (
+                ", ".join(
+                    [
+                        f"{Car.status_label_dict[status_code]}: {status_count:>4}"
+                        for status_code, status_count in status_pav.items()
+                    ]
+                )
+            )
+            if self.env.hired_cars
+            else ""
+        )
 
-        fav_statuses = [
-            f"{Car.status_label_dict[status_code]}={status_count:>4}"
-            for status_code, status_count in status_fav.items()
-        ]
+        fav_statuses = (
+            f" | FAV: "
+            + (
+                ", ".join(
+                    [
+                        f"{Car.status_label_dict[status_code]}: {status_count:>4}"
+                        for status_code, status_count in status_fav.items()
+                    ]
+                )
+            )
+            if self.env.hired_cars
+            else ""
+        )
 
         return (
-            f"### Time step: {self.n:>4})"
+            f"### Time step: {self.n+1:>4})"
             f" ### Profit: {self.total_reward:>10.2f}"
             f" ### Service level: {sr:>7.2%}"
             f" ### Trips: {total:>4}"
-            f" ### Status: {statuses} | PAV: {pav_statuses} | FAV: {fav_statuses}"
+            f" ### Status: {statuses}{pav_statuses}{fav_statuses}"
         )
 
     def overall_log(self, label="Operational"):

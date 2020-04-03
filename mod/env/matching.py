@@ -63,7 +63,9 @@ def is_optimal(m):
 #        Mobility-on-Demand Systems
 
 
-def ensure_all_demands_serviced(m, cars_ijt, trips_ijt):
+def ensure_all_demands_serviced(
+    m, cars_ijt, trips_ijt, outstandig_ijt=dict(), slack_ijt=dict()
+):
     """Ensures that all customer demands are serviced
 
     Parameters
@@ -78,6 +80,8 @@ def ensure_all_demands_serviced(m, cars_ijt, trips_ijt):
     flow_cars_dict = m.addConstrs(
         (
             cars_ijt[(du.TRIP_DECISION, i, j, t)]
+            + slack_ijt.get((i, j, t), 0)
+            - outstandig_ijt.get((i, j, t), 0)
             == trips_ijt.get((i, j, t), 0)
             for d, i, j, t in cars_ijt.keys()
             if i != j and d == du.TRIP_DECISION
@@ -88,7 +92,7 @@ def ensure_all_demands_serviced(m, cars_ijt, trips_ijt):
     return flow_cars_dict
 
 
-def mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it):
+def mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it, step=0):
     """Enforces that for every time interval and each region, the number
     of arriving vehicles equals the number of departing vehicles.
 
@@ -142,22 +146,333 @@ def mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it):
         return cars_ijt.get((d, j, i, previous_t), 0)
 
     for i in N:
-        for t in range(T):
+        for t in T:
+            # print(f"# {i:04} - {t:04} = {s_it.get((i, t),0)}")
             m.addConstr(
                 sum(
                     [
                         (
                             cars_ijt.get((du.TRIP_DECISION, i, j, t), 0)
-                            + cars_ijt.get((du.REBALANCE_DECISION, i, j, t))
+                            + cars_ijt.get((du.REBALANCE_DECISION, i, j, t), 0)
                             - get_dijt(du.TRIP_DECISION, i, j, t)
                             - get_dijt(du.REBALANCE_DECISION, i, j, t)
                         )
                         for j in N
                     ]
                 )
-                == (s_it[(i, t)] if t == 0 else 0),
+                == s_it.get((i, t), 0),
                 name=f"CAR_FLOW[{i},{t}]",
             )
+
+
+def log_model(m, env, folder_name="", save_files=False, step=None):
+
+    # Log steps of current episode
+    if save_files:
+
+        logger_name = env.config.log_path(env.adp.n)
+        logger = la.get_logger(logger_name)
+
+        m.setParam("LogToConsole", 0)
+        folder_log = f"{env.config.folder_mip_log}{folder_name}/"
+        folder_lp = f"{env.config.folder_mip_lp}{folder_name}/"
+
+        if not os.path.exists(folder_log):
+            os.makedirs(folder_log)
+            os.makedirs(folder_lp)
+
+        step_label = "" if step is None else f"_{step:04}"
+        m.Params.LogFile = f"{folder_log}mip{step_label}.log"
+        m.Params.ResultFile = f"{folder_lp}mip{step_label}.lp"
+
+        logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
+        logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
+
+    else:
+        # Disables all logging (file and console)
+        m.setParam("OutputFlag", 0)
+
+
+def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
+    """Under the assumption of perfect knowledge of customer demand,
+    and assuming that the starting positions of the vehicles are free,
+    it is possible to find the optimal rebalancing strategy by solving
+    the following optimization problem:
+
+    Parameters
+    ----------
+    env : Amod
+        Amod environment
+    it_trips : list of lists
+        List of list of trips per time step
+    log_mip : bool, optional
+        If True, log gurobi .lp and .log, by default True
+
+    Returns
+    -------
+    list of lists, list of lists
+        list of decisions per step, list of filtered trips per step
+    """
+    # Get all nodes from "centroid_level"
+    N = list(env.points_level[env.config.centroid_level])
+
+    # List
+    T = np.array(range(step, step + min(horizon, len(predicted_trips))))
+
+    # TODO do it externally
+    # Erase predicition of current_trips (no prediction for current step)
+    predicted_trips[0] = []
+
+    # Log events of iteration n
+    logger = la.get_logger(
+        env.config.log_path(env.adp.n),
+        log_file=env.config.log_path(env.adp.n),
+    )
+
+    logger.debug(
+        f"%%%%%%%%%%%% step={step:>4}, "
+        f"horizon={horizon:>4}, "
+        f"predicted={len(predicted_trips):>4} %%%%%%%%%%%%%"
+    )
+
+    logger.debug(
+        f"#### Optimal rebalancing strategy #### "
+        f"level={env.config.centroid_level}, "
+        f"#N={len(N)}, "
+        f"T={T}"
+    )
+
+    m = Model("mpc_optimal")
+
+    # Count of cars arriving in node i at time t
+    s_it = {
+        (i, t): len(cars)
+        for i, t_cars in env.level_step_inbound_cars[
+            env.config.centroid_level
+        ].items()
+        for t, cars in t_cars.items()
+    }
+
+    logger.debug(
+        f"\nCar arrivals per step and positions "
+        f"(level={env.config.centroid_level}, step={step})"
+    )
+    for k, v in sorted(s_it.items(), key=lambda x: (x[0][1], x[0][0])):
+        logger.debug(f"{k} = {v}")
+
+    current_trips_ij = defaultdict(int)
+    new_current_trips = []
+    for trip in current_trips:
+        # Discard trips with origins and destinations
+        # within the same region.
+        if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
+            current_trips_ij[(trip.o.id, trip.d.id)] += 1
+            new_current_trips.append(trip)
+
+    # How many trips per origin, destination, time
+    trips_ijt = defaultdict(int)
+
+    # Filtered trips
+    it_new_trips = list()
+
+    logger.debug("\nCreating trip_ijt (N x N x T) data...")
+
+    for t, trips in enumerate(predicted_trips):
+        t_step = t + step
+        logger.debug(f" - step={t_step:04}, " f"n. of trips={len(trips):04}")
+        new_trips = []
+        for trip in trips:
+
+            # Discard trips with ods within the same region.
+            if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
+
+                # (o, d, t) = n. of trips
+                trips_ijt[(trip.o.id, trip.d.id, t_step)] += 1
+
+                # Filtered trips (outside N)
+                new_trips.append(trip)
+
+        # Update new list of trips per step
+        it_new_trips.append(new_trips)
+
+    logger.debug(f"\n# Current trips (step={step}):")
+    for k, v in sorted(
+        current_trips_ij.items(), key=lambda x: (x[0][0], x[0][1])
+    ):
+        logger.debug(f"{k} = {v}")
+
+    logger.debug(f"\n# Predicted trips (step={step}):")
+    for k, v in sorted(
+        trips_ijt.items(), key=lambda x: (x[0][2], x[0][0], x[0][1])
+    ):
+        logger.debug(f"{k} = {v}")
+
+    logger.debug(f"Creating cars_ijt (N x N x T) variables (step={step})...")
+
+    # decision (TRIP, REBALANCE), origin, destination, step
+    vars_ijt = [
+        (d, i, j, t)
+        for i in N
+        for j in N
+        for t in T
+        for d in [du.TRIP_DECISION, du.REBALANCE_DECISION]
+        if (i != j and d == du.TRIP_DECISION) or d == du.REBALANCE_DECISION
+    ]
+
+    ijt = [(i, j, t) for i in N for j in N for t in T]
+
+    cars_ijt = m.addVars(vars_ijt, name="x", vtype=GRB.INTEGER, lb=0)
+
+    # The slack variables D = {d_ijt}ijt denote the predicted demand of
+    # customers wanting to travel from i to j departing at time t that
+    # will remain unsatisfied
+    slack_ijt = m.addVars(ijt, name="d", vtype=GRB.INTEGER, lb=0)
+
+    # w_ijt is a decision variable denoting the number of outstanding
+    # customers at region i ∈ N who wish to travel to region j and be
+    # picked up at time t ∈ T.
+    outstanding_ijt = m.addVars(ijt, name="w", vtype=GRB.INTEGER, lb=0)
+
+    logger.debug(f" - {len(cars_ijt):,} variables created...")
+
+    logger.debug(
+        f"{len(trips_ijt):,} trip od tuples created "
+        f"({len(list(itertools.chain(*it_new_trips))):,} discarded)."
+    )
+
+    logger.debug("Constraint 1 - Ensure the entire demand is met.")
+    ensure_all_demands_serviced(
+        m,
+        cars_ijt,
+        trips_ijt,
+        outstandig_ijt=outstanding_ijt,
+        slack_ijt=slack_ijt,
+    )
+
+    logger.debug("Constraint 2 - Guarantee car flow.")
+    mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it, step=step)
+
+    logger.debug("Constraint 3 - All outstanding passengers are served.")
+    m.addConstrs(
+        (
+            outstanding_ijt.sum(i, j, "*") == current_trips_ij[(i, j)]
+            for i in N
+            for j in N
+            if i != j
+        ),
+        name="OUT",
+    )
+
+    logger.debug("\nSetting up contribution...")
+    contribution = quicksum(
+        env.cost_func(du.convert_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
+        for d, i, j, t in cars_ijt
+    )
+
+    # c_outstanding_ijt = cost associated with the waiting time of t
+    #                     time steps for an outstanding passenger.
+    # c_slack_ijt = cost for not servicing a predicted customer demand
+    #               at time t.
+
+    COST_OUTSTANDING = 2
+    COST_SLACK = 2
+    of_outstanding = quicksum(
+        [
+            outstanding_ijt[i, j, t] * ((t - step) * COST_OUTSTANDING) / 42
+            for i, j, t in outstanding_ijt
+        ]
+    )
+
+    of_slack = quicksum(
+        [slack_ijt[i, j, t] * (t - step) * COST_SLACK for i, j, t in slack_ijt]
+    )
+
+    logger.debug("Setting objective (min. fleet, max. contribution)...")
+    # m.setObjectiveN(fleet_size, 0, 2)
+    m.setObjective(contribution - of_outstanding - of_slack, GRB.MAXIMIZE)
+    # m.setObjectiveN(of_outstanding + of_slack, 1, 0)
+    # m.setObjectiveN(-contribution, 0, 1)
+
+    # Log mip .log and .ilp
+    log_model(m, env, save_files=log_mip, step=step)
+
+    logger.debug("Optimizing...")
+
+    m.optimize()
+
+    if is_optimal(m):
+
+        # Decision tuple + (n. of times decision was taken)
+        # ACTION, ORIGIN, DESTINATION, STEP, N.DECISIONS
+        best_decisions = sorted(
+            extract_decisions(cars_ijt), key=lambda x: (x[3], x[0], x[1], x[2])
+        )
+
+        best_decisions_w = sorted(
+            extract_decisions(outstanding_ijt),
+            key=lambda x: (x[2], x[0], x[1]),
+        )
+
+        best_decisions_d = sorted(
+            extract_decisions(slack_ijt), key=lambda x: (x[2], x[0], x[1])
+        )
+
+        logger.debug(f"\nBest decisions x_ijt-n  (step={step}):")
+        for d in best_decisions:
+            logger.debug(f" - {d}")
+
+        logger.debug(f"\nBest decisions w_ijt-n  (step={step}):")
+        for d in best_decisions_w:
+            logger.debug(f" - {d}")
+
+        logger.debug(f"\nBest decisions d_ijt-n  (step={step}):")
+        for d in best_decisions_d:
+            logger.debug(f" - {d}")
+
+        logger.debug(f"\nTrips & decisions per step  (step={step}):")
+
+        # Decision list per step (played)
+        step_decisions_list = []
+        for tt, trips in enumerate(it_new_trips):
+            t_step = tt + step
+            logger.debug(
+                f"\n## step={t_step:04} ####################################"
+            )
+
+            # Filter decisions at step
+            step_decisions = [d for d in best_decisions if d[3] == t_step]
+
+            logger.debug(f" - Trips (step={t_step}, size={len(trips)}):")
+            logger.debug(
+                sorted(
+                    [
+                        (i, j, trips_ijt[(i, j, t)])
+                        for i, j, t in trips_ijt
+                        if t == t_step
+                    ],
+                    key=lambda x: (x[0], x[1]),
+                )
+            )
+            logger.debug(
+                f" - Decisions (step={t_step}, size={len(step_decisions)}):"
+            )
+
+            # Converted decisions and sort by action, and od
+            step_decisions = sorted(
+                [
+                    du.convert_decision(d[0], d[1], d[2], n=d[4])
+                    for d in step_decisions
+                ],
+                key=lambda x: (x[du.ACTION], x[du.ORIGIN], x[du.DESTINATION]),
+            )
+
+            for d in step_decisions:
+                logger.debug(f" - {du.shorten_decision(d)}")
+
+            # Decisions for the whole horizon
+            step_decisions_list.append(step_decisions)
+
+        return step_decisions_list[0], new_current_trips
 
 
 def optimal_rebalancing(env, it_trips, log_mip=True):
@@ -182,9 +497,15 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
     """
     # Get all nodes from "centroid_level"
     N = list(env.points_level[env.config.centroid_level])
-    T = len(it_trips)
+    T = np.array(range(0, len(it_trips))) + 1
 
-    print(
+    # Log events of iteration n
+    logger = la.get_logger(
+        env.config.log_path(env.adp.n),
+        log_file=env.config.log_path(env.adp.n),
+    )
+
+    logger.debug(
         f"#### Optimal rebalancing strategy #### "
         f"level={env.config.centroid_level}, "
         f"nodes={len(N)}, "
@@ -193,11 +514,11 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
 
     m = Model("mpc_optimal")
 
-    print("\nCreating s_it (N x T) variables...")
+    logger.debug("\nCreating s_it (N x T) variables...")
     s_it = m.addVars(N, T, name="s", vtype=GRB.CONTINUOUS, lb=0)
-    print(f" - {len(s_it):,} variables created...")
+    logger.debug(f" - {len(s_it):,} variables created...")
 
-    print("\nCreating trip_ijt (N x N x T) data...")
+    logger.debug("\nCreating trip_ijt (N x N x T) data...")
     # How many trips per origin, destination, time
     trips_ijt = defaultdict(int)
 
@@ -205,7 +526,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
     it_new_trips = list()
 
     for step, trips in enumerate(it_trips):
-        print(f" - step={step:04}, n. of trips={len(trips):04}")
+        logger.debug(f" - step={step:04}, n. of trips={len(trips):04}")
         new_trips = []
         for trip in trips:
             # Discard trips with origins and destinations
@@ -217,14 +538,14 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         # Update new list of trips per step
         it_new_trips.append(new_trips)
 
-    print("Creating cars_ijt (N x N x T) variables...")
+    logger.debug("Creating cars_ijt (N x N x T) variables...")
     # decision, origin, destination, timestep
     cars_ijt = m.addVars(
         [
             (d, i, j, t)
             for i in N
             for j in N
-            for t in range(T)
+            for t in T
             for d in [du.TRIP_DECISION, du.REBALANCE_DECISION]
             if (i != j and d == du.TRIP_DECISION) or d == du.REBALANCE_DECISION
         ],
@@ -232,25 +553,25 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         vtype=GRB.CONTINUOUS,
         lb=0,
     )
-    print(f" - {len(cars_ijt):,} variables created...")
+    logger.debug(f" - {len(cars_ijt):,} variables created...")
 
-    print(
+    logger.debug(
         f"{len(trips_ijt):,} trip od tuples created "
         f"({len(list(itertools.chain(*it_new_trips))):,} discarded)."
     )
 
-    print("Constraint 1 - Ensure the entire demand is met.")
+    logger.debug("Constraint 1 - Ensure the entire demand is met.")
     ensure_all_demands_serviced(m, cars_ijt, trips_ijt)
 
-    print("Constraint 2 - Guarantee car flow.")
+    logger.debug("Constraint 2 - Guarantee car flow.")
     mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it)
 
-    print("Constraint 3 - Starting vehicles only in the first step.")
+    logger.debug("Constraint 3 - Starting vehicles only in the first step.")
     m.addConstrs(
-        (s_it[i, t] == 0 for i in N for t in range(T) if t > 0), name="START",
+        (s_it[i, t] == 0 for i in N for t in T if t > 1), name="START",
     )
 
-    print("\nSetting up contribution...")
+    logger.debug("\nSetting up contribution...")
     contribution = quicksum(
         env.cost_func(du.convert_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
         for d, i, j, t in cars_ijt
@@ -259,41 +580,17 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
     # Total number of vehicles
     fleet_size = quicksum(s_it)
 
-    print("Setting objective (min. fleet, max. contribution)...")
+    logger.debug("Setting objective (min. fleet, max. contribution)...")
     m.setObjectiveN(fleet_size, 0, 2)
     m.setObjectiveN(-contribution, 1, 1)
 
-    # Log steps of current episode
-    if log_mip:
+    # Log mip .log and .ilp
+    log_model(m, env, save_files=log_mip, step=None)
 
-        logger_name = env.config.log_path(env.adp.n)
-        logger = la.get_logger(logger_name)
-
-        m.setParam("LogToConsole", 0)
-        folder_log = f"{env.config.folder_mip_log}opt/"
-        folder_lp = f"{env.config.folder_mip_lp}opt/"
-
-        if not os.path.exists(folder_log):
-            os.makedirs(folder_log)
-            os.makedirs(folder_lp)
-
-        m.Params.LogFile = f"{folder_log}mip.log"
-        m.Params.ResultFile = f"{folder_lp}mip.lp"
-
-        logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
-        logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
-
-    else:
-        # Disables all logging (file and console)
-        m.setParam("OutputFlag", 0)
-
-    print("Optimizing...")
+    logger.debug("Optimizing...")
     m.optimize()
 
-    if m.status == GRB.Status.UNBOUNDED:
-        print("The model cannot be solved because it is unbounded")
-
-    elif m.status == GRB.Status.OPTIMAL:
+    if is_optimal(m):
 
         # Decision tuple + (n. of times decision was taken)
         # ACTION, ORIGIN, DESTINATION, STEP, N.DECISIONS
@@ -305,23 +602,26 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         # Total number of cars
         n_cars = sum(list(zip(*itn_cars))[2])
 
-        print(f"Total cars = {n_cars}")
-        pprint(itn_cars)
+        logger.debug(f"Total cars = {n_cars}")
+        logger.debug(itn_cars)
 
-        print("\nBest decisions 1:")
-        pprint(best_decisions)
+        logger.debug("\nBest decisions 1:")
+        for d in best_decisions:
+            logger.debug(f" - {d}")
 
-        print("\nTrips & decisions per step")
+        logger.debug("\nTrips & decisions per step")
 
         # Decision list per step (played)
         step_decisions_list = []
         for step, trips in enumerate(it_new_trips):
-            print(f"\n## step={step:04} ####################################")
+            logger.debug(
+                f"\n## step={step:04} ####################################"
+            )
 
             # Filter decisions at step
             step_decisions = [d for d in best_decisions if d[3] == step]
-            print(f" - Trips = {len(trips)}")
-            pprint(
+            logger.debug(f" - Trips = {len(trips)}")
+            logger.debug(
                 sorted(
                     [
                         (i, j, trips_ijt[(i, j, t)])
@@ -331,7 +631,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
                     key=lambda x: (x[0], x[1]),
                 )
             )
-            print(" - Decisions:")
+            logger.debug(" - Decisions:")
             step_decisions = sorted(
                 [
                     du.convert_decision(d[0], d[1], d[2], n=d[4])
@@ -339,7 +639,10 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
                 ],
                 key=lambda x: (x[du.ACTION], x[du.ORIGIN], x[du.DESTINATION]),
             )
-            pprint(step_decisions)
+
+            for d in step_decisions:
+                logger.debug(f" - {du.shorten_decision(d)}")
+
             step_decisions_list.append(step_decisions)
 
         # Change environment to start vehicles at points
@@ -351,69 +654,6 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         env.available = env.cars
 
         return step_decisions_list, it_new_trips
-
-    elif (
-        m.status != GRB.Status.INF_OR_UNBD
-        and m.status != GRB.Status.INFEASIBLE
-    ):
-        print("Optimization was stopped with status %d" % m.status)
-
-    elif m.status == GRB.Status.INFEASIBLE:
-
-        # do IIS
-        print("The model is infeasible; computing IIS")
-
-        # Save model
-        m.write("myopic.lp")
-
-        m.computeIIS()
-
-        if m.IISMinimal:
-            print("IIS is minimal\n")
-        else:
-            print("IIS is not minimal\n")
-            print("\nThe following constraint(s) cannot be satisfied:")
-        for c in m.getConstrs():
-            if c.IISConstr:
-                print("%s" % c.constrName)
-    else:
-        print(f"Error code: {m.status}.")
-        print(
-            "Model was proven to be either infeasible or unbounded."
-            "To obtain a more definitive conclusion, set the "
-            " DualReductions parameter to 0 and reoptimize."
-        )
-
-        # do IIS
-        print("The model is infeasible; computing IIS")
-
-        # Save model
-        m.write("myopic.lp")
-
-        m.computeIIS()
-
-        if m.IISMinimal:
-            print("IIS is minimal\n")
-        else:
-            print("IIS is not minimal\n")
-            print("\nThe following constraint(s) cannot be satisfied:")
-        for c in m.getConstrs():
-            if c.IISConstr:
-                print("%s" % c.constrName)
-
-        # Save model
-        m.write(f"myopic_error_code.lp")
-
-        m.computeIIS()
-
-        if m.IISMinimal:
-            print("IIS is minimal\n")
-        else:
-            print("IIS is not minimal\n")
-            print("\nThe following constraint(s) cannot be satisfied:")
-        for c in m.getConstrs():
-            if c.IISConstr:
-                print("%s" % c.constrName)
 
 
 def optimize_and_fix_fractional_vars(m, logger=None):
@@ -942,8 +1182,14 @@ def play_decisions(env, trips, time_step, decisions):
         # Group trips with the same ods
         attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
 
-    print(f"Attributes {time_step:04}")
-    pprint(env.attribute_cars_dict)
+    # print(f"Decisions (step={time_step})")
+    # pprint(decisions)
+
+    # print(f"Attribute trips (step={time_step})")
+    # pprint(attribute_trips_dict)
+
+    # print(f"Attributes (step={time_step})")
+    # pprint(env.attribute_cars_dict)
     reward, serviced, rejected = env.realize_decision(
         time_step, decisions, attribute_trips_dict, env.attribute_cars_dict,
     )
@@ -1006,32 +1252,7 @@ def service_trips(
     m = Model("assignment")
 
     # Log steps of current episode
-    if log_mip:
-
-        # Add .log for rebalancing second phase
-        rebal_label = "_reb" if reactive else ""
-
-        m.setParam("LogToConsole", 0)
-        folder_epi_log = f"{env.config.folder_mip_log}episode_{iteration:04}/"
-        folder_epi_lp = f"{env.config.folder_mip_lp}episode_{iteration:04}/"
-
-        if not os.path.exists(folder_epi_log):
-            os.makedirs(folder_epi_log)
-            os.makedirs(folder_epi_lp)
-
-        m.Params.LogFile = (
-            f"{folder_epi_log}mip_{time_step:04}{rebal_label}.log"
-        )
-        m.Params.ResultFile = (
-            f"{folder_epi_lp}mip_{time_step:04}{rebal_label}.lp"
-        )
-
-        logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
-        logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
-
-    else:
-        # Disables all logging (file and console)
-        m.setParam("OutputFlag", 0)
+    log_model(m, env, save_files=log_mip, step=time_step)
 
     # Model is deterministic (usefull for testing)
     m.setParam("Seed", 1)
@@ -1456,8 +1677,6 @@ def service_trips(
 
         # Enable fleet
         env.toggle_fleet(car_type_hide)
-
-        pprint(best_decisions)
 
         return final_obj, serviced, rejected
 

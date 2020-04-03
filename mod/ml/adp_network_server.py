@@ -12,7 +12,12 @@ import itertools
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
-from mod.env.matching import service_trips, optimal_rebalancing, play_decisions
+from mod.env.matching import (
+    service_trips,
+    optimal_rebalancing,
+    play_decisions,
+    mpc,
+)
 import mod.util.log_util as la
 
 from mod.env.amod.AmodNetworkHired import AmodNetworkHired
@@ -500,7 +505,7 @@ def alg_adp(
         # Get decisions for optimal rebalancing
         if config.method == ConfigNetwork.METHOD_OPTIMAL:
             it_decisions, it_step_trip_list = optimal_rebalancing(
-                amod, it_step_trip_list
+                amod, it_step_trip_list, log_mip=log_config_dict[la.LOG_MIP]
             )
 
         # Iterate through all steps and match requests to cars
@@ -597,14 +602,35 @@ def alg_adp(
             #     print(tt.info())
 
             t1 = time.time()
-            if config.method == ConfigNetwork.METHOD_OPTIMAL:
-                print(
-                    f"it={step:04} - Playing decisions {len(it_decisions[step])}"
-                )
+
+            if config.policy_optimal:
+                # print(
+                #     f"it={step:04} - Playing decisions {len(it_decisions[step])}"
+                # )
                 revenue, serviced, rejected = play_decisions(
                     amod, trips, step + 1, it_decisions[step]
                 )
-                print(revenue, len(serviced), len(rejected))
+
+            elif config.policy_mpc:
+                # Trips within the same region are invalid
+                decisions, valid_trips = mpc(
+                    # Amod environment with configuration file
+                    amod,
+                    # Trips to be matched
+                    trips,
+                    # Predicted trips within the forecasting horizon
+                    it_step_trip_list[
+                        step : step + amod.config.mpc_forecasting_horizon
+                    ],
+                    # Service step (+1 trip placement step)
+                    step=step + 1,
+                    horizon=amod.config.mpc_forecasting_horizon,
+                    log_mip=log_config_dict[la.LOG_MIP],
+                )
+
+                revenue, serviced, rejected = play_decisions(
+                    amod, valid_trips, step + 1, decisions
+                )
 
             else:
                 revenue, serviced, rejected = service_trips(
@@ -741,8 +767,6 @@ def alg_adp(
             # amod.adp.get_weighted_value.cache_clear()
             # self.post_cost.cache_clear()
 
-            amod.print_fleet_stats()  # filter_status=[Car.ASSIGN])
-
         # LAST UPDATE (Closing the episode)
         amod.update_fleet_status(step + 1)
 
@@ -848,7 +872,7 @@ if __name__ == "__main__":
     backlog = "-backlog" in args
 
     # Enable logs
-    log_adp = "-log_adp" in args
+    log_all = "-log_all" in args
     log_mip = "-log_mip" in args
     log_times = "-log_times" in args
     log_fleet = "-log_fleet" in args
@@ -865,6 +889,7 @@ if __name__ == "__main__":
     train = "-train" in args
     test = "-test" in args
     optimal = "-optimal" in args
+    policy_mpc = "-mpc" in args
 
     if policy_random:
         print("RANDOM")
@@ -895,6 +920,10 @@ if __name__ == "__main__":
 
     elif optimal:
         method = ConfigNetwork.METHOD_OPTIMAL
+        n_iterations = 1
+
+    elif policy_mpc:
+        method = ConfigNetwork.METHOD_MPC
         n_iterations = 1
 
     else:
@@ -963,6 +992,8 @@ if __name__ == "__main__":
                 ConfigNetwork.ADP_IGNORE_ZEROS: True,
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
+                # MPC ################################################ #
+                ConfigNetwork.MPC_FORECASTING_HORIZON: 5,
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
@@ -985,7 +1016,7 @@ if __name__ == "__main__":
                     # (3, 3),
                     # (3, 4),
                 ),
-                ConfigNetwork.CENTROID_LEVEL: 1,
+                ConfigNetwork.CENTROID_LEVEL: 3,
                 # FLEET ############################################## #
                 # Car operation
                 ConfigNetwork.MAX_CARS_LINK: None,
@@ -1017,21 +1048,34 @@ if __name__ == "__main__":
 
     # Toggle what is going to be logged
     log_config = {
-        la.LOG_DUALS: True,
+        # Write each vehicles status
         la.LOG_FLEET_ACTIVITY: True,
+        # Write profit, service level, # trips, car/satus count
+        la.LOG_STEP_SUMMARY: True,
+        # ############# ADP ############################################
+        # Log duals update process
+        la.LOG_DUALS: False,
         la.LOG_VALUE_UPDATE: False,
         la.LOG_COSTS: True,
         la.LOG_SOLUTIONS: False,
         la.LOG_WEIGHTS: False,
+        # Log .lp and .log from MIP models
         la.LOG_MIP: log_mip,
+        # Log time spent across every step in each code section
         la.LOG_TIMES: log_times,
+        # Save fleet, demand, and delay plots
         la.SAVE_PLOTS: save_plots,
+        # Save fleet and demand dfs for live plot
         la.SAVE_DF: save_df,
-        la.LOG_ALL: log_adp,
-        la.LOG_LEVEL: (log_level if not log_adp else la.DEBUG),
+        # Log level saved in file
         la.LEVEL_FILE: la.DEBUG,
+        # Log level printed in screen
         la.LEVEL_CONSOLE: la.INFO,
         la.FORMATTER_FILE: la.FORMATTER_TERSE,
+        # Log everything
+        la.LOG_ALL: log_all,
+        # Log chosen (if LOG_ALL, set to lowest, i.e., DEBUG)
+        la.LOG_LEVEL: (log_level if not log_all else la.DEBUG),
     }
 
     print("PROGRESS", start_config.save_progress)

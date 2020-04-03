@@ -200,7 +200,7 @@ class Car:
         if self.trip:
             trip = (
                 (
-                    f" - Trip: [{self.trip.o.id:>4},{self.trip.d.id:>4}] "
+                    f" - Trip: [{self.trip.o.id:>5} -> {self.trip.d.id:>5}] "
                     f"(pk_step={self.trip.pk_step:>5}, "
                     f"pk_delay={self.trip.pk_delay:>6.2f}, "
                     f"dropoff={self.trip.dropoff_time:>6.2f}, "
@@ -221,7 +221,7 @@ class Car:
             f" - Arrival: {self.arrival_time:>6.2f}"
             f"(previous={self.previous_step:>5},step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
-            f" -> ({self.previous},{self.middle_point},{self.point})"
+            f" -> ({self.previous.id:>5},{self.middle_point.id:>5},{self.point.id:>5})"
             f" - interruped={self.interrupted_rebalance_count:>4}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"

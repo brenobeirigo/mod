@@ -424,7 +424,7 @@ def log_update_values(name, t, values):
 
             for g, state_data in enumerate(values):
 
-                logger.debug(f"\n############## {g}")
+                logger.debug(f"\n############## level={g}")
 
                 for a_g, data in state_data.items():
                     (

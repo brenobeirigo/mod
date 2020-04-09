@@ -193,26 +193,43 @@ def log_model(m, env, folder_name="", save_files=False, step=None):
         m.setParam("OutputFlag", 0)
 
 
-def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
-    """Under the assumption of perfect knowledge of customer demand,
-    and assuming that the starting positions of the vehicles are free,
-    it is possible to find the optimal rebalancing strategy by solving
-    the following optimization problem:
-
+def mpc(
+    env,
+    current_trips,
+    predicted_trips,
+    step=0,
+    horizon=40,
+    log_mip=True,
+    use_visited_only=True,
+):
+    """[summary]
+    
     Parameters
     ----------
     env : Amod
         Amod environment
-    it_trips : list of lists
-        List of list of trips per time step
+    current_trips : list of trips
+        List of trips that arrived in the current step.
+    predicted_trips : list of list of trips
+        List of predicted trips for future steps with size equals the
+        horizon.
+    step : int, optional
+        Current step, by default 0
+    horizon : int, optional
+        How many steps (current step including) there is , by default 40
     log_mip : bool, optional
         If True, log gurobi .lp and .log, by default True
-
+    use_visited_only : bool, optional
+        If True, remove from node set N all nodes that are not a trip
+        origin/destination, by default True
+    
     Returns
     -------
-    list of lists, list of lists
-        list of decisions per step, list of filtered trips per step
+    list of decisions, list of trips
+        list of decisions for current step, list of filtered trips
+        (i.e., trips that are not in the same region)
     """
+
     # Get all nodes from "centroid_level"
     N = list(env.points_level[env.config.centroid_level])
 
@@ -244,14 +261,17 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
 
     m = Model("mpc_optimal")
 
+    # Create model only with the nodes where trips/cars appear
+    distinct_nodes = set()
+
     # Count of cars arriving in node i at time t
-    s_it = {
-        (i, t): len(cars)
-        for i, t_cars in env.level_step_inbound_cars[
-            env.config.centroid_level
-        ].items()
-        for t, cars in t_cars.items()
-    }
+    s_it = dict()
+    for i, t_cars in env.level_step_inbound_cars[
+        env.config.centroid_level
+    ].items():
+        distinct_nodes.add(i)
+        for t, cars in t_cars.items():
+            s_it[(i, t)] = len(cars)
 
     logger.debug(
         f"\nCar arrivals per step and positions "
@@ -268,6 +288,9 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
         if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
             current_trips_ij[(trip.o.id, trip.d.id)] += 1
             new_current_trips.append(trip)
+
+            distinct_nodes.add(trip.o.id)
+            distinct_nodes.add(trip.d.id)
 
     # How many trips per origin, destination, time
     trips_ijt = defaultdict(int)
@@ -286,6 +309,9 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
             # Discard trips with ods within the same region.
             if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
 
+                distinct_nodes.add(trip.o.id)
+                distinct_nodes.add(trip.d.id)
+
                 # (o, d, t) = n. of trips
                 trips_ijt[(trip.o.id, trip.d.id, t_step)] += 1
 
@@ -294,6 +320,11 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
 
         # Update new list of trips per step
         it_new_trips.append(new_trips)
+
+    # Use only nodes where cars or trips are
+    if use_visited_only:
+        N = list(distinct_nodes)
+        logger.debug(f"Distinct nodes: {len(N):,}.")
 
     logger.debug(f"\n# Current trips (step={step}):")
     for k, v in sorted(
@@ -310,6 +341,7 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
     logger.debug(f"Creating cars_ijt (N x N x T) variables (step={step})...")
 
     # decision (TRIP, REBALANCE), origin, destination, step
+    # REBALANCE & (i == j) = STAY
     vars_ijt = [
         (d, i, j, t)
         for i in N
@@ -475,7 +507,7 @@ def mpc(env, current_trips, predicted_trips, step=0, horizon=40, log_mip=True):
         return step_decisions_list[0], new_current_trips
 
 
-def optimal_rebalancing(env, it_trips, log_mip=True):
+def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
     """Under the assumption of perfect knowledge of customer demand,
     and assuming that the starting positions of the vehicles are free,
     it is possible to find the optimal rebalancing strategy by solving
@@ -489,6 +521,9 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         List of list of trips per time step
     log_mip : bool, optional
         If True, log gurobi .lp and .log, by default True
+    use_visited_only : bool, optional
+        If True, remove from node set N all nodes that are not a trip
+        origin/destination, by default True
 
     Returns
     -------
@@ -525,18 +560,30 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
     # Filtered trips
     it_new_trips = list()
 
+    # Create model only with the nodes where trips appear
+    distinct_nodes = set()
+
     for step, trips in enumerate(it_trips):
         logger.debug(f" - step={step:04}, n. of trips={len(trips):04}")
         new_trips = []
         for trip in trips:
+
             # Discard trips with origins and destinations
             # within the same region.
             if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
                 trips_ijt[(trip.o.id, trip.d.id, step)] += 1
                 new_trips.append(trip)
 
+                distinct_nodes.add(trip.o.id)
+                distinct_nodes.add(trip.d.id)
+
         # Update new list of trips per step
         it_new_trips.append(new_trips)
+
+    # Use only nodes where cars or trips are
+    if use_visited_only:
+        N = list(distinct_nodes)
+        logger.debug(f"Distinct nodes: {len(N):,}.")
 
     logger.debug("Creating cars_ijt (N x N x T) variables...")
     # decision, origin, destination, timestep
@@ -600,9 +647,9 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
         itn_cars = extract_decisions(s_it)
 
         # Total number of cars
-        n_cars = sum(list(zip(*itn_cars))[2])
+        fleet_size = sum(list(zip(*itn_cars))[2])
 
-        logger.debug(f"Total cars = {n_cars}")
+        logger.debug(f"Total cars = {fleet_size}")
         logger.debug(itn_cars)
 
         logger.debug("\nBest decisions 1:")
@@ -653,7 +700,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True):
                 n_cars -= 1
         env.available = env.cars
 
-        return step_decisions_list, it_new_trips
+        return step_decisions_list, it_new_trips, fleet_size
 
 
 def optimize_and_fix_fractional_vars(m, logger=None):

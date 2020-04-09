@@ -49,7 +49,7 @@ for f in FOLDERS:
 # #################################################################### #
 
 # Spatiotemporal probability
-FIST_CLASS_PROB = f"{FOLDER_INSTANCE}1st_class_prob_info.npy"
+FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p5min_6h.npy"
 
 # Load all trip paths
 PATHS_TRAINING_TRIPS = [
@@ -103,6 +103,7 @@ PROJECTION_GPS = "GPS"
 FLEET_START_LAST = "FLEET_START_LAST"
 FLEET_START_SAME = "FLEET_START_SAME"
 FLEET_START_RANDOM = "FLEET_START_RANDOM"
+FLEET_START_REJECTED_TRIP_ORIGINS = "FLEET_START_REJECTED_TRIP_ORIGINS"
 
 # #################################################################### #
 # SCENARIOS ########################################################## #
@@ -325,6 +326,28 @@ class Config:
         self.current_step = 0
 
         self.config = config
+
+    # ################################################################ #
+    # PLOT CONFIG #################################################### #
+    # ################################################################ #
+
+    PLOT_FLEET_FILE_FORMAT = "PLOT_FLEET_FILE_FORMAT"
+    PLOT_FLEET_DPI = "PLOT_FLEET_DPI"
+    PLOT_FLEET_OMIT_CRUISING = "PLOT_FLEET_OMIT_CRUISING"
+    PLOT_FLEET_SHOW_LEGEND = "PLOT_FLEET_SHOW_LEGEND"
+    PLOT_FLEET_LINEWIDTH = "PLOT_FLEET_LINEWIDTH"
+    PLOT_FLEET_LENGTH_TICK = "PLOT_FLEET_LENGTH_TICK"
+    PLOT_FLEET_XTICKS_LABELS = "PLOT_FLEET_XTICKS_LABELS"
+    PLOT_FLEET_X_MIN = "PLOT_FLEET_X_MIN"
+    PLOT_FLEET_X_MAX = "PLOT_FLEET_X_MAX"
+    PLOT_FLEET_X_NUM = "PLOT_FLEET_X_NUM"
+    PLOT_FLEET_SNS_CONTEXT = "PLOT_FLEET_SNS_CONTE"
+    PLOT_FLEET_SNS_FONT_SCALE = "PLOT_FLEET_SNS_FONT_SCALE"
+    PLOT_FLEET_FIG_X_INCHES = "PLOT_FLEET_FIG_X_INCHES"
+    PLOT_FLEET_FIG_Y_INCHES = "PLOT_FLEET_FIG_Y_INCHES"
+    PLOT_DEMAND_Y_MIN = "PLOT_DEMAND_Y_MIN"
+    PLOT_DEMAND_Y_MAX = "PLOT_DEMAND_Y_MAX"
+    PLOT_DEMAND_Y_NUM = "PLOT_DEMAND_Y_NUM"
 
     # ################################################################ #
     # ## Area ######################################################## #
@@ -662,6 +685,9 @@ class Config:
     def fleet_size(self):
         """Number of cars"""
         return self.config["FLEET_SIZE"]
+
+    def set_fleet_size(self, fleet_size):
+        self.config[Config.FLEET_SIZE] = fleet_size
 
     @property
     def aggregation_levels(self):
@@ -1004,6 +1030,48 @@ class Config:
         ]
 
     @property
+    def fleet_plot_config(self):
+        fleet_plot_config = dict(
+            file_format=self.config[Config.PLOT_FLEET_FILE_FORMAT],
+            dpi=self.config[Config.PLOT_FLEET_DPI],
+            omit_cruising=self.config[Config.PLOT_FLEET_OMIT_CRUISING],
+            show_legend=self.config[Config.PLOT_FLEET_SHOW_LEGEND],
+            linewidth=self.config[Config.PLOT_FLEET_LINEWIDTH],
+            lenght_tick=self.config[Config.PLOT_FLEET_LENGTH_TICK],
+            xticks_labels=self.config[Config.PLOT_FLEET_XTICKS_LABELS],
+            x_min=self.config[Config.PLOT_FLEET_X_MIN],
+            x_max=self.config[Config.PLOT_FLEET_X_MAX],
+            x_num=self.config[Config.PLOT_FLEET_X_NUM],
+            sns_context=self.config[Config.PLOT_FLEET_SNS_CONTEXT],
+            sns_font_scale=self.config[Config.PLOT_FLEET_SNS_FONT_SCALE],
+            fig_x_inches=self.config[Config.PLOT_FLEET_FIG_X_INCHES],
+            fig_y_inches=self.config[Config.PLOT_FLEET_FIG_Y_INCHES],
+        )
+        return fleet_plot_config
+
+    @property
+    def demand_plot_config(self):
+        demand_plot_config = dict(
+            file_format=self.config[Config.PLOT_FLEET_FILE_FORMAT],
+            dpi=self.config[Config.PLOT_FLEET_DPI],
+            show_legend=self.config[Config.PLOT_FLEET_SHOW_LEGEND],
+            linewidth=self.config[Config.PLOT_FLEET_LINEWIDTH],
+            lenght_tick=self.config[Config.PLOT_FLEET_LENGTH_TICK],
+            xticks_labels=self.config[Config.PLOT_FLEET_XTICKS_LABELS],
+            x_min=self.config[Config.PLOT_FLEET_X_MIN],
+            x_max=self.config[Config.PLOT_FLEET_X_MAX],
+            y_min=self.config[Config.PLOT_DEMAND_Y_MIN],
+            y_max=self.config[Config.PLOT_DEMAND_Y_MAX],
+            y_num=self.config[Config.PLOT_DEMAND_Y_NUM],
+            x_num=self.config[Config.PLOT_FLEET_X_NUM],
+            sns_context=self.config[Config.PLOT_FLEET_SNS_CONTEXT],
+            sns_font_scale=self.config[Config.PLOT_FLEET_SNS_FONT_SCALE],
+            fig_x_inches=self.config[Config.PLOT_FLEET_FIG_X_INCHES],
+            fig_y_inches=self.config[Config.PLOT_FLEET_FIG_Y_INCHES],
+        )
+        return demand_plot_config
+
+    @property
     def exp_settings(self):
         label = self.label
         return FOLDER_OUTPUT + label + "/exp_settings.json"
@@ -1329,6 +1397,38 @@ class ConfigStandard(Config):
         self.config[Config.DEMAND_SAMPLING] = True
         self.config[Config.DEMAND_CLASSED] = True
 
+        # PLOT CONFIG ################################################ #
+        self.config[Config.PLOT_FLEET_FILE_FORMAT] = "pdf"
+        self.config[Config.PLOT_FLEET_DPI] = 150
+        self.config[Config.PLOT_FLEET_OMIT_CRUISING] = False
+        self.config[Config.PLOT_FLEET_SHOW_LEGEND] = False
+        self.config[Config.PLOT_FLEET_LINEWIDTH] = 2
+        self.config[Config.PLOT_FLEET_LENGTH_TICK] = 6
+        self.config[Config.PLOT_FLEET_XTICKS_LABELS] = [
+            "",
+            "5AM",
+            "",
+            "6AM",
+            "",
+            "7AM",
+            "",
+            "8AM",
+            "",
+            "9AM",
+            "",
+            "10AM",
+        ]
+        self.config[Config.PLOT_FLEET_X_MIN] = 0
+        self.config[Config.PLOT_FLEET_X_MAX] = 330
+        self.config[Config.PLOT_FLEET_X_NUM] = 12
+        self.config[Config.PLOT_DEMAND_Y_MIN] = 0
+        self.config[Config.PLOT_DEMAND_Y_MAX] = 4000
+        self.config[Config.PLOT_DEMAND_Y_NUM] = 8
+        self.config[Config.PLOT_FLEET_SNS_CONTEXT] = "talk"
+        self.config[Config.PLOT_FLEET_SNS_FONT_SCALE] = 1.4
+        self.config[Config.PLOT_FLEET_FIG_X_INCHES] = 10
+        self.config[Config.PLOT_FLEET_FIG_Y_INCHES] = 10
+
     @property
     def label(self):
 
@@ -1521,6 +1621,14 @@ class ConfigNetwork(ConfigStandard):
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
+
+    def cars_start_from_rejected_trip_origins(self):
+        """True if cars should start from reject trip origins from 
+        previous iterations"""
+        return (
+            self.config[Config.FLEET_START]
+            == FLEET_START_REJECTED_TRIP_ORIGINS
+        )
 
     @property
     def cars_start_from_last_positions(self):

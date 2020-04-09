@@ -567,7 +567,15 @@ def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
         pickup_datetime.second,
         min_bin_size=min_bin_size,
     )
-
+    # print("####", pickup_datetime)
+    # print(
+    #     "time={}:{}:{}".format(
+    #         pickup_datetime.hour,
+    #         pickup_datetime.minute,
+    #         pickup_datetime.second,
+    #     )
+    # )
+    # print("MIN", min_bin_size, min_bin)
     try:
         prob = prob_dict[pk_id][min_bin]
         if random.random() <= prob:

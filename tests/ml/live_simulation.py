@@ -17,9 +17,11 @@ from pprint import pprint
 # Load data from tests previously executed
 start_config = ConfigNetwork.load(
     "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/"
-    "DF2_LIN_V=0500-0000(R)_I=5_L[4]=(10-0-, 11-0-, 12-0-, 13-0-)_R=([1-6, 2-6, 3-3][L(05)]_T=[06h,+60m+06h+30m]_1.00(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_2.40_15.00_0.00_0.00_1.00"
+    "BASE_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
     "/exp_settings.json"
 )
+
+# bokeh serve --show --port 5002 tests\ml\live_simulation.py
 
 # After loading, add another iteration to play
 start_config.config[ConfigNetwork.ITERATIONS] = (

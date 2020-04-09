@@ -73,6 +73,10 @@ class Amod:
 
         # List of available vehicles
         self.available = self.cars
+
+        # set of trip origins rejected in the last iteration
+        self.rejected_trip_origins = []
+
         self.rebalancing = []
 
     def get_fleet_status(self):
@@ -574,6 +578,29 @@ class Amod:
 
             new_origins = random.choices(self.points, k=self.fleet_size)
 
+        elif self.config.cars_start_from_rejected_trip_origins:
+            # Start from rejected trip origins
+
+            if seed is not None:
+                print(
+                    f"Starting fleet at rejected trip origins"
+                    f" (random seed={seed}, "
+                    f"origins={len(self.rejected_trip_origins)})..."
+                )
+                random.seed(seed + 1)
+
+            # Start with random origins
+            new_origins = random.choices(self.points, k=self.fleet_size)
+
+            # Slice reject trip origins (maximum size)
+            rejected_trip_origins = [
+                self.points[o]
+                for o in self.rejected_trip_origins[: self.fleet_size]
+            ]
+
+            # Add rejected to random
+            new_origins[0 : len(rejected_trip_origins)] = rejected_trip_origins
+
         Car.count = 0
 
         if self.config.centroid_level > 0:
@@ -582,6 +609,11 @@ class Amod:
                 self.points[p.id_level(self.config.centroid_level)]
                 for p in new_origins
             ]
+
+            print(
+                f"{len(new_origins)} centroid origins "
+                f"(level={self.config.centroid_level})"
+            )
 
         self.cars = [
             Car(

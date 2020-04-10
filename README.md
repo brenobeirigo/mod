@@ -91,7 +91,7 @@ If disabled, user membership to classes is defined at random according to the pr
 
 Example to create a case study named "R" considering 300 vehicles. The method will run on the training instance (defined in the file `config.py`) for 500 iterations. Additionally, all plots will be saved (fleet usage, demand, and user delays).
 
-    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots
+    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 -n 500 -train -save_plots
 
 Hiring:
 
@@ -101,7 +101,7 @@ Batch file (`.bat`):
 
     call C:\Users\LocalAdmin\Anaconda3\Scripts\activate env_slevels
     call cd C:\Users\LocalAdmin\OneDrive\leap_forward\phd_project\reb\code\mod\
-    call python mod\ml\adp_network_server.py R -FLEET_SIZE 300 - n 500 -train -save_plots
+    call python mod\ml\adp_network_server.py R -FLEET_SIZE 300 -n 500 -train -save_plots
 
 ## Memory profiling
 

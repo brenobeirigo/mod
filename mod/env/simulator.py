@@ -42,7 +42,6 @@ class PlotTrack:
     SHOW_LINES = True
 
     N_POINTS = 5
-    STEP_DURATION = 60
 
     FRAME_UPDATE_DELAY = 1
 
@@ -145,7 +144,6 @@ class PlotTrack:
                 muted_alpha=0.0,
                 legend=Car.status_label_dict[Car.REBALANCE],
             ),
-
             Car.RETURN: self.p.triangle(
                 x=[],
                 y=[],
@@ -156,7 +154,6 @@ class PlotTrack:
                 muted_alpha=0.0,
                 legend=Car.status_label_dict[Car.RETURN],
             ),
-
             Car.ASSIGN: self.p.triangle(
                 x=[],
                 y=[],
@@ -369,8 +366,20 @@ class PlotTrack:
             # Value function corresponds to position and battery level,
             # i.e., how valuable is to have a vehicle at position p with
             # a certain battery level
-            attribute = (point.id, battery_level)
-
+            attribute = (
+                future_step,
+                point.id,
+                Car.DISCARD_BATTERY,
+                Car.INFINITE_CONTRACT_DURATION,
+                Car.TYPE_FLEET,
+                Car.COMPANY_OWNED_ORIGIN,
+            )
+            # TIME = 0
+            # LOCATION = 1
+            # BATTERY = 2
+            # CONTRACT = 3
+            # CARTYPE = 4
+            # ORIGIN = 5
             # Checking whether value function was defined
             # if (
             #     future_step in self.env.values
@@ -378,9 +387,7 @@ class PlotTrack:
             #     and attribute in self.env.values[future_step][agg_level]
             # ):
             # id_g = point.id_level(agg_level)
-            estimate = self.env.adp.get_weighted_value(
-                future_step, point.id, battery_level, "Inf", "AV"
-            )
+            estimate = self.env.adp.get_weighted_value(attribute)
 
             values[point.id] = estimate
             # self.env.values[future_step][agg_level][attribute]
@@ -710,7 +717,7 @@ class PlotTrack:
                 # Vehicle is moving
                 else:
                     # TODO should be current time?
-                    dif = car.step - car.previous_step
+                    dif = (car.step - car.previous_step) * 5
 
                     segmented_sp = nw.query_sp_sliced(
                         car.previous,

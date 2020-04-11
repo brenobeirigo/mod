@@ -65,6 +65,7 @@ class AmodNetwork(Amod):
 
         self.init_fleet(self.points, car_positions)
 
+        # Point objects level
         self.points_level = {
             level: [self.points[point_id] for point_id in point_ids]
             for level, point_ids in enumerate(self.point_ids_level)
@@ -138,7 +139,15 @@ class AmodNetwork(Amod):
                 step,
                 n_neighbors=n,
             )
+
+            if (
+                self.get_travel_time(nw.get_distance(center, n))
+                <= self.config.time_increment
+            ):
+                continue
+
             targets.update(step_targets)
+
         #     # print(f"Level {l}:")
         #     # pprint(
         #     #     [
@@ -190,14 +199,14 @@ class AmodNetwork(Amod):
         #     d for d, dist in id_dist if dist <= self.config.time_increment
         # ][-6:]
         # # print(id_dist, targets)
-        # # targets = sorted(
-        # #     [
-        # #         d
-        # #         for d in targets
-        # #         if self.get_travel_time(nw.get_distance(center, d))
-        # #         <= self.config.time_increment
-        # #     ]
-        # # )[-6:]
+        # targets = sorted(
+        #     [
+        #         d
+        #         for d in targets
+        #         if self.get_travel_time(nw.get_distance(center, d))
+        #         <= self.config.time_increment
+        #     ]
+        # )[-6:]
 
         # # print(f"##### FINAL AFTER CUT {len(targets)}:")
         # # pprint(

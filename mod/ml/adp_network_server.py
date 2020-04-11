@@ -1079,7 +1079,7 @@ if __name__ == "__main__":
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                     # (1, 6),
                     (2, 6),
-                    (3, 6),
+                    # (3, 6),
                     # (3, 4),
                 ),
                 ConfigNetwork.CENTROID_LEVEL: 2,

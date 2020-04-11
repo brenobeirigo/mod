@@ -192,16 +192,16 @@ def get_sim_config(update_dict):
                 #     car_type=adp.DISAGGREGATE,
                 #     car_origin=adp.DISCARD,
                 # ),
+                # adp.AggLevel(
+                #     temporal=0,
+                #     spatial=1,
+                #     battery=adp.DISAGGREGATE,
+                #     contract=adp.DISCARD,
+                #     car_type=adp.DISAGGREGATE,
+                #     car_origin=adp.DISCARD,
+                # ),
                 adp.AggLevel(
-                    temporal=1,
-                    spatial=1,
-                    battery=adp.DISAGGREGATE,
-                    contract=adp.DISCARD,
-                    car_type=adp.DISAGGREGATE,
-                    car_origin=adp.DISCARD,
-                ),
-                adp.AggLevel(
-                    temporal=1,
+                    temporal=0,
                     spatial=2,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -209,7 +209,7 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
                 adp.AggLevel(
-                    temporal=1,
+                    temporal=0,
                     spatial=3,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -218,7 +218,10 @@ def get_sim_config(update_dict):
                 ),
             ],
             # ConfigNetwork.LEVEL_TIME_LIST: [0.5, 1, 2, 3],
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 5, 7, 10],
+            # TIME LIST multiplies the time increment. E.g.:
+            # time increment=5 then [1,2] = [5, 10]
+            # time increment=1 then [1,3] = [1, 3]
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 2],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
@@ -313,7 +316,36 @@ def alg_adp(
     save_df=True,
     # Save total reward, total service rate, and weights after iteration
     save_overall_stats=True,
-    log_config_dict=None,
+    log_config_dict={
+        # Write each vehicles status
+        la.LOG_FLEET_ACTIVITY: False,
+        # Write profit, service level, # trips, car/satus count
+        la.LOG_STEP_SUMMARY: True,
+        # ############# ADP ############################################
+        # Log duals update process
+        la.LOG_DUALS: False,
+        la.LOG_VALUE_UPDATE: False,
+        la.LOG_COSTS: False,
+        la.LOG_SOLUTIONS: False,
+        la.LOG_WEIGHTS: False,
+        # Log .lp and .log from MIP models
+        la.LOG_MIP: False,
+        # Log time spent across every step in each code section
+        la.LOG_TIMES: False,
+        # Save fleet, demand, and delay plots
+        la.SAVE_PLOTS: False,
+        # Save fleet and demand dfs for live plot
+        la.SAVE_DF: False,
+        # Log level saved in file
+        la.LEVEL_FILE: la.DEBUG,
+        # Log level printed in screen
+        la.LEVEL_CONSOLE: la.INFO,
+        la.FORMATTER_FILE: la.FORMATTER_TERSE,
+        # Log everything
+        la.LOG_ALL: False,
+        # Log chosen (if LOG_ALL, set to lowest, i.e., DEBUG)
+        la.LOG_LEVEL: la.INFO,
+    },
 ):
     # Set tabu size (vehicles cannot visit nodes in tabu)
     Car.SIZE_TABU = config.car_size_tabu
@@ -504,9 +536,29 @@ def alg_adp(
 
         # Get decisions for optimal rebalancing
         if config.method == ConfigNetwork.METHOD_OPTIMAL:
-            it_decisions, it_step_trip_list = optimal_rebalancing(
+            (
+                it_decisions,
+                it_step_trip_list,
+                new_fleet_size,
+            ) = optimal_rebalancing(
                 amod, it_step_trip_list, log_mip=log_config_dict[la.LOG_MIP]
             )
+
+            # Set optimal fleet size
+            amod.config.set_fleet_size(new_fleet_size)
+
+        if (
+            log_config_dict[la.SAVE_PLOTS]
+            or log_config_dict[la.SAVE_DF]
+            or log_config_dict[la.LOG_STEP_SUMMARY]
+        ):
+            logger.debug("  - Computing fleet status...")
+            # Compute fleet status after making decision in step - 1
+            # What each car is doing when trips are arriving?
+            step_log.compute_fleet_status()
+
+        # When step=0, no users have come from previous round
+        # step_log.add_record(0, [], [])
 
         # Iterate through all steps and match requests to cars
         for step, trips in enumerate(it_step_trip_list):
@@ -571,14 +623,14 @@ def alg_adp(
             for c in itertools.chain(amod.cars, amod.hired_cars):
                 logger.debug(f"{c} - {c.attribute}")
             # What each vehicle is doing after update?
-            la.log_fleet_activity(
-                config.log_path(amod.adp.n),
-                step + 1,
-                skip_steps,
-                step_log,
-                filter_status=[],
-                msg="post update",
-            )
+            # la.log_fleet_activity(
+            #     config.log_path(amod.adp.n),
+            #     step + 1,
+            #     skip_steps,
+            #     step_log,
+            #     filter_status=[],
+            #     msg="post update",
+            # )
             t_log += time.time() - t1
 
             # print(
@@ -723,23 +775,15 @@ def alg_adp(
             t_reactive_rebalance = time.time() - t_reactive_rebalance_1
 
             t1 = time.time()
-            # What each vehicle is doing?
-            la.log_fleet_activity(
-                config.log_path(amod.adp.n),
-                int((step + 1) / config.time_max_cars_link),
-                skip_steps,
-                step_log,
-                filter_status=[],
-                msg="after decision",
-            )
-            t_log += time.time() - t1
-
-            t1 = time.time()
-            if log_config_dict[la.SAVE_PLOTS] or log_config_dict[la.SAVE_DF]:
+            if (
+                log_config_dict[la.SAVE_PLOTS]
+                or log_config_dict[la.SAVE_DF]
+                or log_config_dict[la.LOG_STEP_SUMMARY]
+            ):
                 logger.debug("  - Computing fleet status...")
                 # Compute fleet status after making decision in step - 1
                 # What each car is doing when trips are arriving?
-                step_log.compute_fleet_status(step + 1)
+                step_log.compute_fleet_status()
             t_save_plots += time.time() - t1
 
             t1 = time.time()
@@ -752,6 +796,18 @@ def alg_adp(
             # -------------------------------------------------------- #
             # Plotting fleet activity ################################ #
             # -------------------------------------------------------- #
+
+            t1 = time.time()
+            # What each vehicle is doing?
+            la.log_fleet_activity(
+                config.log_path(amod.adp.n),
+                step,
+                skip_steps,
+                step_log,
+                filter_status=[],
+                msg="after decision",
+            )
+            t_log += time.time() - t1
 
             if plot_track:
 
@@ -851,112 +907,120 @@ def alg_adp(
 
 if __name__ == "__main__":
 
-    # Default is training
-    method = ConfigNetwork.METHOD_ADP_TEST
-    save_progress_interval = None
-
-    # Isolate arguments (first is filename)
-    args = sys.argv[1:]
-
-    try:
-        test_label = args[0]
-    except:
-        test_label = "TESTDE"
-
-    try:
-        iterations = args.index("-n")
-        n_iterations = int(args[iterations + 1])
-    except:
-        n_iterations = 400
-
-    backlog = "-backlog" in args
-
-    # Enable logs
-    log_all = "-log_all" in args
-    log_mip = "-log_mip" in args
-    log_times = "-log_times" in args
-    log_fleet = "-log_fleet" in args
-    log_trips = "-log_trips" in args
-
-    # Save supply and demand plots and dataframes
-    save_plots = "-save_plots" in args
-    save_df = "-save_df" in args
-
-    # Optimization methods
-    myopic = "-myopic" in args
-    policy_random = "-random" in args
-    policy_reactive = "-reactive" in args
-    train = "-train" in args
-    test = "-test" in args
-    optimal = "-optimal" in args
-    policy_mpc = "-mpc" in args
-
-    if policy_random:
-        print("RANDOM")
-        method = ConfigNetwork.METHOD_RANDOM
-
-    elif policy_reactive:
-        print("REACTIVE")
-        method = ConfigNetwork.METHOD_REACTIVE
-
-    elif myopic:
-        print("MYOPIC")
-        method = ConfigNetwork.METHOD_MYOPIC
-
-    elif train:
-        print("SAVING PROGRESS")
-        try:
-            i = int(args.index("-train"))
-            save_progress_interval = int(args[i + 1])
-        except:
-            save_progress_interval = 1
-        print(f"Saving progress every {save_progress_interval} iteration.")
-        method = ConfigNetwork.METHOD_ADP_TRAIN
-
-    elif test:
-        method = ConfigNetwork.METHOD_ADP_TEST
-        save_progress_interval = None
-        print("Progress will not be saved!")
-
-    elif optimal:
-        method = ConfigNetwork.METHOD_OPTIMAL
-        n_iterations = 1
-
-    elif policy_mpc:
-        method = ConfigNetwork.METHOD_MPC
-        n_iterations = 1
-
-    else:
-        raise ("Error! Which method?")
-
-    print("METHOD:", method)
-
-    try:
-        fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
-        fleet_size = int(args[fleet_size_i + 1])
-    except:
-        fleet_size = 100
-
-    try:
-        fav_fleet_size_i = args.index(f"-{ConfigNetwork.FAV_FLEET_SIZE}")
-        fav_fleet_size = int(args[fav_fleet_size_i + 1])
-    except:
-        fav_fleet_size = 0
-
-    try:
-        log_level_i = args.index("-level")
-        log_level_label = args[log_level_i + 1]
-        log_level = la.levels[log_level_label]
-    except:
-        log_level = la.INFO
-
-    print(f"###### STARTING EXPERIMENTS. METHOD: {method}")
-
-    instance_name = None  # f"{conf.FOLDER_OUTPUT}hiring_LIN_cars=0000-0300(L)_t=1_levels[5]=(1-0, 1-0, 1-0, 3-300, 3-600)_rebal=([0-8, 1-8][tabu=10])[L(05)][P]_[05h,+30m+04h+60m]_0.10(S)_1.00_0.10/exp_settings.json"
+    instance_name = None
+    # instance_name = f"{conf.FOLDER_OUTPUT}BA_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_0.00_B_2.40_10.00_0.00_0.00_1.00/exp_settings.json"
     if instance_name:
+
+        log_mip = False
+        log_times = False
+        save_plots = False
+        save_df = False
+        log_all = False
+        log_level = la.INFO
         print(f'Loading settings from "{instance_name}"')
         start_config = ConfigNetwork.load(instance_name)
     else:
+        # Default is training
+        method = ConfigNetwork.METHOD_ADP_TEST
+        save_progress_interval = None
+
+        # Isolate arguments (first is filename)
+        args = sys.argv[1:]
+
+        try:
+            test_label = args[0]
+        except:
+            test_label = "TESTDE"
+
+        try:
+            iterations = args.index("-n")
+            n_iterations = int(args[iterations + 1])
+        except:
+            n_iterations = 400
+
+        backlog = "-backlog" in args
+
+        # Enable logs
+        log_all = "-log_all" in args
+        log_mip = "-log_mip" in args
+        log_times = "-log_times" in args
+        log_fleet = "-log_fleet" in args
+        log_trips = "-log_trips" in args
+
+        # Save supply and demand plots and dataframes
+        save_plots = "-save_plots" in args
+        save_df = "-save_df" in args
+
+        # Optimization methods
+        myopic = "-myopic" in args
+        policy_random = "-random" in args
+        policy_reactive = "-reactive" in args
+        train = "-train" in args
+        test = "-test" in args
+        optimal = "-optimal" in args
+        policy_mpc = "-mpc" in args
+
+        if policy_random:
+            print("RANDOM")
+            method = ConfigNetwork.METHOD_RANDOM
+
+        elif policy_reactive:
+            print("REACTIVE")
+            method = ConfigNetwork.METHOD_REACTIVE
+
+        elif myopic:
+            print("MYOPIC")
+            method = ConfigNetwork.METHOD_MYOPIC
+
+        elif train:
+            print("SAVING PROGRESS")
+            try:
+                i = int(args.index("-train"))
+                save_progress_interval = int(args[i + 1])
+            except:
+                save_progress_interval = 1
+            print(f"Saving progress every {save_progress_interval} iteration.")
+            method = ConfigNetwork.METHOD_ADP_TRAIN
+
+        elif test:
+            method = ConfigNetwork.METHOD_ADP_TEST
+            save_progress_interval = None
+            print("Progress will not be saved!")
+
+        elif optimal:
+            method = ConfigNetwork.METHOD_OPTIMAL
+            n_iterations = 1
+
+        elif policy_mpc:
+            method = ConfigNetwork.METHOD_MPC
+            n_iterations = 1
+
+        else:
+            raise ("Error! Which method?")
+
+        print("METHOD:", method)
+
+        try:
+            fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
+            fleet_size = int(args[fleet_size_i + 1])
+        except:
+            fleet_size = 100
+
+        try:
+            fav_fleet_size_i = args.index(f"-{ConfigNetwork.FAV_FLEET_SIZE}")
+            fav_fleet_size = int(args[fav_fleet_size_i + 1])
+        except:
+            fav_fleet_size = 0
+
+        try:
+            log_level_i = args.index("-level")
+            log_level_label = args[log_level_i + 1]
+            log_level = la.levels[log_level_label]
+        except:
+            log_level = la.INFO
+
+        print(f"###### STARTING EXPERIMENTS. METHOD: {method}")
+
         start_config = get_sim_config(
             {
                 ConfigNetwork.ITERATIONS: n_iterations,
@@ -970,7 +1034,7 @@ if __name__ == "__main__":
                 ConfigNetwork.DEMAND_EARLIEST_HOUR: 6,
                 ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
-                ConfigNetwork.TIME_INCREMENT: 10,
+                ConfigNetwork.TIME_INCREMENT: 5,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
@@ -980,11 +1044,12 @@ if __name__ == "__main__":
                 #     "A": 4.8,
                 #     "B": 2.4,
                 # },
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 4.8), ("B", 0)),
-                ConfigNetwork.TRIP_BASE_FARE: (("A", 4.8), ("B", 2.4)),
+                ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 2.4), ("B", 2.4)),
                 ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
-                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 5), ("B", 0)),
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 5), ("B", 15)),
+                ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 10)),
                 ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.METHOD: method,
@@ -1005,21 +1070,22 @@ if __name__ == "__main__":
                 # When cars start in the last visited point, the model takes
                 # a long time to figure out the best time
                 ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
+                # ConfigNetwork.FLEET_START: conf.FLEET_START_REJECTED_TRIP_ORIGINS,
                 ConfigNetwork.CAR_SIZE_TABU: 0,
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
                 ConfigNetwork.PENALIZE_REBALANCE: True,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    (1, 6),
-                    # (2, 6),
-                    # (3, 3),
+                    # (1, 6),
+                    (2, 6),
+                    (3, 6),
                     # (3, 4),
                 ),
-                ConfigNetwork.CENTROID_LEVEL: 3,
+                ConfigNetwork.CENTROID_LEVEL: 2,
                 # FLEET ############################################## #
                 # Car operation
-                ConfigNetwork.MAX_CARS_LINK: None,
+                ConfigNetwork.MAX_CARS_LINK: 5,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
@@ -1041,21 +1107,46 @@ if __name__ == "__main__":
                 ConfigNetwork.SAVE_TRIP_DATA: log_trips,
                 ConfigNetwork.SAVE_FLEET_DATA: log_fleet,
                 # Load 1st class probabilities dictionary
-                ConfigNetwork.USE_CLASS_PROB: False,
+                ConfigNetwork.USE_CLASS_PROB: True,
                 ConfigNetwork.ENABLE_RECHARGING: False,
+                # PLOT ############################################### #
+                ConfigNetwork.PLOT_FLEET_XTICKS_LABELS: [
+                    "",
+                    "6AM",
+                    "",
+                    "7AM",
+                    "",
+                    "8AM",
+                    "",
+                    "9AM",
+                    "",
+                    "10AM",
+                    "",
+                    "11AM",
+                    "",
+                    "12AM",
+                    "",
+                ],
+                ConfigNetwork.PLOT_FLEET_X_MIN: 0,
+                ConfigNetwork.PLOT_FLEET_X_MAX: 84,
+                ConfigNetwork.PLOT_FLEET_X_NUM: 15,
+                ConfigNetwork.PLOT_FLEET_OMIT_CRUISING: False,
+                ConfigNetwork.PLOT_DEMAND_Y_MAX: 3500,
+                ConfigNetwork.PLOT_DEMAND_Y_NUM: 8,
+                ConfigNetwork.PLOT_DEMAND_Y_MIN: 0,
             }
         )
 
     # Toggle what is going to be logged
     log_config = {
         # Write each vehicles status
-        la.LOG_FLEET_ACTIVITY: True,
+        la.LOG_FLEET_ACTIVITY: False,
         # Write profit, service level, # trips, car/satus count
         la.LOG_STEP_SUMMARY: True,
         # ############# ADP ############################################
         # Log duals update process
-        la.LOG_DUALS: False,
-        la.LOG_VALUE_UPDATE: False,
+        la.LOG_DUALS: True,
+        la.LOG_VALUE_UPDATE: True,
         la.LOG_COSTS: True,
         la.LOG_SOLUTIONS: False,
         la.LOG_WEIGHTS: False,

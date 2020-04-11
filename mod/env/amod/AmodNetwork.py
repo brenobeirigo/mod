@@ -46,7 +46,7 @@ class AmodNetwork(Amod):
             self.points,
             distance_levels,
             level_count,
-            points_level,
+            point_ids_level,
         ) = nw.query_point_list(
             step=self.config.step_seconds,
             projection=self.config.projection,
@@ -54,7 +54,7 @@ class AmodNetwork(Amod):
         )
 
         # Set of points per level
-        self.points_level = points_level
+        self.point_ids_level = point_ids_level
 
         # Levels correspond to distances queried in the server.
         # E.g., [0, 30, 60, 120, 300]
@@ -64,6 +64,11 @@ class AmodNetwork(Amod):
         Point.level_count = [level_count[d] for d in Point.levels]
 
         self.init_fleet(self.points, car_positions)
+
+        self.points_level = {
+            level: [self.points[point_id] for point_id in point_ids]
+            for level, point_ids in enumerate(self.point_ids_level)
+        }
 
         self.adp = AdpHired(self.points, self.config)
 
@@ -126,6 +131,7 @@ class AmodNetwork(Amod):
             level_n_neighbors = self.config.n_neighbors_explore
 
         for l, n in level_n_neighbors:
+            # Example of steps that correspond to level: 0=0, 1=100, etc.
             step = Point.levels[l]
             step_targets = nw.query_neighbor_zones(
                 Point.point_dict[center].level_ids_dic[step],
@@ -133,19 +139,74 @@ class AmodNetwork(Amod):
                 n_neighbors=n,
             )
             targets.update(step_targets)
+        #     # print(f"Level {l}:")
+        #     # pprint(
+        #     #     [
+        #     #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        #     #         for d in step_targets
+        #     #     ]
+        #     # )
+        #     if l > 1:
+        #         for target in step_targets:
+        #             step = Point.levels[1]
+        #             sub_step_targets = nw.query_neighbor_zones(
+        #                 Point.point_dict[target].level_ids_dic[step],
+        #                 step,
+        #                 n_neighbors=n,
+        #             )
 
-        # print(
+        #             # print(f"  -- Sub. Level target = {target}:")
+        #             # pprint(
+        #             #     [
+        #             #         f"   {center}->({target})->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        #             #         for d in sub_step_targets
+        #             #     ]
+        #             # )
+        #         targets.update(sub_step_targets)
+
+        #     # print(f"Level {l}:")
+        #     # pprint(
+        #     #     [
+        #     #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        #     #         for d in step_targets
+        #     #     ]
+        #     # )
+
+        # # print(
+        # #     [
+        # #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        # #         for d in targets
+        # #     ]
+        # # )
+        # id_dist = sorted(
         #     [
-        #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        #         (d, self.get_travel_time(nw.get_distance(center, d)))
         #         for d in targets
-        #     ]
+        #     ],
+        #     key=lambda x: x[1],
         # )
 
         # targets = [
-        #     d
-        #     for d in targets
-        #     if self.get_travel_time(nw.get_distance(center, d)) <= 5
-        # ]
+        #     d for d, dist in id_dist if dist <= self.config.time_increment
+        # ][-6:]
+        # # print(id_dist, targets)
+        # # targets = sorted(
+        # #     [
+        # #         d
+        # #         for d in targets
+        # #         if self.get_travel_time(nw.get_distance(center, d))
+        # #         <= self.config.time_increment
+        # #     ]
+        # # )[-6:]
+
+        # # print(f"##### FINAL AFTER CUT {len(targets)}:")
+        # # pprint(
+        # #     [
+        # #         f"   {center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
+        # #         for d in targets
+        # #     ]
+        # # )
+
         return targets
 
     # @functools.lru_cache(maxsize=None)

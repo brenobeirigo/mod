@@ -61,6 +61,9 @@ class PlotTrack:
             self.output_folder_simulation + "region_center_data.npy"
         )
 
+        # Save previously loaded vfs
+        self.vf_values = dict()
+
         # ------------------------------------------------------------ #
         # Slide steps ahead ########################################## #
         # ------------------------------------------------------------ #
@@ -352,61 +355,68 @@ class PlotTrack:
             Values correspond to aggregation level
 
         """
-        print("Calculating value functions...")
-
-        # Value function of all points
-        values = np.zeros(len(self.env.points))
 
         # Number of steps ahead value functions are visualized
         future_step = steps_ahead
 
-        # Get all valid value function throughout the map at a certain level
-        for point in self.env.points:
+        print("Calculating value functions...")
 
-            # Value function corresponds to position and battery level,
-            # i.e., how valuable is to have a vehicle at position p with
-            # a certain battery level
-            attribute = (
-                future_step,
-                point.id,
-                Car.DISCARD_BATTERY,
-                Car.INFINITE_CONTRACT_DURATION,
-                Car.TYPE_FLEET,
-                Car.COMPANY_OWNED_ORIGIN,
-            )
-            # TIME = 0
-            # LOCATION = 1
-            # BATTERY = 2
-            # CONTRACT = 3
-            # CARTYPE = 4
-            # ORIGIN = 5
-            # Checking whether value function was defined
-            # if (
-            #     future_step in self.env.values
-            #     and agg_level in self.env.values[future_step]
-            #     and attribute in self.env.values[future_step][agg_level]
-            # ):
-            # id_g = point.id_level(agg_level)
-            estimate = self.env.adp.get_weighted_value(attribute)
+        if future_step in self.vf_values:
+            values = self.vf_values[future_step]
 
-            values[point.id] = estimate
-            # self.env.values[future_step][agg_level][attribute]
+        else:
+            # Value function of all points
+            values = np.zeros(len(self.env.points))
 
-        # Total value function throughout all points
-        total = np.sum(values)
+            # Get all valid value function throughout the map at a certain level
+            for point in self.env.points_level[self.env.config.centroid_level]:
 
-        if total > 0:
-            # Values are between 0 and 1
-            values = values / np.sum(values)
+                # Value function corresponds to position and battery level,
+                # i.e., how valuable is to have a vehicle at position p with
+                # a certain battery level
+                attribute = (
+                    future_step,
+                    point.id,
+                    Car.DISCARD_BATTERY,
+                    Car.INFINITE_CONTRACT_DURATION,
+                    Car.TYPE_FLEET,
+                    Car.COMPANY_OWNED_ORIGIN,
+                )
+                # TIME = 0
+                # LOCATION = 1
+                # BATTERY = 2
+                # CONTRACT = 3
+                # CARTYPE = 4
+                # ORIGIN = 5
+                # Checking whether value function was defined
+                # if (
+                #     future_step in self.env.values
+                #     and agg_level in self.env.values[future_step]
+                #     and attribute in self.env.values[future_step][agg_level]
+                # ):
+                # id_g = point.id_level(agg_level)
+                estimate = self.env.adp.get_weighted_value(attribute)
 
-            # Values are normalized
-            values = (values - np.min(values)) / (
-                np.max(values) - np.min(values)
-            )
-            # Resize alpha factor
-            values = PlotTrack.MAX_ALPHA_VALUE_FUNCTION * values
+                values[point.id] = estimate
+                # self.env.values[future_step][agg_level][attribute]
 
-        print("Finished calculating...")
+            # Total value function throughout all points
+            total = np.sum(values)
+
+            if total > 0:
+                # Values are between 0 and 1
+                values = values / np.sum(values)
+
+                # Values are normalized
+                values = (values - np.min(values)) / (
+                    np.max(values) - np.min(values)
+                )
+                # Resize alpha factor
+                values = PlotTrack.MAX_ALPHA_VALUE_FUNCTION * values
+
+            print("Finished calculating...")
+            self.vf_values[future_step] = values
+
         self.update_screen(
             attribute=self.value_function, value=values, param="fill_alpha"
         )

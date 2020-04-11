@@ -91,7 +91,7 @@ class AmodNetworkHired(AmodNetwork):
         self.step_favs = self.get_hired_step()
         self.available_hired = []
         self.rebalancing_hired = []
-        self.available_hired_ids = np.zeros(len(self.points_level[0]))
+        self.available_hired_ids = np.zeros(len(self.point_ids_level[0]))
         self.expired_contract_cars = []
 
         # Used to execute the method in sequence for vehicles of

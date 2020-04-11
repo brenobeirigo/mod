@@ -66,6 +66,7 @@ class ClassedTrip(Trip):
         max_delay=10,
         tolerance=5,
         distance_km=None,
+        time_increment=1,
     ):
         super().__init__(o, d, time)
         self.sq_class = sq_class
@@ -82,9 +83,10 @@ class ClassedTrip(Trip):
         self.tolerance = tolerance
         self.distance_km = distance_km
 
-        # Min/Max delays discounting announcement
+        # Min/Max delays discounting announcement. Attribute elapsed_sec
+        # start from the beginning of each step, i.e., <= time_increment
         self.max_delay_from_placement = (
-            self.max_delay - (60 - self.elapsed_sec) / 60
+            self.max_delay - (60 * time_increment - self.elapsed_sec) / 60
         )
 
     def update_delay(self, period_min):
@@ -190,6 +192,8 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
             d["dp_id"].append(t.d.id)
             d["sq_class"].append(t.sq_class)
             d["max_delay"].append(t.max_delay)
+            d["elapsed_sec"].append(t.elapsed_sec)
+            d["max_delay_from_placement"].append(t.max_delay_from_placement)
             d["tolerance"].append(t.tolerance)
             lon_o, lat_o = nw.tenv.lonlat(t.o.id)
             lon_d, lat_d = nw.tenv.lonlat(t.d.id)
@@ -260,6 +264,7 @@ def get_ny_demand(
             seed=seed,
             prob_dict=prob_dict,
             centroid_level=centroid_level,
+            time_increment=config.time_increment,
         )
 
         # Count number of trips per step
@@ -599,6 +604,7 @@ def get_trips(
     seed=None,
     prob_dict=None,
     centroid_level=0,
+    time_increment=1,
 ):
 
     # Populate first steps with empty lists
@@ -647,6 +653,7 @@ def get_trips(
                     max_delay=max_delay[random_class],
                     tolerance=tolerance[random_class],
                     distance_km=distance_km,
+                    time_increment=time_increment,
                 )
             )
         step_trip_list.append(trip_list)

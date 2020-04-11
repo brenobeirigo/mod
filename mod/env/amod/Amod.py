@@ -324,6 +324,7 @@ class Amod:
             trip,
             duration_pickup_step=duration_pickup_step,
             duration_total_step=duration_total_step,
+            time_increment=self.config.time_increment,
         )
 
         return duration_pickup_min, total_duration_min, total_distance, revenue

@@ -348,6 +348,7 @@ class Car:
         trip,
         duration_pickup_step=0,
         duration_total_step=0,
+        time_increment=1,
     ):
         """Update car settings after being matched with a passenger.
         
@@ -403,10 +404,23 @@ class Car:
         self.time_status[Car.ASSIGN].append(total_duration - pk_duration)
         self.time_status[Car.CRUISING].append(pk_duration)
 
+        # print(
+        #     self.trip.placement,
+        #     self.step,
+        #     pk_step,
+        #     self.step + pk_step,
+        #     pk_duration,
+        #     total_duration - pk_duration,
+        #     "arrival:",
+        #     self.arrival_time,
+        # )
+
         self.trip.pk_step = self.step + pk_step
 
         # How long to pick up the user
-        self.trip.pk_delay = self.trip.backlog_delay + pk_duration
+        self.trip.pk_delay = (
+            time_increment + self.trip.backlog_delay + pk_duration
+        )
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step

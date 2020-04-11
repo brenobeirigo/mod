@@ -231,7 +231,7 @@ def mpc(
     """
 
     # Get all nodes from "centroid_level"
-    N = list(env.points_level[env.config.centroid_level])
+    N = list(env.point_ids_level[env.config.centroid_level])
 
     # List
     T = np.array(range(step, step + min(horizon, len(predicted_trips))))
@@ -531,7 +531,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
         list of decisions per step, list of filtered trips per step
     """
     # Get all nodes from "centroid_level"
-    N = list(env.points_level[env.config.centroid_level])
+    N = list(env.point_ids_level[env.config.centroid_level])
     T = np.array(range(0, len(it_trips))) + 1
 
     # Log events of iteration n
@@ -1050,7 +1050,7 @@ def extract_duals(m, flow_cars, ignore_zeros=False, logger=None):
             shadow_price = 0
 
         # Should zero value functions be updated?
-        if ignore_zeros and shadow_price == 0:
+        if ignore_zeros and shadow_price <= 0:
             continue
 
         if car_type == Car.TYPE_VIRTUAL:
@@ -1418,7 +1418,9 @@ def service_trips(
             f"  - Getting decisions  "
             f"(trips={len(trips)}, "
             f"decisions={len(decision_cars)}, "
-            f"available cars=[PAV={len(env.available)}, FAV={len(env.available_hired)}, total={env.available_fleet_size}])"
+            f"available cars=[PAV={len(env.available)}, "
+            f"FAV={len(env.available_hired)}, "
+            f"total={env.available_fleet_size}])"
         )
 
         # Logging cost calculus
@@ -1558,11 +1560,11 @@ def service_trips(
                 if d[du.CAR_ORIGIN] == d[du.DESTINATION]:
                     continue
 
-            # if d[du.ACTION] == du.TRIP_DECISION:
-            #     continue
+            if d[du.ACTION] == du.TRIP_DECISION:
+                continue
 
-            # if d[du.ACTION] == du.STAY_DECISION:
-            #     continue
+            if d[du.ACTION] == du.STAY_DECISION:
+                continue
 
             # Cars arriving at destination
             decisions_destination[d[du.DESTINATION]] += x_var[d]

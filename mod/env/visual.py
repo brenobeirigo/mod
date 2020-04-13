@@ -333,10 +333,13 @@ class EpisodeLog:
         total_trips = defaultdict(int)
         # Origins of rejected trips (new car starting points)
         rejected_trip_origins = set()
+        last_trip_origins = set()
 
         # Loop all trips from all steps
         for t in it.chain(*it_step_trip_list):
             total_trips[t.sq_class] += 1
+
+            last_trip_origins.add(t.o.id)
 
             # If None -> Trip was rejected
             if t.pk_delay is not None:
@@ -354,6 +357,7 @@ class EpisodeLog:
         delays_stats = dict()
 
         step_log.env.rejected_trip_origins = list(rejected_trip_origins)
+        step_log.env.last_trip_origins = list(last_trip_origins)
 
         # TODO change to "for sq in user_bases"
         for sq, delays in trip_delays.items():
@@ -511,7 +515,7 @@ class EpisodeLog:
 
             cols.append("time")
             df_stats["time"] = pd.Series([processing_time])
-            stats_file = self.output_path + "/overall_stats.csv"
+            stats_file = self.output_path + "overall_stats.csv"
             df_stats.to_csv(
                 stats_file,
                 mode="a",

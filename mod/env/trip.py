@@ -10,6 +10,14 @@ import mod.env.network as nw
 # Reproducibility of the experiments
 random.seed(1)
 
+# Trip tuples
+TIME = 0
+ELAPSED_SEC = 1
+COUNT = 2
+ORIGIN = 3
+DESTINATION = 4
+DISTANCE_KM = 5
+
 
 class Trip:
     trip_count = 0
@@ -243,7 +251,13 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
 
 
 def get_ny_demand(
-    config, tripdata_path, points, seed=None, prob_dict=None, centroid_level=0
+    config,
+    tripdata_path,
+    points,
+    seed=None,
+    prob_dict=None,
+    centroid_level=0,
+    unreachable_ods=None,
 ):
 
     step_trip_od_list = load_trips_ods_from(tripdata_path, config)
@@ -265,6 +279,7 @@ def get_ny_demand(
             prob_dict=prob_dict,
             centroid_level=centroid_level,
             time_increment=config.time_increment,
+            unreachable_ods=unreachable_ods,
         )
 
         # Count number of trips per step
@@ -605,6 +620,7 @@ def get_trips(
     prob_dict=None,
     centroid_level=0,
     time_increment=1,
+    unreachable_ods=None,
 ):
 
     # Populate first steps with empty lists
@@ -620,6 +636,13 @@ def get_trips(
     for step, trips in enumerate(step_trips):
         resized = list()
         for t in trips:
+            # Unreachable ods are excluded
+            if unreachable_ods and (
+                t[ORIGIN] in unreachable_ods
+                or t[DESTINATION] in unreachable_ods
+            ):
+                continue
+
             # Only add a new trip "resize_factor" percent of the time
             if random.random() < resize_factor:
                 resized.append(t)

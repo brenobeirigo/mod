@@ -251,6 +251,16 @@ def get_decisions(env, trips):
                 # Stay ############################################### #
                 d_stay = stay_decision(car)
                 decisions.add(d_stay)
+
+        # Cars can only stay at parking lots
+        elif env.config.cars_start_from_parking_lots and (
+            car.point.id in env.level_parking_ids
+            or car.point.id in env.unrestricted_parking_node_ids
+        ):
+            d_stay = stay_decision(car)
+            decisions.add(d_stay)
+
+        # Cars can stay anywhere
         else:
             # Stay ################################################### #
             d_stay = stay_decision(car)

@@ -100,10 +100,14 @@ FOLDER_EPISODE_TRACK = root + "/data/output/track_episode/"
 # Map projections for visualization
 PROJECTION_MERCATOR = "MERCATOR"
 PROJECTION_GPS = "GPS"
+
+# Fleet starting positions
 FLEET_START_LAST = "FLEET_START_LAST"
 FLEET_START_SAME = "FLEET_START_SAME"
 FLEET_START_RANDOM = "FLEET_START_RANDOM"
 FLEET_START_REJECTED_TRIP_ORIGINS = "FLEET_START_REJECTED_TRIP_ORIGINS"
+FLEET_START_LAST_TRIP_ORIGINS = "FLEET_START_LAST_TRIP_ORIGINS"
+FLEET_START_PARKING_LOTS = "FLEET_START_PARKING_LOTS"
 
 # #################################################################### #
 # SCENARIOS ########################################################## #
@@ -145,6 +149,7 @@ class Config:
     SPEED = "SPEED"
     FLEET_SIZE = "FLEET_SIZE"
     FLEET_START = "FLEET_START"
+    LEVEL_PARKING_LOTS = "LEVEL_PARKING_LOTS"
     CAR_SIZE_TABU = "CAR_SIZE_TABU"
 
     BATTERY_SIZE_DISTANCE = "BATTERY_SIZE_DISTANCE"
@@ -232,6 +237,8 @@ class Config:
     N_CLOSEST_NEIGHBORS_EXPLORE = "N_CLOSEST_NEIGHBORS_EXPLORE"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
+    REBALANCE_SUB_LEVEL = "REBALANACE_SUB_LEVEL"
+    REBALANCE_MAX_TARGETS = "REBALANCE_MAX_TARGETS"
     PENALIZE_REBALANCE = "PENALIZE_REBALANCE"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
@@ -1508,6 +1515,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.N_CLOSEST_NEIGHBORS_EXPLORE] = ((1, 8),)
         self.config[Config.NEIGHBORHOOD_LEVEL] = 1
         self.config[Config.REBALANCE_LEVEL] = (1,)
+        self.config[Config.REBALANCE_SUB_LEVEL] = None
         self.config[Config.REBALANCE_REACH] = None
         self.config[Config.REBALANCE_MULTILEVEL] = False
         self.config[Config.PENALIZE_REBALANCE] = True
@@ -1621,7 +1629,7 @@ class ConfigNetwork(ConfigStandard):
     # ---------------------------------------------------------------- #
     # Network version ################################################ #
     # ---------------------------------------------------------------- #
-
+    @property
     def cars_start_from_rejected_trip_origins(self):
         """True if cars should start from reject trip origins from 
         previous iterations"""
@@ -1629,6 +1637,21 @@ class ConfigNetwork(ConfigStandard):
             self.config[Config.FLEET_START]
             == FLEET_START_REJECTED_TRIP_ORIGINS
         )
+
+    @property
+    def cars_start_from_last_trip_origins(self):
+        """True if cars should start from trip origins from 
+        previous iterations"""
+        return self.config[Config.FLEET_START] == FLEET_START_LAST_TRIP_ORIGINS
+
+    @property
+    def cars_start_from_parking_lots(self):
+        """True if cars should start from set of parking lots"""
+        return self.config[Config.FLEET_START] == FLEET_START_PARKING_LOTS
+
+    @property
+    def level_parking_lots(self):
+        return self.config[Config.LEVEL_PARKING_LOTS]
 
     @property
     def cars_start_from_last_positions(self):
@@ -1823,6 +1846,18 @@ class ConfigNetwork(ConfigStandard):
     def rebalance_level(self):
         """Level of centers cars rebalance to"""
         return self.config[Config.REBALANCE_LEVEL]
+
+    @property
+    def rebalance_sub_level(self):
+        """If active (<> None), instead of rebalancing to superior
+        level, rebalance to all child nodes of superior level, at level
+        'REBALANCE_SUBLEVEL'.
+        """
+        return self.config[Config.REBALANCE_SUB_LEVEL]
+
+    @property
+    def rebalance_max_targets(self):
+        return self.config[Config.REBALANCE_MAX_TARGETS]
 
     @property
     def penalize_rebalance(self):
@@ -2031,11 +2066,16 @@ class ConfigNetwork(ConfigStandard):
         # Does fleet start from random positions or last?
         # L = Last visited position
         # S = Same position
-        start = (
-            "L"
-            if self.cars_start_from_last_positions
-            else ("R" if self.cars_start_from_random_positions else "I")
-        )
+        if self.cars_start_from_random_positions:
+            start = "R"
+        elif self.cars_start_from_last_positions:
+            start = "L"
+        elif self.cars_start_from_parking_lots:
+            start = f"P({self.level_parking_lots})"
+        elif self.cars_start_from_last_trip_origins:
+            start = "O"
+        elif self.cars_start_from_rejected_trip_origins:
+            start = "OR"
 
         return start
 

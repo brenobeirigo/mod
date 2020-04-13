@@ -170,7 +170,8 @@ def log_costs(
             overall_cost = 0
 
             logger.debug(
-                f"######## LOG COSTS {msg} (decisions={len(best_decisions)}, time={time_step}) #########################"
+                f"######## LOG COSTS {msg} (decisions={len(best_decisions)}, "
+                f"time={time_step}) #########################"
             )
 
             decision_labels = [

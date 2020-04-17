@@ -206,6 +206,7 @@ class Config:
     PARKING_RATE_MIN = "PARKING_RATE_MIN"
     COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
+    LIMIT_REBALANCING_TIME_INCREMENT = "LIMIT_REBALANCING_TIME_INCREMENT"
     TOTAL_TIME = "TOTAL_TIME"
     OFFSET_REPOSITIONING_MIN = "OFFSET_REPOSITIONING_MIN"
     OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
@@ -648,7 +649,12 @@ class Config:
     @property
     def time_increment(self):
         """Duration of the time steps in (min)"""
-        return self.config["TIME_INCREMENT"]
+        return self.config[Config.TIME_INCREMENT]
+
+    @property
+    def limit_rebalancing_time_increment(self):
+        """Rebalancing cannot take more than time increment"""
+        return self.config[Config.LIMIT_REBALANCING_TIME_INCREMENT]
 
     @property
     def time_increment_timedelta(self):
@@ -1267,6 +1273,8 @@ class ConfigStandard(Config):
 
         # Lenght of time incremnts (min) - default is 15min
         self.config[Config.TIME_INCREMENT] = 15
+        self.config[Config.LIMIT_REBALANCING_TIME_INCREMENT] = True
+
         self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
             minutes=self.config[Config.TIME_INCREMENT]
         )

@@ -100,11 +100,6 @@ class ClassedTrip(Trip):
         # start from the beginning of each step, i.e., <= time_increment
         self.max_delay_from_placement = self.max_delay - self.delay_close_step
 
-    def update_delay(self, period_min):
-        self.max_delay_from_placement -= period_min
-        self.backlog_delay += period_min
-        return self.max_delay_from_placement
-
     @property
     def attribute(self, level=0):
         return (self.o.id_level(level), self.d.id_level(level), self.sq_class)

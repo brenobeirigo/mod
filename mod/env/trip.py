@@ -27,11 +27,13 @@ class Trip:
         self.d = d
         self.time = time  # step
         self.pk_step = None  # step
+        self.dp_step = None
         self.id = Trip.trip_count
         Trip.trip_count += 1
         self.picked_by = None
         self.dropoff_time = None
         self.pk_delay = None
+        self.pk_duration = None
         # Accrue backlogging delay
         self.backlog_delay = 0
 
@@ -91,11 +93,12 @@ class ClassedTrip(Trip):
         self.tolerance = tolerance
         self.distance_km = distance_km
 
+        # How much time user waits until the end of the step
+        self.delay_close_step = time_increment - self.elapsed_sec / 60
+
         # Min/Max delays discounting announcement. Attribute elapsed_sec
         # start from the beginning of each step, i.e., <= time_increment
-        self.max_delay_from_placement = (
-            self.max_delay - (60 * time_increment - self.elapsed_sec) / 60
-        )
+        self.max_delay_from_placement = self.max_delay - self.delay_close_step
 
     def update_delay(self, period_min):
         self.max_delay_from_placement -= period_min
@@ -114,6 +117,7 @@ class ClassedTrip(Trip):
         return (
             f"Trip{{"
             f"id={self.id:03},"
+            f"placement={self.placement},"
             f"o={self.o.level_ids},"
             f"d={self.d.level_ids},"
             f"sq={self.sq_class},"
@@ -202,6 +206,7 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
             d["max_delay"].append(t.max_delay)
             d["elapsed_sec"].append(t.elapsed_sec)
             d["max_delay_from_placement"].append(t.max_delay_from_placement)
+            d["delay_close_step"].append(t.delay_close_step)
             d["tolerance"].append(t.tolerance)
             lon_o, lat_o = nw.tenv.lonlat(t.o.id)
             lon_d, lat_d = nw.tenv.lonlat(t.d.id)
@@ -232,9 +237,17 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
                 d["pickup_step"].append(
                     t.pk_step if t.pk_step is not None else "-"
                 )
+                d["dropoff_step"].append(
+                    t.dp_step if t.dp_step is not None else "-"
+                )
                 d["pickup_delay"].append(
                     t.pk_delay if t.pk_delay is not None else "-"
                 )
+
+                d["pickup_duration"].append(
+                    t.pk_duration if t.pk_duration is not None else "-"
+                )
+
                 d["pickup_datetime"].append(
                     pickup_datetime_str if t.pk_delay is not None else "-"
                 )

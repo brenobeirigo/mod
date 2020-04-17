@@ -216,7 +216,7 @@ class Car:
             trip = ""
 
         status = (
-            f"{self.label}[{Car.status_label_dict[self.status]:>15}]"
+            f"{self.label}[{Car.status_label_dict[self.status]:>20}]"
             f" - Previous arrival: {self.previous_arrival:>6.2f}"
             f" - Arrival: {self.arrival_time:>6.2f}"
             f"(previous={self.previous_step:>5},step={self.step:>5})"
@@ -415,16 +415,21 @@ class Car:
         #     self.arrival_time,
         # )
 
-        self.trip.pk_step = self.step + pk_step
+        # If pk_step==0 (i.e., car and trip are at the same place),
+        # consider car starts at next pickup step
+        self.trip.pk_step = self.step + max(pk_step, 1)
 
         # How long to pick up the user
         self.trip.pk_delay = (
-            time_increment + self.trip.backlog_delay + pk_duration
+            self.trip.delay_close_step + self.trip.backlog_delay + pk_duration
         )
+
+        self.trip.pk_duration = pk_duration
 
         # If service duration is lower than time increment, car have
         # to be free in the next time step
         self.step += max(duration_total_step, 1)
+        self.trip.dp_step = self.step
 
         # if self.arrival_time > self.step:
         #     print("What!", self.arrival_time, self.step)

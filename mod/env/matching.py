@@ -52,6 +52,9 @@ def is_optimal(m):
     elif m.status == GRB.Status.INFEASIBLE:
         print(f"Model infeasible (status={m.status}")
         return False
+    else:
+        print("Error model.")
+        return False
 
 
 # #################################################################### #
@@ -563,6 +566,8 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
     # Create model only with the nodes where trips appear
     distinct_nodes = set()
 
+    logger.debug(f"\nTotal trips = {sum([len(trips) for trips in it_trips])}")
+
     for step, trips in enumerate(it_trips):
         logger.debug(f" - step={step:04}, n. of trips={len(trips):04}")
         new_trips = []
@@ -584,6 +589,9 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
     if use_visited_only:
         N = list(distinct_nodes)
         logger.debug(f"Distinct nodes: {len(N):,}.")
+        logger.debug(
+            f"Total trips = {sum([len(trips) for trips in it_new_trips])}"
+        )
 
     logger.debug("Creating cars_ijt (N x N x T) variables...")
     # decision, origin, destination, timestep
@@ -1560,9 +1568,18 @@ def service_trips(
                 if d[du.CAR_ORIGIN] == d[du.DESTINATION]:
                     continue
 
+            # Skip restriction to parking lots
+            if env.config.cars_start_from_parking_lots and (
+                d[du.DESTINATION] in env.level_parking_ids
+                or d[du.DESTINATION] in env.unrestricted_parking_node_ids
+            ):
+                continue
+
+            # Cars can always pickup customers
             if d[du.ACTION] == du.TRIP_DECISION:
                 continue
 
+            # Any number of cars can stay at each point
             if d[du.ACTION] == du.STAY_DECISION:
                 continue
 
@@ -1576,7 +1593,7 @@ def service_trips(
             decisions_destination,
             env.cars_inbound_to,
             max_cars_node=env.config.max_cars_link,
-            unrestricted=[],
+            unrestricted=env.unrestricted_parking_node_ids,
         )
 
     t_setup_constraints = time.time() - t1_setup_constraints
@@ -1607,6 +1624,7 @@ def service_trips(
             time_step,
             env.config.discount_factor,
             post_opt=True,
+            msg="SOLUTION",
         )
 
         # Number of customers rejected per origin id

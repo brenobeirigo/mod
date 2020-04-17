@@ -28,6 +28,8 @@ class Amod:
             actions {list} -- Possible actions from each state
             car_positions -- Where each vehicle is in the beginning.
         """
+        # Nodes where cars can park unrestrictedly
+        self.unrestricted_parking_node_ids = {}
         self.config = config
         self.time_steps = config.time_steps
 
@@ -76,6 +78,7 @@ class Amod:
 
         # set of trip origins rejected in the last iteration
         self.rejected_trip_origins = []
+        self.last_trip_origins = []
 
         self.rebalancing = []
 
@@ -506,6 +509,28 @@ class Amod:
 
         return self.get_travel_time(distance, unit=unit)
 
+    def get_unreachable_ods(self):
+        """Unreachable ods have NO rebalancing neighbors.
+        
+        Returns
+        -------
+        set
+            Nodes with no neighbors
+        """
+        unreachable_ods = set()
+
+        # Loop all origin nodes
+        for i in self.point_ids_level[self.config.centroid_level]:
+
+            # Get all neighbhors
+            neigh = self.get_zone_neighbors(i)
+
+            # No neighbors found
+            if not neigh:
+                unreachable_ods.add(i)
+
+        return unreachable_ods
+
     # ################################################################ #
     # Prints ######################################################### #
     # ################################################################ #
@@ -602,9 +627,52 @@ class Amod:
             # Add rejected to random
             new_origins[0 : len(rejected_trip_origins)] = rejected_trip_origins
 
+        elif self.config.cars_start_from_last_trip_origins:
+            # Start from rejected trip origins
+
+            if seed is not None:
+                print(
+                    f"Starting fleet from last trip origins"
+                    f" (random seed={seed}, "
+                    f"origins={len(self.last_trip_origins)})..."
+                )
+                random.seed(seed + 1)
+
+            # Start with random origins
+            new_origins = random.choices(self.points, k=self.fleet_size)
+
+            # Slice reject trip origins (maximum size)
+            last_trip_origins = [
+                self.points[o]
+                for o in self.last_trip_origins[: self.fleet_size]
+            ]
+
+            # Add rejected to random
+            new_origins[0 : len(last_trip_origins)] = last_trip_origins
+
+        elif self.config.cars_start_from_parking_lots:
+            # Start from rejected trip origins
+
+            if seed is not None:
+                print(
+                    f"Starting fleet from parking lots"
+                    f" (random seed={seed}, "
+                    f"origins={len(self.level_parking_points)})..."
+                )
+                random.seed(seed + 1)
+
+            # Chose parking lots randomly
+            new_origins = random.choices(
+                self.level_parking_points, k=self.fleet_size
+            )
+
         Car.count = 0
 
-        if self.config.centroid_level > 0:
+        # Cars start from centroids
+        if (
+            self.config.centroid_level > 0
+            and not self.config.cars_start_from_parking_lots
+        ):
             # Transform origin points in centroids
             new_origins = [
                 self.points[p.id_level(self.config.centroid_level)]

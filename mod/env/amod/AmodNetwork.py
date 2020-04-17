@@ -71,6 +71,13 @@ class AmodNetwork(Amod):
             for level, point_ids in enumerate(self.point_ids_level)
         }
 
+        # Cars always start from set of parking lots located at the
+        # center of regions of a certain level
+        if self.config.cars_start_from_parking_lots:
+            level_parking = self.config.level_parking_lots
+            self.level_parking_ids = set(point_ids_level[level_parking])
+            self.level_parking_points = self.points_level[level_parking]
+
         self.adp = AdpHired(self.points, self.config)
 
         self.adp.init_learning()
@@ -102,7 +109,7 @@ class AmodNetwork(Amod):
     def reachable_neighbors(self, n, t):
         return nw.tenv.reachable_neighbors(n, t)
 
-    # @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def get_zone_neighbors(self, center, explore=False):
         """Get the ids of nodes in the closest (explore=True)
         or farthest (explore=False) neighborhoods.
@@ -140,82 +147,48 @@ class AmodNetwork(Amod):
                 n_neighbors=n,
             )
 
+            # When active, rebalance options are extended to neighbors
+            # of the targets in "step_targets" at level "sub_level".
+            # Hence, rebalance to O(step_targets*step_targets).
             if (
-                self.get_travel_time(nw.get_distance(center, n))
-                <= self.config.time_increment
+                self.config.rebalance_sub_level is not None
+                and l > self.config.rebalance_sub_level
             ):
-                continue
 
+                for target in step_targets:
+                    # Select step corresponding to level
+                    step = Point.levels[self.config.rebalance_sub_level]
+                    sub_step_targets = nw.query_neighbor_zones(
+                        Point.point_dict[target].level_ids_dic[step],
+                        step,
+                        n_neighbors=n,
+                    )
+
+                    try:
+                        # Cannot rebalance to itself
+                        sub_step_targets.remove(center)
+                    except Exception as e:
+                        pass
+
+                targets.update(sub_step_targets)
             targets.update(step_targets)
 
-        #     # print(f"Level {l}:")
-        #     # pprint(
-        #     #     [
-        #     #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
-        #     #         for d in step_targets
-        #     #     ]
-        #     # )
-        #     if l > 1:
-        #         for target in step_targets:
-        #             step = Point.levels[1]
-        #             sub_step_targets = nw.query_neighbor_zones(
-        #                 Point.point_dict[target].level_ids_dic[step],
-        #                 step,
-        #                 n_neighbors=n,
-        #             )
+        if self.config.limit_rebalancing_time_increment:
 
-        #             # print(f"  -- Sub. Level target = {target}:")
-        #             # pprint(
-        #             #     [
-        #             #         f"   {center}->({target})->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
-        #             #         for d in sub_step_targets
-        #             #     ]
-        #             # )
-        #         targets.update(sub_step_targets)
+            # Sort rebalancing targets (farther first)
+            id_dist = sorted(
+                [
+                    (d, self.get_travel_time(nw.get_distance(center, d)))
+                    for d in targets
+                ],
+                key=lambda x: x[1],
+                reverse=True,
+            )
 
-        #     # print(f"Level {l}:")
-        #     # pprint(
-        #     #     [
-        #     #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
-        #     #         for d in step_targets
-        #     #     ]
-        #     # )
-
-        # # print(
-        # #     [
-        # #         f"{center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
-        # #         for d in targets
-        # #     ]
-        # # )
-        # id_dist = sorted(
-        #     [
-        #         (d, self.get_travel_time(nw.get_distance(center, d)))
-        #         for d in targets
-        #     ],
-        #     key=lambda x: x[1],
-        # )
-
-        # targets = [
-        #     d for d, dist in id_dist if dist <= self.config.time_increment
-        # ][-6:]
-        # # print(id_dist, targets)
-        # targets = sorted(
-        #     [
-        #         d
-        #         for d in targets
-        #         if self.get_travel_time(nw.get_distance(center, d))
-        #         <= self.config.time_increment
-        #     ]
-        # )[-6:]
-
-        # # print(f"##### FINAL AFTER CUT {len(targets)}:")
-        # # pprint(
-        # #     [
-        # #         f"   {center}->{d}={self.get_travel_time(nw.get_distance(center, d)):.1f}"
-        # #         for d in targets
-        # #     ]
-        # # )
-
+            # Remove targets that cannot be accessed whithn time increment
+            targets = [
+                d for d, dist in id_dist if dist <= self.config.time_increment
+            ]
         return targets
 
     # @functools.lru_cache(maxsize=None)

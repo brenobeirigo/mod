@@ -52,7 +52,7 @@ doc = curdoc()
 # exp_name = "B15_LIN_V=0400-0000(R)_I=5_L[4]=(10-0-, 11-0-, 12-0-, 13-0-)_R=([1-6][L(05)]_T=[06h,+60m+06h+30m]_1.00(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_7.20_15.00_0.00_0.00_1.00"
 # exp_name = "MP_LIN_C2_V=0300-0000(R)_I=10_L[3]=(11-0-, 12-0-, 13-0-)_R=([1-6]_T=[06h,+0m+06h+0m]_0.10(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_2.40_15.00_0.00_0.00_1.00"
 # exp_name = "SS_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
-exp_name = "5STAY_LIN_C1_V=0800-0000(I)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.20(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+exp_name = "BK_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
 # bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
 # method = "reactive"
@@ -111,6 +111,8 @@ episode_slider = Slider(
     end=end_slider,
     step=1,
 )
+
+it_total = 0
 
 # Save column data source per status
 source_fleet = dict()
@@ -355,7 +357,7 @@ def load_episode(e, smooth_sigma=0):
 
 
 def load_overall_stats(smooth_sigma=0):
-
+    global it_total
     # Create episode file path
     file_path = path_overall_stats
 
@@ -365,6 +367,7 @@ def load_overall_stats(smooth_sigma=0):
     # x axis of step values
     iterations = np.array(d.index.values)
 
+    it_total = len(iterations)
     # Loading episode data
     # for status in d.columns.values:
 
@@ -501,9 +504,10 @@ def update_episode_list():
     print(f"Updating episode track ({update_rate//(60*1000)} min)...")
     global end_slider
     global episode_slider
+    global it_total
     files_demand = os.listdir(path_demand)
     # files_fleet = os.listdir(path_fleet)
-    end_slider = len(files_demand)
+    end_slider = max(len(files_demand), it_total)
     episode_slider.end = end_slider
     doc.add_next_tick_callback(partial(show_overall_stats))
 

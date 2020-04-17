@@ -369,6 +369,13 @@ def get_decisions(env, trips):
             # scenario (user waiting since the beginning of the round)
             max_pk_time = trip.max_delay - env.config.time_increment
 
+            # Trip delay cannot be considered because they have different
+            # placement times. Hence, decision OD cannot be taken in bulk.
+            # E.g.: t1 [o,d] (3) - 7 min --> Pk=6 -- OK!
+            #       t2 [o,d] (5) - 5 min --> Pk=6 -- FAIL
+            # Add 2 decisions to pickup [o,d], but t2 cannot be picked up
+            # in time.
+
             # Can the car reach the trip origin?
             if pk_time <= max_pk_time + trip.tolerance:
 

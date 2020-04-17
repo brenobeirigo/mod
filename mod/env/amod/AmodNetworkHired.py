@@ -121,6 +121,11 @@ class AmodNetworkHired(AmodNetwork):
             self.cost = self.loaded_costs
             self.penalty = self.loaded_penalty
 
+        # Nodes with no neighbors are not valid trips. Valid neighbors
+        # can be accessed within the time increment, which is not always
+        # possible when using higher up centroids.
+        self.unreachable_ods = self.get_unreachable_ods()
+
     def online_penalty(self, car_o, trip_o, sq):
 
         # If tolerance is zero, there is no delay penalty
@@ -875,16 +880,17 @@ class AmodNetworkHired(AmodNetwork):
                             car.remaining_distance
                         )
 
-                    # Get closest trip
-                    iclosest_pk = np.argmin(
-                        [
-                            self.get_distance(car.point, trip.o)
-                            for trip in a_trips_dict[(o, d)]
-                        ]
-                    )
+                    # How long each request has been waiting?
+                    trip_delays = [
+                        trip.max_delay_from_placement + trip.backlog_delay
+                        for trip in a_trips_dict[(o, d)]
+                    ]
+
+                    # Request waiting the longest first
+                    i_max_wait = np.argmax(trip_delays)
 
                     # Get a trip to apply decision
-                    trip = a_trips_dict[(o, d)].pop(iclosest_pk)
+                    trip = a_trips_dict[(o, d)].pop(i_max_wait)
 
                     self.pickup(trip, car)
 
@@ -913,7 +919,11 @@ class AmodNetworkHired(AmodNetwork):
                 car_id, self.config.time_increment * 60
             )
         else:
+            # Filter targets farther than "time_increment" and limit
+            # the max. number of targets. If rebalance_max_targers is
+            # None, does not filter.
             neighbors = self.get_zone_neighbors(car_id)
+            neighbors = neighbors[: self.config.rebalance_max_targets]
 
         return neighbors
 
@@ -1207,14 +1217,14 @@ class AmodNetworkHired(AmodNetwork):
             )
 
         Returns:
-            tuple: 
+            tuple: (
                 time_step,
                 point,
                 battery_post,
                 contract_duration,
                 type_post,
-                car_origin,
-        )
+                car_origin
+            )
         """
 
         (

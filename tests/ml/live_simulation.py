@@ -53,7 +53,7 @@ start_config2 = alg.get_sim_config(
         ConfigNetwork.DEMAND_SAMPLING: True,
         # Service quality
         ConfigNetwork.MATCHING_DELAY: 15,
-        ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: False,
         ConfigNetwork.SQ_GUARANTEE: False,
         # ConfigNetwork.TRIP_REJECTION_PENALTY: {
         #     "A": 4.8,

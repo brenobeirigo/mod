@@ -298,7 +298,7 @@ class Config:
     DEMAND_EARLIEST_DATETIME = "DEMAND_EARLIEST_DATETIME"
     DEMAND_SAMPLING = "DEMAND_SAMPLING"
     DEMAND_CLASSED = "DEMAND_CLASSED"
-    ALLOW_USER_BACKLOGGING = "ALLOW_USER_BACKLOGGING"
+    MAX_USER_BACKLOGGING_DELAY = "MAX_USER_BACKLOGGING_DELAY"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
     UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
@@ -582,8 +582,8 @@ class Config:
         return self.config["PICKUP_ZONE_RANGE"]
 
     @property
-    def allow_user_backlogging(self):
-        return self.config["ALLOW_USER_BACKLOGGING"]
+    def max_user_backlogging_delay(self):
+        return self.config["MAX_USER_BACKLOGGING_DELAY"]
 
     @property
     def matching_delay(self):
@@ -1552,7 +1552,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.EARLIEST_STEP_MIN] = int(
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
-        self.config[Config.ALLOW_USER_BACKLOGGING] = False
+        self.config[Config.MAX_USER_BACKLOGGING_DELAY] = False
 
         # USERS ###################################################### #
         self.config[Config.TRIP_BASE_FARE] = {

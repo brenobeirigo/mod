@@ -622,7 +622,7 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.DEMAND_SAMPLING: True,
         # Service quality
         ConfigNetwork.MATCHING_DELAY: 15,
-        ConfigNetwork.ALLOW_USER_BACKLOGGING: False,
+        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: False,
         ConfigNetwork.SQ_GUARANTEE: False,
         # ConfigNetwork.TRIP_REJECTION_PENALTY: {
         #     "A": 4.8,

@@ -358,6 +358,12 @@ def alg_adp(
     # ---------------------------------------------------------------- #
 
     amod = AmodNetworkHired(config, online=True)
+    print(
+        f"Nodes with no neighbors (within time increment) "
+        f"({len(amod.unreachable_ods)})"
+        f" = {amod.unreachable_ods}"
+    )
+
     episode_log = EpisodeLog(
         amod.config.save_progress, config=config, adp=amod.adp
     )
@@ -471,6 +477,7 @@ def alg_adp(
                 seed=n,
                 prob_dict=prob_dict,
                 centroid_level=amod.config.centroid_level,
+                unreachable_ods=amod.unreachable_ods,
             )
 
             # Save random data (trip samples)
@@ -480,6 +487,24 @@ def alg_adp(
                     f"{config.sampled_tripdata_path}trips_{test_i:04}.csv",
                     index=False,
                 )
+
+            # Trip destination ids are unrestricted, i.e., cars can
+            # always arrive at destinations
+            all_trips = list(itertools.chain(*step_trip_list))
+            id_destinations = set([t.d.id for t in all_trips])
+            amod.unrestricted_parking_node_ids = id_destinations
+
+            # print(
+            #     f"Id destinations {len(id_destinations)} = {id_destinations}"
+            # )
+            # for i in id_destinations:
+            #     neigh = amod.get_zone_neighbors(i)
+            #     print(" - ", neigh)
+            # all_destinations = set(
+            #     itertools.chain(*[t.d.level_ids for t in all_trips])
+            # )
+            # print(f"All destinations {len(all_destinations)}")
+            # print(all_destinations)
 
         # Log events of iteration n
         logger = la.get_logger(
@@ -544,8 +569,7 @@ def alg_adp(
                 amod, it_step_trip_list, log_mip=log_config_dict[la.LOG_MIP]
             )
 
-            # Set optimal fleet size
-            amod.config.set_fleet_size(new_fleet_size)
+            print(f"MPC optimal fleet size: {new_fleet_size}")
 
         if (
             log_config_dict[la.SAVE_PLOTS]
@@ -723,12 +747,17 @@ def alg_adp(
 
             # print(f"Revenue FAV: {revenue_fav} - Serviced FAV: {len(serviced_fav)} - Rejected FAV: {len(rejected_fav)}")
 
-            if amod.config.allow_user_backlogging:
+            if amod.config.max_user_backlogging_delay > 0:
 
                 expired = []
                 for r in rejected:
-                    max_delay = r.update_delay(amod.config.time_increment)
-                    if max_delay <= 0:
+                    # Add time increment to backlog delay
+                    r.backlog_delay += amod.config.time_increment
+                    if (
+                        r.backlog_delay
+                        > amod.config.max_user_backlogging_delay
+                        or step + 1 == amod.config.time_steps
+                    ):
                         expired.append(r)
                     else:
                         outstanding.append(r)
@@ -938,7 +967,11 @@ if __name__ == "__main__":
         except:
             n_iterations = 400
 
-        backlog = "-backlog" in args
+        try:
+            ibacklog = args.index("-backlog")
+            backlog_delay_min = int(args[ibacklog + 1])
+        except:
+            backlog_delay_min = 0
 
         # Enable logs
         log_all = "-log_all" in args
@@ -1035,10 +1068,11 @@ if __name__ == "__main__":
                 ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
                 ConfigNetwork.TIME_INCREMENT: 5,
+                ConfigNetwork.LIMIT_REBALANCING_TIME_INCREMENT: True,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
-                ConfigNetwork.ALLOW_USER_BACKLOGGING: backlog,
+                ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: backlog_delay_min,
                 ConfigNetwork.SQ_GUARANTEE: False,
                 # ConfigNetwork.TRIP_REJECTION_PENALTY: {
                 #     "A": 4.8,
@@ -1071,15 +1105,20 @@ if __name__ == "__main__":
                 # a long time to figure out the best time
                 ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
                 # ConfigNetwork.FLEET_START: conf.FLEET_START_REJECTED_TRIP_ORIGINS,
+                # ConfigNetwork.FLEET_START: conf.FLEET_START_PARKING_LOTS,
+                # ConfigNetwork.LEVEL_PARKING_LOTS: 2,
+                # ConfigNetwork.FLEET_START: conf.FLEET_START_LAST_TRIP_ORIGINS,
                 ConfigNetwork.CAR_SIZE_TABU: 0,
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
                 ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.REBALANCE_SUB_LEVEL: 2,
+                ConfigNetwork.REBALANCE_MAX_TARGETS: 6,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                     # (1, 6),
                     (2, 6),
-                    # (3, 6),
+                    (3, 6),
                     # (3, 4),
                 ),
                 ConfigNetwork.CENTROID_LEVEL: 2,
@@ -1140,14 +1179,14 @@ if __name__ == "__main__":
     # Toggle what is going to be logged
     log_config = {
         # Write each vehicles status
-        la.LOG_FLEET_ACTIVITY: False,
+        la.LOG_FLEET_ACTIVITY: True,
         # Write profit, service level, # trips, car/satus count
         la.LOG_STEP_SUMMARY: True,
         # ############# ADP ############################################
         # Log duals update process
-        la.LOG_DUALS: True,
-        la.LOG_VALUE_UPDATE: True,
-        la.LOG_COSTS: True,
+        la.LOG_DUALS: False,
+        la.LOG_VALUE_UPDATE: False,
+        la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: False,
         la.LOG_WEIGHTS: False,
         # Log .lp and .log from MIP models

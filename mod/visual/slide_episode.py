@@ -52,7 +52,7 @@ doc = curdoc()
 # exp_name = "B15_LIN_V=0400-0000(R)_I=5_L[4]=(10-0-, 11-0-, 12-0-, 13-0-)_R=([1-6][L(05)]_T=[06h,+60m+06h+30m]_1.00(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_7.20_15.00_0.00_0.00_1.00"
 # exp_name = "MP_LIN_C2_V=0300-0000(R)_I=10_L[3]=(11-0-, 12-0-, 13-0-)_R=([1-6]_T=[06h,+0m+06h+0m]_0.10(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_2.40_15.00_0.00_0.00_1.00"
 # exp_name = "SS_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
-exp_name = "BK_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+exp_name = "BBB2_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
 # bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
 # method = "reactive"
@@ -80,6 +80,14 @@ color_overall_status = {
     "Total reward": "red",
 }
 
+
+color_weights = {
+    "0_00": "red",
+    "0_01": "black",
+    "0_02": "blue",
+    "0_03": "green",
+}
+
 # Color per vehicle status
 color_dict_demand = {
     "Total demand": "#24aafe",
@@ -100,6 +108,7 @@ episode_demand_dict = defaultdict(lambda: defaultdict(dict))
 plot_fleet = figure(plot_width=plot_width, plot_height=plot_height)
 plot_demand = figure(plot_width=plot_width, plot_height=plot_height)
 plot_iterations = figure(plot_width=plot_width, plot_height=plot_height)
+plot_weights = figure(plot_width=plot_width, plot_height=plot_height)
 
 # Setup slider
 episode_slider = Slider(
@@ -118,6 +127,7 @@ it_total = 0
 source_fleet = dict()
 source_demand = dict()
 source_overall_stats = dict()
+source_h_weights = dict()
 
 
 def configure_plot_demand(p):
@@ -238,6 +248,67 @@ def configure_plot_fleet(p, status_list):
     p.yaxis.axis_label = "#Vehicle/Status"
     p.yaxis.major_label_text_font_size = axes_font_size
     p.yaxis.axis_label_text_font_size = axes_font_size
+
+
+def configure_h_weights(p, list_weights):
+
+    # Setup title
+    title = Title(
+        align="center",
+        text="Hierarchical levels",
+        text_font_size="16pt",
+        text_color="#929292",
+        text_font_style="normal",
+    )
+
+    # Add title
+    p.title = title
+
+    # Set x axis settings
+    p.xaxis.axis_label = "Iteration"
+    p.xaxis.major_label_text_font_size = axes_font_size
+    p.xaxis.axis_label_text_font_size = axes_font_size
+
+    # Set y axis settings
+    p.yaxis[0].axis_label = "Weight"
+    p.yaxis.major_label_text_font_size = axes_font_size
+    p.yaxis.axis_label_text_font_size = axes_font_size
+
+    # Save glyph per status
+    items = dict()
+    for g in list_weights:
+        data = ColumnDataSource(data=dict(x=[], y=[]))
+        source_h_weights[g] = data
+        line = p.line(
+            "x",
+            "y",
+            color=color_weights[g],
+            line_width=2,
+            line_alpha=1,
+            muted_alpha=0.1,
+            source=data,
+        )
+
+        items[g] = [line]
+
+    print(items)
+    # Setup legend
+    # https://bokeh.pydata.org/en/latest/docs/user_guide/styling.html#legends
+
+    legend = Legend(
+        items=list(items.items()),
+        location="center_right",
+        background_fill_alpha=0.8,
+        click_policy="mute",
+        border_line_width=0,
+        label_text_font_size=label_font_size,
+        title_text_font_size=title_font_size,
+        title_text_font_style="bold",
+        # title="Vehicle status",
+    )
+
+    # Add legend outside plot
+    p.add_layout(legend, "right")
 
 
 def configure_overall_stats(p, status_list):
@@ -394,6 +465,33 @@ def load_overall_stats(smooth_sigma=0):
     plot_iterations.y_range = Range1d(min(count), max(count) + 100)
 
 
+def load_h_weights(smooth_sigma=0):
+    global it_total
+    global list_weights
+    # Create episode file path
+    file_path = path_overall_stats
+
+    # Read dataframe corresponding to episode
+    d = pd.read_csv(file_path, index_col=[0])
+
+    # x axis of step values
+    iterations = np.array(d.index.values)
+
+    it_total = len(iterations)
+    # Loading episode data
+    # for status in d.columns.values:
+
+    for h in list_weights:
+        weights = list(d[h])
+
+        # Smooth values
+        if smooth_sigma > 0:
+            weights = fi.gaussian_filter1d(weights, sigma=smooth_sigma)
+
+        e_data_dict = dict(x=iterations, y=weights)
+        source_h_weights[h].data = e_data_dict
+
+
 def load_episode_demand(e, smooth_sigma=0):
     print(f"Loading episode {e:04}...")
 
@@ -454,6 +552,7 @@ def show_fleet_status(episode):
 def show_overall_stats():
 
     load_overall_stats(smooth_sigma=smooth_sigma_fleet)
+    load_h_weights(smooth_sigma=smooth_sigma_fleet)
     # source_overall_stats[status].data
     # for status, count in source_overall_stats.items():
     #     source_overall_stats[status].data["y"] = count
@@ -526,17 +625,23 @@ status_list = [
     "Total",
 ]
 list_stats = ["Total reward", "Service rate"]
+list_weights = ["0_00", "0_01"]
 
 configure_plot_fleet(plot_fleet, status_list)
 configure_plot_demand(plot_demand)
 configure_overall_stats(plot_iterations, list_stats)
+configure_h_weights(plot_weights, list_weights)
 
 # Start plot from first episode
 update_data("value", start_slider, start_slider)
 update_episode_list()
 
 doc.add_root(
-    column(row(plot_fleet, plot_demand), plot_iterations, episode_slider)
+    column(
+        row(plot_fleet, plot_demand),
+        row(plot_iterations, plot_weights),
+        episode_slider,
+    )
 )
 doc.title = "Iteration history"
 doc.add_periodic_callback(update_episode_list, update_rate)

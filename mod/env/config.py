@@ -1552,7 +1552,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.EARLIEST_STEP_MIN] = int(
             self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
         )
-        self.config[Config.MAX_USER_BACKLOGGING_DELAY] = False
+        self.config[Config.MAX_USER_BACKLOGGING_DELAY] = 0
 
         # USERS ###################################################### #
         self.config[Config.TRIP_BASE_FARE] = {

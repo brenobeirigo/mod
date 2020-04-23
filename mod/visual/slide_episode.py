@@ -52,7 +52,8 @@ doc = curdoc()
 # exp_name = "B15_LIN_V=0400-0000(R)_I=5_L[4]=(10-0-, 11-0-, 12-0-, 13-0-)_R=([1-6][L(05)]_T=[06h,+60m+06h+30m]_1.00(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_7.20_15.00_0.00_0.00_1.00"
 # exp_name = "MP_LIN_C2_V=0300-0000(R)_I=10_L[3]=(11-0-, 12-0-, 13-0-)_R=([1-6]_T=[06h,+0m+06h+0m]_0.10(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_2.40_15.00_0.00_0.00_1.00"
 # exp_name = "SS_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
-exp_name = "BBB2_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+# exp_name = "DIF0_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+exp_name = "MAX6_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
 # bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
 # method = "reactive"
@@ -461,8 +462,8 @@ def load_overall_stats(smooth_sigma=0):
 
     e_data_dict = dict(x=iterations, y=count)
     source_overall_stats[status].data = e_data_dict
-    print(f"Updating 'Total Reward' {(min(count), max(count) + 100)}...")
-    plot_iterations.y_range = Range1d(min(count), max(count) + 100)
+    print(f"Updating 'Total Reward' {(min(count), max(count) + 1000)}...")
+    plot_iterations.y_range = Range1d(min(count), max(count) + 1000)
 
 
 def load_h_weights(smooth_sigma=0):
@@ -625,7 +626,7 @@ status_list = [
     "Total",
 ]
 list_stats = ["Total reward", "Service rate"]
-list_weights = ["0_00", "0_01"]
+list_weights = ["0_00", "0_01", "0_02"]
 
 configure_plot_fleet(plot_fleet, status_list)
 configure_plot_demand(plot_demand)

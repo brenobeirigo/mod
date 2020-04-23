@@ -1,8 +1,11 @@
 import logging
 import sys
 import numpy as np
+from collections import defaultdict
+import pandas as pd
 
 np.set_printoptions(precision=3)
+pd.set_option("display.max_rows", None)
 
 FORMATTER_TERSE = logging.Formatter("%(message)s")
 
@@ -411,23 +414,23 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
 def log_update_values(name, t, values):
 
-    try:
-        logger_obj = log_dict[name]
+    logger_obj = log_dict[name]
 
-        if logger_obj.LOG_VALUE_UPDATE:
+    if logger_obj.LOG_VALUE_UPDATE:
 
-            logger = logger_obj.logger
+        logger = logger_obj.logger
 
-            logger.debug(
-                "  ############ Updating value functions "
-                f"(method=smoothed, time={t:>4}) ################"
-            )
+        logger.debug(
+            "  ############ Updating value functions "
+            f"(method=smoothed, time={t:>4}) ################"
+        )
 
-            for g, state_data in enumerate(values):
+        for g, state_data in enumerate(values):
 
-                logger.debug(f"\n############## level={g}")
+            logger.debug(f"\n############## level={g}")
 
-                for a_g, data in state_data.items():
+            for a_g, data in state_data.items():
+                try:
                     (
                         t_g,
                         pos_g,
@@ -439,26 +442,37 @@ def log_update_values(name, t, values):
 
                     logger.debug(
                         # f"    - vf={data[VF]:6.2f}, "
-                        f"time={t_g}, "
-                        f"location={pos_g:>4}, "
+                        f"{g:>3} ## "
+                        f"time={t_g:>3}, "
+                        f"location={pos_g:>6}, "
                         f"battery={battery_g}, "
                         f"contract={contract_duration_g}, "
                         f"car={car_type_g}, "
                         f"origin={car_origin_g}, "
                         # f"values={data}"
-                        f" [VF = {data[0]:6.2f}, "
-                        f"COUNT = {data[1]:>6}, "
-                        f"TRANSIENT_BIAS = {data[2]:6.2f}, "
-                        f"VARIANCE_G = {data[3]:6.2f}, "
+                        f" [VF = {data[0]:16.6E}, "
+                        f"COUNT = {int(data[1]):>6}, "
+                        f"TRANSIENT_BIAS = {data[2]:16.6E}, "
+                        f"VARIANCE_G = {data[3]:16.6E}, "
                         f"STEPSIZE_FUNC = {data[4]:6.2f}, "
                         f"LAMBDA_STEPSIZE = {data[5]:6.2f}]"
                     )
+                except Exception as e:
+                    print(
+                        f"Can't log value function update! Exception: {e}."
+                        f"State data: {state_data}"
+                        f"\n{g}={a_g}:{data}"
+                    )
 
-    except Exception as e:
-        print(f"Can't log value function update! Exception: {e}")
 
-
-def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
+def log_attribute_cars_dict(
+    name,
+    attribute_cars_dict,
+    level_step_inbound_cars,
+    unrestricted_ids={},
+    max_cars=5,
+    msg="",
+):
     try:
         logger_obj = log_dict[name]
 
@@ -471,6 +485,30 @@ def log_attribute_cars_dict(name, attribute_cars_dict, msg=""):
             logger.debug(
                 f"  # ATTRIBUTE CAR COUNT {msg} ################################"
             )
+            data_car_count = defaultdict(list)
+            for g, step_inbound_cars in level_step_inbound_cars.items():
+                # logger.debug(f"\n#### {g}")
+                for id_level, step_cars in step_inbound_cars.items():
+                    # logger.debug(f" inbound={id_level:>2}")
+                    for step, cars in step_cars.items():
+                        # logger.debug(
+                        #     f"   step={step:>2}, #cars={len(cars):>2}"
+                        # )
+
+                        data_car_count["g"].append(g)
+                        data_car_count["step"].append(step)
+                        data_car_count["inbound"].append(id_level)
+                        data_car_count["cars"].append(len(cars))
+                        data_car_count["unrestricted"].append(
+                            "x" if id_level in unrestricted_ids else ""
+                        )
+
+            df = pd.DataFrame.from_dict(data_car_count).sort_values(
+                by=["g", "inbound", "step", "cars"]
+            )
+            logger.debug(f"\n########## CAR COUNT (over = {max_cars}, unrestricted = {unrestricted_ids})")
+            logger.debug(df[df["cars"]>max_cars])
+
             header = ["POSI", "BATT", "CONT", "CART", "DEPO"]
             logger.debug(f"    - {format_tuple(header)} = {'COUNT':>10}")
 

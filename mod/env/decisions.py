@@ -41,7 +41,7 @@ N_DECISIONS = 9
 DISCARD = "-"
 
 
-def convert_decision(action, o, d, n=DISCARD):
+def convert_decision(action, p, o, d, n=DISCARD):
 
     if o == d:
         action = STAY_DECISION
@@ -50,7 +50,7 @@ def convert_decision(action, o, d, n=DISCARD):
 
     return (
         (action,)
-        + (o,)
+        + (p,)
         + (1,)
         + ("Inf",)
         + (0,)
@@ -288,7 +288,7 @@ def get_decisions(env, trips):
                     car.point, car.depot, unit="min"
                 )
 
-                neighbors = env.attribute_rebalance[car.point.id]
+                neighbors = env.neighbors[car.point.id]
 
                 if car.contract_duration <= return_trip_duration:
                     d_return = return_decision(car)
@@ -302,7 +302,7 @@ def get_decisions(env, trips):
         # random, train, and test = YES
         if env.config.consider_rebalance:
 
-            neighbors = env.attribute_rebalance[car.point.id]
+            neighbors = env.neighbors[car.point.id]
             if env.config.activate_thompson:
                 d_rebalance = rebalance_decisions_thompson(car, neighbors, env)
             else:
@@ -310,7 +310,7 @@ def get_decisions(env, trips):
                     # Car can always rebalance to its home station.
                     # Makes sense when parking costs are cheaper at
                     # home station.
-                    neighbors.add(car.depot.id)
+                    neighbors = neighbors | {car.depot.id}
 
                 d_rebalance = rebalance_decisions(car, neighbors, env)
 
@@ -437,6 +437,28 @@ def get_decisions(env, trips):
                 decisions.add(d)
 
     return decisions, decisions_return, decision_class
+
+
+def can_pickup(env, p, o, max_delay=10, tolerance=0):
+
+    # Time to reach trip origin
+    pk_time = env.get_travel_time_od(env.points[p], env.points[o], unit="min")
+
+    # Discount time increment because it covers the worst case
+    # scenario (user waiting since the beginning of the round)
+    max_pk_time = max_delay - env.config.time_increment
+
+    # Trip delay cannot be considered because they have different
+    # placement times. Hence, decision OD cannot be taken in bulk.
+    # E.g.: t1 [o,d] (3) - 7 min --> Pk=6 -- OK!
+    #       t2 [o,d] (5) - 5 min --> Pk=6 -- FAIL
+    # Add 2 decisions to pickup [o,d], but t2 cannot be picked up
+    # in time.
+
+    # Can the car reach the trip origin?
+    if pk_time <= max_pk_time + tolerance:
+        return True
+    return False
 
 
 def shorten_decision(d):

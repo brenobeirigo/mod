@@ -109,7 +109,6 @@ class AmodNetwork(Amod):
     def reachable_neighbors(self, n, t):
         return nw.tenv.reachable_neighbors(n, t)
 
-    @functools.lru_cache(maxsize=None)
     def get_zone_neighbors(self, center, explore=False):
         """Get the ids of nodes in the closest (explore=True)
         or farthest (explore=False) neighborhoods.
@@ -189,6 +188,20 @@ class AmodNetwork(Amod):
             targets = [
                 d for d, dist in id_dist if dist <= self.config.time_increment
             ]
+
+        # print(
+        #     center,
+        #     len(targets),
+        #     targets,
+        #     len(id_dist),
+        #     self.config.rebalance_max_targets,
+        #     id_dist,
+        # )
+
+        # Limit number of targets
+        if self.config.rebalance_max_targets is not None:
+            targets = targets[: self.config.rebalance_max_targets]
+
         return targets
 
     # @functools.lru_cache(maxsize=None)

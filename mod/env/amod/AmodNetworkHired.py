@@ -72,6 +72,11 @@ class AmodNetworkHired(AmodNetwork):
 
         super().__init__(config, car_positions=car_positions)
 
+        # Save all neighbors of each point
+        self.neighbors = {
+            center.id: self.get_neighbors(center.id) for center in self.points
+        }
+
         # Third-party fleet can be hired to assist main fleet. These are
         # hired cars whose contracts are still active.
         self.hired_cars = []
@@ -172,6 +177,12 @@ class AmodNetworkHired(AmodNetwork):
         #     )
         # )
         return penalty
+
+    @property
+    def stats_neighbors(self):
+        """Return (mean, max, min) #neighbors across all nodes"""
+        n_count = [len(n) for n in self.neighbors.values()]
+        return np.mean(n_count), np.max(n_count), np.min(n_count)
 
     def load_od_data(self):
 
@@ -923,7 +934,6 @@ class AmodNetworkHired(AmodNetwork):
             # the max. number of targets. If rebalance_max_targers is
             # None, does not filter.
             neighbors = self.get_zone_neighbors(car_id)
-            neighbors = neighbors[: self.config.rebalance_max_targets]
 
         return neighbors
 
@@ -956,7 +966,7 @@ class AmodNetworkHired(AmodNetwork):
 
         # if self.config.car_size_tabu > 0:
         # Set of reachable neighbors from each car position
-        self.attribute_rebalance = dict()
+        # self.attribute_rebalance = dict()
 
         # List of cars per location
         self.cars_location = defaultdict(lambda: defaultdict(list))
@@ -1012,10 +1022,10 @@ class AmodNetworkHired(AmodNetwork):
                 self.attribute_cars_dict[car.attribute].append(car)
 
                 # Get accessible neighbors from each car position
-                if car.point.id not in self.attribute_rebalance:
-                    self.attribute_rebalance[
-                        car.point.id
-                    ] = self.get_neighbors(car.point.id)
+                # if car.point.id not in self.attribute_rebalance:
+                #     self.attribute_rebalance[car.point.id] = self.neighbors[
+                #         car.point.id
+                #     ]
 
                 # Get union set of tabu locations to visit
                 if self.config.car_size_tabu > 0:
@@ -1089,11 +1099,13 @@ class AmodNetworkHired(AmodNetwork):
 
                 self.attribute_cars_dict[car.attribute].append(car)
 
+                # TODO Remove from logic, it is necessary to use if
+                # tabu list is on (new_attribute_rebalance)
                 # Get accessible neighbors from each car position
-                if car.point.id not in self.attribute_rebalance:
-                    self.attribute_rebalance[
-                        car.point.id
-                    ] = self.get_neighbors(car.point.id)
+                # if car.point.id not in self.attribute_rebalance:
+                #     self.attribute_rebalance[car.point.id] = self.neighbors[
+                #         car.point.id
+                #     ]
 
                 if self.config.car_size_tabu > 0:
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)

@@ -255,36 +255,40 @@ class Adp:
     def get_total_variance(
         self, total_variation, transient_bias, lambda_stepsize
     ):
-        return (total_variation - (transient_bias ** 2)) / (
-            1 + lambda_stepsize
-        )
+        r = (total_variation - (transient_bias ** 2)) / (1 + lambda_stepsize)
 
-    def get_variance_g(self, v, v_g, fixed_stepsize, variance_tag):
+        return r
+
+    def get_variance_g(self, dif_vfs, fixed_stepsize, variance_tag):
 
         # We now need to compute s^2[a,g] which is the estimate of the
         # variance of observations (v) for states (a) for which
         # G(a) = a_g (the observations of states that aggregate up
         # to a).
 
-        return (1 - fixed_stepsize) * variance_tag + fixed_stepsize * (
-            (v - v_g) ** 2
+        r = (1 - fixed_stepsize) * variance_tag + fixed_stepsize * (
+            dif_vfs ** 2
         )
+
+        return r
 
     def get_lambda_stepsize(self, current_stepsize, lambda_stepsize):
 
-        return (((1 - current_stepsize) ** 2) * lambda_stepsize) + (
+        r = (((1 - current_stepsize) ** 2) * lambda_stepsize) + (
             current_stepsize ** 2
         )
 
-    def get_transient_bias(self, current_bias, v, v_g, stepsize):
+        return r
+
+    def get_transient_bias(self, current_bias, dif_vfs, stepsize):
 
         # The transient bias (due to smoothing): When we smooth on past
         # observations, we obtain an estimate v[-,s,g,n-1] that tends to
         #  underestimate (or overestimate if v(^,n) tends to decrease)
         # the true mean of v[^,n].
-        transient_bias = (1 - stepsize) * current_bias + stepsize * (v - v_g)
+        r = (1 - stepsize) * current_bias + stepsize * dif_vfs
 
-        return transient_bias
+        return r
 
     def get_weights(self, steps):
 

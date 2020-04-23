@@ -651,6 +651,10 @@ def get_trips(
             ):
                 continue
 
+            # Trips with centroid(o) == centroid(d) are excluded
+            if points[t[ORIGIN]].id_level(centroid_level) == points[t[DESTINATION]].id_level(centroid_level):
+                continue
+
             # Only add a new trip "resize_factor" percent of the time
             if random.random() < resize_factor:
                 resized.append(t)

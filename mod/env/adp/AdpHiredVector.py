@@ -4,6 +4,7 @@ import mod.env.adp.adp as adp
 import mod.util.log_util as la
 from pprint import pprint
 import functools
+
 # TODO Test trie
 # import pygtrie
 
@@ -58,7 +59,7 @@ class AdpHired(adp.Adp):
 
         self.values = [
             # pygtrie.Trie()
-            defaultdict(lambda: [0, 0, 0, 0, 1, 1])
+            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=np.float32))
             for g in range(len(self.aggregation_levels))
         ]
 
@@ -80,8 +81,7 @@ class AdpHired(adp.Adp):
             return None
 
     def get_initial_weight_vector(self):
-        v = np.zeros(len(self.aggregation_levels))
-        # v[VF] = 10
+        v = np.zeros(len(self.aggregation_levels), dtype=np.float32)
         return v
 
     def get_weighted_value(self, disaggregate):
@@ -111,11 +111,29 @@ class AdpHired(adp.Adp):
             weight_vector[g] = self.get_weight(g, a_g, vf_0)
 
         # Normalize (weights have to sum up to one)
+        # TODO absolute value is used because total variation is
+        # negative in some cases.
+        # Total variation - (transient bias)**2 is not guaranteed to be
+        # positive.
+        weight_vector = abs(
+            np.nan_to_num(
+                weight_vector, neginf=-3.4028235e38, posinf=3.4028235e38
+            )
+        )
+
         weight_sum = sum(weight_vector)
 
         if weight_sum > 0:
 
+            # print(
+            #     weight_vector,
+            #     weight_sum,
+            #     (weight_vector / weight_sum).round(6),
+            #     value_vector,
+            # )
+
             weight_vector = weight_vector / weight_sum
+            weight_vector = weight_vector.round(6)
 
             # Get weighted value function
             value_estimation = sum(
@@ -129,7 +147,7 @@ class AdpHired(adp.Adp):
 
         return value_estimation
 
-    def update_values_smoothed(self, step, duals):
+    def update_values_avg(self, step, duals):
 
         # List of duals associated to tuples (level g, attribute[g])
         # The new value of an aggregate level correspond to the average
@@ -160,22 +178,19 @@ class AdpHired(adp.Adp):
 
                 # Update the number of times state was accessed
                 self.values[g][a_g][COUNT] += 1
+                dif_vfs = np.float32(v_ta_sampled - self.values[g][a_g][VF])
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
                 self.values[g][a_g][TRANSIENT_BIAS] = self.get_transient_bias(
                     self.values[g][a_g][TRANSIENT_BIAS],
-                    v_ta_sampled,
-                    self.values[g][a_g][VF],
+                    dif_vfs,
                     self.stepsize,
                 )
 
                 # Estimate of total squared variation,
                 self.values[g][a_g][VARIANCE_G] = self.get_variance_g(
-                    v_ta_sampled,
-                    self.values[g][a_g][VF],
-                    self.stepsize,
-                    self.values[g][a_g][VARIANCE_G],
+                    dif_vfs, self.stepsize, self.values[g][a_g][VARIANCE_G],
                 )
 
                 # lo.debug(f"  - {g_a} - Sample: {level_update[g_a]}")
@@ -207,8 +222,76 @@ class AdpHired(adp.Adp):
                 self.values[g][a_g][STEPSIZE_FUNC]
             )
 
+            self.values[g][a_g] = np.nan_to_num(
+                self.values[g][a_g], neginf=-3.4028235e38, posinf=3.4028235e38,
+            )
+
         # Log how duals are updated
         la.log_update_values(self.config.log_path(self.n), step, self.values)
+
+    def update_values_smoothed(self, step, duals):
+
+        # List of duals associated to tuples (level g, attribute[g])
+        # The new value of an aggregate level correspond to the average
+        # of these duals
+        # level_update_list = defaultdict(list)
+        level_update = defaultdict(lambda: np.zeros(2))
+
+        # lo.debug("############# Update values smoothed")
+        for a, v_ta_sampled in duals.items():
+
+            disaggregate = (step,) + a
+            # lo.debug(f"## {disaggregate} - Sample: {v_ta_sampled}")
+
+            # Append duals to all superior hierachical states
+            for g in range(len(self.aggregation_levels)):
+
+                a_g = self.get_state(g, disaggregate)
+
+                # Update the number of times state was accessed
+                self.values[g][a_g][COUNT] += 1
+                dif_vfs = np.float32(v_ta_sampled - self.values[g][a_g][VF])
+
+                # Bias due to smoothing of transient data series
+                # (value function change every iteration)
+                # b = self.values[g][a_g][TRANSIENT_BIAS]
+                self.values[g][a_g][TRANSIENT_BIAS] = self.get_transient_bias(
+                    self.values[g][a_g][TRANSIENT_BIAS],
+                    dif_vfs,
+                    self.stepsize,
+                )
+
+                # Estimate of total squared variation,
+                self.values[g][a_g][VARIANCE_G] = self.get_variance_g(
+                    dif_vfs, self.stepsize, self.values[g][a_g][VARIANCE_G],
+                )
+
+                # Updating lambda stepsize using previous stepsizes
+                self.values[g][a_g][
+                    LAMBDA_STEPSIZE
+                ] = self.get_lambda_stepsize(
+                    self.values[g][a_g][STEPSIZE_FUNC],
+                    self.values[g][a_g][LAMBDA_STEPSIZE],
+                )
+
+                # Updating value function at gth level with smoothing
+                old_v_ta_g = self.values[g][a_g][VF]
+                stepsize = self.values[g][a_g][STEPSIZE_FUNC]
+                new_v_ta_g = (
+                    1 - stepsize
+                ) * old_v_ta_g + stepsize * v_ta_sampled
+                self.values[g][a_g][VF] = new_v_ta_g
+
+                # Updates ta_g stepsize
+                self.values[g][a_g][STEPSIZE_FUNC] = self.get_stepsize(
+                    self.values[g][a_g][STEPSIZE_FUNC]
+                )
+
+                self.values[g][a_g] = np.nan_to_num(
+                    self.values[g][a_g],
+                    neginf=-3.4028235e38,
+                    posinf=3.4028235e38,
+                )
 
     def get_weight(self, g, a, vf_0):
 
@@ -239,10 +322,23 @@ class AdpHired(adp.Adp):
         # Total variation (variance plus the square of the bias)
         total_variation = variance + (aggregation_bias ** 2)
 
-        if total_variation == 0:
-            return 0
-        else:
-            return 1 / total_variation
+        weight = np.float32(1.0) / np.float32(total_variation)
+        # if weight <= 0:
+        #     print("@@@@@<=0")
+        #     # if variance_g == -3.4028235e38 or abs(transient_bias) == 3.4028235e38:
+        # print(
+        #     f"g={g}, a={a}, vf={vf_0}, vf_g={self.values[g][a][VF]}, "
+        #     f"variance={variance}, agg_bias={aggregation_bias}, "
+        #     f"$$ variance_g={variance_g}, count={self.values[g][a][COUNT]}, "
+        #     f"transient_bias={transient_bias}, "
+        #     f"lambda_step_size={lambda_step_size} $$, "
+        #     f"var_error={variance_error}, total_variation={total_variation}, "
+        #     f"stepsize_func={self.values[g][a][STEPSIZE_FUNC]}, "
+        #     f"lambda_stepsize={self.values[g][a][LAMBDA_STEPSIZE]}, "
+        # )
+        # variance_g = 0
+
+        return weight
 
     ####################################################################
     # True averaging ###################################################
@@ -302,6 +398,9 @@ class AdpHired(adp.Adp):
 
                 # Incremental averaging
                 count_ta_g = self.count[t_g][g][a_g]
+                # TODO wrong - current_vf changes every iteration.
+                # It is necessary to save all v_ta's and get the
+                # the difference with current_vf
                 increment = (v_ta - current_vf) / count_ta_g
 
                 # Update attribute mean value
@@ -334,7 +433,7 @@ class AdpHired(adp.Adp):
         self.service_rate = progress.get("service_rate", list())
         self.weights = progress.get("weights", list())
         self.values = [
-            defaultdict(lambda: [0, 0, 0, 0, 1, 1])
+            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=np.float32))
             for g in range(len(self.aggregation_levels))
         ]
         adp_progress = progress.get("progress")

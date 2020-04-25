@@ -454,9 +454,10 @@ def can_pickup(env, p, o, max_delay=10, tolerance=0):
     #       t2 [o,d] (5) - 5 min --> Pk=6 -- FAIL
     # Add 2 decisions to pickup [o,d], but t2 cannot be picked up
     # in time.
-
+    # print(p, o, "==" if p == o else "<>", pk_time, max_pk_time, tolerance)
     # Can the car reach the trip origin?
     if pk_time <= max_pk_time + tolerance:
+        # print("XXXX")
         return True
     return False
 

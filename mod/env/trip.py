@@ -644,15 +644,17 @@ def get_trips(
     for step, trips in enumerate(step_trips):
         resized = list()
         for t in trips:
+            o = points[t[ORIGIN]].id_level(centroid_level)
+            d = points[t[DESTINATION]].id_level(centroid_level)
+
             # Unreachable ods are excluded
             if unreachable_ods and (
-                t[ORIGIN] in unreachable_ods
-                or t[DESTINATION] in unreachable_ods
+                o in unreachable_ods or d in unreachable_ods
             ):
                 continue
 
             # Trips with centroid(o) == centroid(d) are excluded
-            if points[t[ORIGIN]].id_level(centroid_level) == points[t[DESTINATION]].id_level(centroid_level):
+            if o == d:
                 continue
 
             # Only add a new trip "resize_factor" percent of the time
@@ -675,12 +677,14 @@ def get_trips(
                     k=1,
                 )[0]
 
+            o_centroid = points[points[o].id_level(centroid_level)]
+            d_centroid = points[points[d].id_level(centroid_level)]
             # Points become region centroids (point id only if
             # centroid_level=0)
             trip_list.append(
                 ClassedTrip(
-                    points[points[o].id_level(centroid_level)],
-                    points[points[d].id_level(centroid_level)],
+                    o_centroid,
+                    d_centroid,
                     offset_start + step,
                     random_class,
                     elapsed_sec=elapsed_sec,

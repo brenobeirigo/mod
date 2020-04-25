@@ -168,12 +168,6 @@ class AmodNetwork(Amod):
                         n_neighbors=n,
                     )
 
-                    try:
-                        # Cannot rebalance to itself
-                        sub_step_targets.remove(center)
-                    except Exception as e:
-                        pass
-
                 targets.update(sub_step_targets)
             targets.update(step_targets)
 
@@ -184,6 +178,9 @@ class AmodNetwork(Amod):
                 for t in targets
             ]
         )
+
+        # Cannot rebalance to itself
+        targets = targets - {center}
 
         if self.config.limit_rebalancing_time_increment:
 

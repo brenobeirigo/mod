@@ -642,7 +642,8 @@ def get_trips(
 
     # Sampling trips
     for step, trips in enumerate(step_trips):
-        resized = list()
+
+        filtered = list()
         for t in trips:
             o = points[t[ORIGIN]].id_level(centroid_level)
             d = points[t[DESTINATION]].id_level(centroid_level)
@@ -657,9 +658,10 @@ def get_trips(
             if o == d:
                 continue
 
-            # Only add a new trip "resize_factor" percent of the time
-            if random.random() < resize_factor:
-                resized.append(t)
+            filtered.append(t)
+
+        # Only add a new trip "resize_factor" percent of the time
+        resized = random.choices(filtered, k=int(resize_factor * len(trips)))
         step_trips_resized.append(resized)
 
     for step, trips in enumerate(step_trips_resized):

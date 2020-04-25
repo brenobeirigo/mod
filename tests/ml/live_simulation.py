@@ -17,7 +17,7 @@ from pprint import pprint
 # Load data from tests previously executed
 start_config = ConfigNetwork.load(
     "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/"
-    "ON1_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+    "T3_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(10)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
     "/exp_settings.json"
 )
 

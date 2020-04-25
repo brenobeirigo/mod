@@ -63,6 +63,11 @@ class AmodNetwork(Amod):
         # Unique ids per distance
         Point.level_count = [level_count[d] for d in Point.levels]
 
+        # Nodes with no neighbors are not valid trips. Valid neighbors
+        # can be accessed within the time increment, which is not always
+        # possible when using higher up centroids.
+        self.unreachable_ods, self.neighbors = self.get_unreachable_ods()
+
         self.init_fleet(self.points, car_positions)
 
         # Point objects level
@@ -171,6 +176,14 @@ class AmodNetwork(Amod):
 
                 targets.update(sub_step_targets)
             targets.update(step_targets)
+
+        # Guarantee all targets are at the centroid level
+        targets = set(
+            [
+                self.points[t].id_level(self.config.centroid_level)
+                for t in targets
+            ]
+        )
 
         if self.config.limit_rebalancing_time_increment:
 

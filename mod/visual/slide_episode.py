@@ -53,7 +53,8 @@ doc = curdoc()
 # exp_name = "MP_LIN_C2_V=0300-0000(R)_I=10_L[3]=(11-0-, 12-0-, 13-0-)_R=([1-6]_T=[06h,+0m+06h+0m]_0.10(S)_1.00_0.10_A_4.80_5.00_5.00_4.80_0.00_B_2.40_15.00_0.00_0.00_1.00"
 # exp_name = "SS_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
 # exp_name = "DIF0_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
-exp_name = "MAX6_LIN_C1_V=0400-0000(R)_I=5_L[3]=(01-0-, 02-0-, 03-0-)_R=([1-6, 2-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+# exp_name = "R_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(10)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
+exp_name = "R_LIN_C2_V=0400-0000(R)_I=5_L[2]=(02-0-, 03-0-)_R=([2-6, 3-6][L(05)]_T=[06h,+30m+06h+30m]_0.10(S)_1.00_0.10_A_2.40_10.00_0.00_0.00_P_B_2.40_10.00_0.00_0.00_P"
 # bokeh serve --show --port 5003 mod\visual\slide_episode.py
 
 # method = "reactive"
@@ -483,14 +484,17 @@ def load_h_weights(smooth_sigma=0):
     # for status in d.columns.values:
 
     for h in list_weights:
-        weights = list(d[h])
+        try:
+            weights = list(d[h])
 
-        # Smooth values
-        if smooth_sigma > 0:
-            weights = fi.gaussian_filter1d(weights, sigma=smooth_sigma)
+            # Smooth values
+            if smooth_sigma > 0:
+                weights = fi.gaussian_filter1d(weights, sigma=smooth_sigma)
 
-        e_data_dict = dict(x=iterations, y=weights)
-        source_h_weights[h].data = e_data_dict
+            e_data_dict = dict(x=iterations, y=weights)
+            source_h_weights[h].data = e_data_dict
+        except:
+            pass
 
 
 def load_episode_demand(e, smooth_sigma=0):

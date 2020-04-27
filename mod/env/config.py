@@ -206,7 +206,7 @@ class Config:
     PARKING_RATE_MIN = "PARKING_RATE_MIN"
     COST_RECHARGE_SINGLE_INCREMENT = "COST_RECHARGE_SINGLE_INCREMENT"
     TIME_INCREMENT = "TIME_INCREMENT"
-    LIMIT_REBALANCING_TIME_INCREMENT = "LIMIT_REBALANCING_TIME_INCREMENT"
+    REBALANCING_TIME_RANGE_MIN = "REBALANCING_TIME_RANGE_MIN"
     TOTAL_TIME = "TOTAL_TIME"
     OFFSET_REPOSITIONING_MIN = "OFFSET_REPOSITIONING_MIN"
     OFFSET_TERMINATION_MIN = "OFFSET_TERMINATION_MIN"
@@ -237,6 +237,7 @@ class Config:
     N_CLOSEST_NEIGHBORS = "N_CLOSEST_NEIGHBORS"
     N_CLOSEST_NEIGHBORS_EXPLORE = "N_CLOSEST_NEIGHBORS_EXPLORE"
     NEIGHBORHOOD_LEVEL = "NEIGHBORHOOD_LEVEL"
+    MIN_NEIGHBORS = "MIN_NEIGHBORS"
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     REBALANCE_SUB_LEVEL = "REBALANACE_SUB_LEVEL"
     REBALANCE_MAX_TARGETS = "REBALANCE_MAX_TARGETS"
@@ -652,9 +653,9 @@ class Config:
         return self.config[Config.TIME_INCREMENT]
 
     @property
-    def limit_rebalancing_time_increment(self):
-        """Rebalancing cannot take more than time increment"""
-        return self.config[Config.LIMIT_REBALANCING_TIME_INCREMENT]
+    def rebalancing_time_range_min(self):
+        """Rebalancing time must be in range (min, max) inclusive"""
+        return self.config[Config.REBALANCING_TIME_RANGE_MIN]
 
     @property
     def time_increment_timedelta(self):
@@ -903,6 +904,13 @@ class Config:
             + f"od_costs_km_{self.config[Config.RECHARGE_COST_DISTANCE]:.2f}.{extension}"
         )
 
+    def get_path_od_distance_steps(self, extension="npy"):
+        """Path of saved costs per o, d"""
+        return (
+            FOLDER_OD_DATA
+            + f"od_steps_inc_{self.config[Config.TIME_INCREMENT]:02}.{extension}"
+        )
+
     def update(self, dict_update_base):
 
         # print("Update")
@@ -1138,6 +1146,10 @@ class Config:
         return self.folder_adp_log + f"{iteration:04}.log"
 
     @property
+    def log_amod(self):
+        return self.folder_adp_log + "amod.log"
+
+    @property
     def iteration_step_seed(self):
         seed = self.current_iteration * self.time_steps + self.current_step
         print(seed, self.current_iteration, self.time_steps, self.current_step)
@@ -1273,7 +1285,7 @@ class ConfigStandard(Config):
 
         # Lenght of time incremnts (min) - default is 15min
         self.config[Config.TIME_INCREMENT] = 15
-        self.config[Config.LIMIT_REBALANCING_TIME_INCREMENT] = True
+        self.config[Config.REBALANCING_TIME_RANGE_MIN] = True
 
         self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
             minutes=self.config[Config.TIME_INCREMENT]
@@ -1522,6 +1534,7 @@ class ConfigNetwork(ConfigStandard):
         self.config[Config.N_CLOSEST_NEIGHBORS] = ((0, 8),)
         self.config[Config.N_CLOSEST_NEIGHBORS_EXPLORE] = ((1, 8),)
         self.config[Config.NEIGHBORHOOD_LEVEL] = 1
+        self.config[Config.MIN_NEIGHBORS] = None
         self.config[Config.REBALANCE_LEVEL] = (1,)
         self.config[Config.REBALANCE_SUB_LEVEL] = None
         self.config[Config.REBALANCE_REACH] = None
@@ -1726,6 +1739,11 @@ class ConfigNetwork(ConfigStandard):
     def level_contract_duration_dict(self):
         """Contract duration for each car type and aggregated level"""
         return self.config[Config.LEVEL_CONTRACT_DURATION]
+
+    @property
+    def min_neighbors(self):
+        """Remove nodes that cannot reach minimum number of neighbors"""
+        return self.config[Config.MIN_NEIGHBORS]
 
     @property
     def neighborhood_level(self):

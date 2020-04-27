@@ -68,6 +68,18 @@ class AmodNetwork(Amod):
         # possible when using higher up centroids.
         self.unreachable_ods, self.neighbors = self.get_unreachable_ods()
 
+        # Points in centroid level that can be reached
+        self.reachable_points = [
+            self.points[v]
+            for v in (
+                set(self.point_ids_level[self.config.centroid_level])
+                - self.unreachable_ods
+            )
+        ]
+
+        # Ids of reachable points
+        self.reachable_point_ids = {v.id for v in self.reachable_points}
+
         self.init_fleet(self.points, car_positions)
 
         # Point objects level
@@ -151,9 +163,14 @@ class AmodNetwork(Amod):
                 n_neighbors=n,
             )
 
+            targets.update(step_targets)
+
+            # print("\n\n#### CENTER", center, l, step_targets)
+
             # When active, rebalance options are extended to neighbors
             # of the targets in "step_targets" at level "sub_level".
             # Hence, rebalance to O(step_targets*step_targets).
+            # print("SUB", self.config.rebalance_sub_level)
             if (
                 self.config.rebalance_sub_level is not None
                 and l > self.config.rebalance_sub_level
@@ -168,8 +185,10 @@ class AmodNetwork(Amod):
                         n_neighbors=n,
                     )
 
-                targets.update(sub_step_targets)
-            targets.update(step_targets)
+                    # print(" -", target, sub_step_targets)
+
+                    # All targets from sublevels
+                    targets.update(sub_step_targets)
 
         # Guarantee all targets are at the centroid level
         targets = set(
@@ -179,10 +198,16 @@ class AmodNetwork(Amod):
             ]
         )
 
+        # print("After getting the targets:", targets)
+
         # Cannot rebalance to itself
         targets = targets - {center}
 
-        if self.config.limit_rebalancing_time_increment:
+        # print("After removing the center:", targets)
+
+        if self.config.rebalancing_time_range_min:
+
+            min_reb_time, max_reb_time = self.config.rebalancing_time_range_min
 
             # Sort rebalancing targets (farther first)
             id_dist = sorted(
@@ -196,21 +221,26 @@ class AmodNetwork(Amod):
 
             # Remove targets that cannot be accessed whithn time increment
             targets = [
-                d for d, dist in id_dist if dist <= self.config.time_increment
+                d
+                for d, dist in id_dist
+                if dist <= max_reb_time and dist >= min_reb_time
             ]
 
-        # print(
-        #     center,
-        #     len(targets),
-        #     targets,
-        #     len(id_dist),
-        #     self.config.rebalance_max_targets,
-        #     id_dist,
-        # )
+            # print("After distance filter:", targets)
+            # print(
+            #     center,
+            #     len(targets),
+            #     targets,
+            #     len(id_dist),
+            #     self.config.rebalance_max_targets,
+            #     id_dist,
+            # )
 
         # Limit number of targets
         if self.config.rebalance_max_targets is not None:
             targets = targets[: self.config.rebalance_max_targets]
+
+        # print("Cut max. targets:", targets)
 
         return targets
 

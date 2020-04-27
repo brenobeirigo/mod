@@ -66,7 +66,7 @@ To activate the environment use:
 |hire| Consider FAV hiring. Related settings: DEPOT_SHARE, FAV_FLEET_SIZE, MAX_CONTRACT_DURATION.|
 |n "number of iterations"| Set the number of iterations.|
 |FLEET_SIZE "number of vehicles" | Set the fleet size.|
-|backlog| Activate user backlogging. Rejected users are re-inserted into the demand with discounted maximum waiting time. E.g., if the period is `1 min` and a unmatched user can wait up to `10 min`, this user is re-inserted in the deamnd pool with maximum waiting time of `9 min`.|
+|backlog "extra_waiting"| Activate user backlogging. Rejected users are re-inserted into the demand for `times = extra_waiting/time_increment`. E.g., if the period is `1 min` and a unmatched user can wait up to `10 min`, this user is re-inserted in the demand pool throughout the next 9 iterations.|
 
 ### Optimization methods
 

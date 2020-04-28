@@ -747,14 +747,22 @@ class Amod:
 
     def car_neigh_stats(self):
         neigh_cars = []
+        od_times = []
         for c in self.cars:
-            neigh_cars.append(
-                len(
-                    self.neighbors[
-                        c.point.id_level(self.config.centroid_level)
-                    ]
-                )
-            )
+
+            neigh = self.neighbors[
+                c.point.id_level(self.config.centroid_level)
+            ]
+            avg_reb_time = 0
+            for n in neigh:
+                od = self.get_travel_time_od(c.point, self.points[n])
+
+                avg_reb_time += od
+            avg_reb_time = avg_reb_time / len(neigh)
+
+            # OD rebalance time
+            od_times.append(avg_reb_time)
+            neigh_cars.append(len(neigh))
 
         # self.cars = [
         #     Car(
@@ -765,4 +773,4 @@ class Amod:
         #     for point in self.car_origin_points
         # ]
 
-        return np.mean(neigh_cars), np.max(neigh_cars), np.min(neigh_cars)
+        return neigh_cars, od_times

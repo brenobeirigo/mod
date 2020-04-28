@@ -778,7 +778,17 @@ class StepLog:
         )
 
         # Car neighborhood info
-        s_mean, s_max, s_min = self.env.car_neigh_stats()
+        n_neigh_cars_list, avg_reb_delay_list = self.env.car_neigh_stats()
+        s_mean, s_max, s_min = (
+            np.mean(n_neigh_cars_list),
+            np.max(n_neigh_cars_list),
+            np.min(n_neigh_cars_list),
+        )
+        reb_delay_mean, reb_delay_max, reb_delay_min = (
+            np.mean(avg_reb_delay_list),
+            np.max(avg_reb_delay_list),
+            np.min(avg_reb_delay_list),
+        )
 
         return (
             f"#{self.n:>4}"
@@ -787,6 +797,7 @@ class StepLog:
             f" ({sr:>7.2%})"
             f"  ###  {statuses}{pav_statuses}{fav_statuses}"
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
+            f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"
         )
 
     def overall_log(self, label="Operational"):

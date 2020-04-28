@@ -777,12 +777,16 @@ class StepLog:
             else ""
         )
 
+        # Car neighborhood info
+        s_mean, s_max, s_min = self.env.car_neigh_stats()
+
         return (
-            f"### Time step: {self.n:>4})"
-            f" ### Profit: {self.total_reward:>10.2f}"
-            f" ### Service level: {sr:>7.2%}"
-            f" ### Trips: {total:>4}"
-            f" ### Status: {statuses}{pav_statuses}{fav_statuses}"
+            f"#{self.n:>4}"
+            f"  ###  cost= {self.total_reward:>10.2f}"
+            f"  ###  trips={total:<4}"
+            f" ({sr:>7.2%})"
+            f"  ###  {statuses}{pav_statuses}{fav_statuses}"
+            f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
         )
 
     def overall_log(self, label="Operational"):

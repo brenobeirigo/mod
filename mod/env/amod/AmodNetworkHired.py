@@ -948,6 +948,11 @@ class AmodNetworkHired(AmodNetwork):
 
         return neighbors
 
+    @property
+    def level_inbound_dict(self):
+        """Dictionary of current cars inbound to each position"""
+        return self.level_step_inbound_cars[self.config.centroid_level]
+
     def update_fleet_status(self, time_step, use_rebalancing_cars=False):
         """Update the status of the fleet (PAVs and FAVs) at time step.
          - List of cars per attribute

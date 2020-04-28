@@ -46,6 +46,7 @@ LOG_FLEET_ACTIVITY = "LOG_FLEET_ACTIVITY"
 LOG_STEP_SUMMARY = "LOG_STEP_SUMMARY"
 LOG_COSTS = "LOG_COSTS"
 LOG_SOLUTIONS = "LOG_SOLUTIONS"
+LOG_ATTRIBUTE_CARS = "LOG_ATTRIBUTE_CARS"
 
 LOG_ALL = "log_all"
 LEVEL_FILE = "level_file"
@@ -111,6 +112,40 @@ def create_logger(
     logger.propagate = False
 
     return logger
+
+
+def log_node_centroid(name, cars, points, unreachable_ods, neighbors):
+
+    try:
+
+        logger_obj = log_dict[name]
+
+        if logger_obj.LOG_FLEET_ACTIVITY:
+
+            logger = logger_obj.logger
+
+            info = defaultdict(list)
+            for n, neighborhood in neighbors.items():
+                info["node_id"].append(n)
+                info["levels_ids"].append(points[n].level_ids)
+                info["unreachable"].append(
+                    True if n in unreachable_ods else False
+                )
+                info["neighborhood"].append(neighborhood)
+                info["unreachable_neighborhood"].append(
+                    [
+                        True if i in unreachable_ods else False
+                        for i in neighborhood
+                    ]
+                )
+
+            df = pd.DataFrame.from_dict(info)
+
+            logger.debug("#### NODE - NEIGHBORHOOD")
+            logger.debug(df)
+
+    except Exception as e:
+        print(f"Can't log node centroid! Exception: {e}")
 
 
 def log_solution(name, decision_vars):
@@ -278,28 +313,6 @@ def log_fleet_activity(
 
                 for c in car_status_list:
                     logger.debug(c)
-
-            # if log_config_dict[la.SAVE_PLOTS]:
-            #     stats_summary = amod.get_fleet_stats_summary()
-            #     statuses = ", ".join(
-            #         [
-            #             f"{Car.status_label_dict[status_code]}: {status_count:>4}"
-            #             for status_code, status_count in stats_summary.items()
-            #         ]
-            #     )
-
-            #     logger.info(
-            #         f"## {step+1:>3} - revenue = {revenue:>8.2f}, "
-            #         f"serviced = {len(serviced):>4}, "
-            #         f"rejected = {len(rejected):>4}, "
-            #         f"outstanding = {len(outstanding):>4} "
-            #         f"####### {statuses}"
-            #     )
-
-            #     car_log_str = amod.print_fleet_stats(
-            #         filter_status=[Car.ASSIGN]
-            #     )
-            #     logger.debug(car_log_str)
 
     except Exception as e:
         print(f"Can't log fleet activity! Exception: {e}")
@@ -506,8 +519,11 @@ def log_attribute_cars_dict(
             df = pd.DataFrame.from_dict(data_car_count).sort_values(
                 by=["g", "inbound", "step", "cars"]
             )
-            logger.debug(f"\n########## CAR COUNT (over = {max_cars}, unrestricted = {unrestricted_ids})")
-            logger.debug(df[df["cars"]>max_cars])
+            logger.debug(
+                f"\n########## CAR COUNT (over = {max_cars}, "
+                f"unrestricted = {unrestricted_ids})"
+            )
+            logger.debug(df[df["cars"] > max_cars])
 
             header = ["POSI", "BATT", "CONT", "CART", "DEPO"]
             logger.debug(f"    - {format_tuple(header)} = {'COUNT':>10}")

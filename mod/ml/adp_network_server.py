@@ -192,14 +192,14 @@ def get_sim_config(update_dict):
                 #     car_type=adp.DISAGGREGATE,
                 #     car_origin=adp.DISCARD,
                 # ),
-                # adp.AggLevel(
-                #     temporal=0,
-                #     spatial=1,
-                #     battery=adp.DISAGGREGATE,
-                #     contract=adp.DISCARD,
-                #     car_type=adp.DISAGGREGATE,
-                #     car_origin=adp.DISCARD,
-                # ),
+                adp.AggLevel(
+                    temporal=0,
+                    spatial=1,
+                    battery=adp.DISAGGREGATE,
+                    contract=adp.DISCARD,
+                    car_type=adp.DISAGGREGATE,
+                    car_origin=adp.DISCARD,
+                ),
                 adp.AggLevel(
                     temporal=0,
                     spatial=2,
@@ -362,6 +362,7 @@ def alg_adp(
         f"Nodes with no neighbors (within time increment) "
         f"({len(amod.unreachable_ods)})"
         f" = {amod.unreachable_ods}"
+        f" --- Neighbors (avg, max, min) = {amod.stats_neighbors}"
     )
 
     episode_log = EpisodeLog(
@@ -657,26 +658,6 @@ def alg_adp(
             # )
             t_log += time.time() - t1
 
-            # print(
-            #     f"#{step:>3} - hired={len(amod.hired_cars)}"
-            #     f" - expired={len(amod.expired_contract_cars)}"
-            #     f" - available={len(amod.available_hired)}"
-            #     f" - favs={len(amod.step_favs.get(step, [])):>2}"
-            #     f" - trips={len(trips):>2}")
-
-            # count_car_point = defaultdict(int)
-            # for c in amod.cars:
-            #     count_car_point[c.point.id] += 1
-
-            # for p, count in count_car_point.items():
-            #     if count > 5:
-            #         print(f"{step} - link {p} has {count} cars")
-            # print(len(amod.cars), len(amod.available), len(amod.hired_cars), len(amod.available_hired))
-            # Optimize
-
-            # for tt in trips:
-            #     print(tt.info())
-
             t1 = time.time()
 
             if config.policy_optimal:
@@ -687,17 +668,24 @@ def alg_adp(
                     amod, trips, step + 1, it_decisions[step]
                 )
 
+            # ######################################################## #
+            # METHOD - MPC - HORIZON ################################# #
+            # ######################################################## #
             elif config.policy_mpc:
+
+                # Predicted trips for next steps (exclusive)
+                predicted_trips = it_step_trip_list[
+                    step + 1 : step + amod.config.mpc_forecasting_horizon
+                ]
+
                 # Trips within the same region are invalid
-                decisions, valid_trips = mpc(
+                decisions = mpc(
                     # Amod environment with configuration file
                     amod,
                     # Trips to be matched
                     trips,
                     # Predicted trips within the forecasting horizon
-                    it_step_trip_list[
-                        step : step + amod.config.mpc_forecasting_horizon
-                    ],
+                    predicted_trips,
                     # Service step (+1 trip placement step)
                     step=step + 1,
                     horizon=amod.config.mpc_forecasting_horizon,
@@ -705,7 +693,7 @@ def alg_adp(
                 )
 
                 revenue, serviced, rejected = play_decisions(
-                    amod, valid_trips, step + 1, decisions
+                    amod, trips, step + 1, decisions
                 )
 
             else:
@@ -724,7 +712,6 @@ def alg_adp(
                 )
 
             if amod.config.separate_fleets:
-                # print(f"Trips: {len(trips)} - Revenue: {revenue} - Serviced: {len(serviced)} - Rejected: {len(rejected)}")
 
                 # Optimize
                 revenue_fav, serviced_fav, rejected_fav = service_trips(
@@ -745,14 +732,19 @@ def alg_adp(
                 serviced += (serviced_fav,)
                 rejected = rejected_fav
 
-            # print(f"Revenue FAV: {revenue_fav} - Serviced FAV: {len(serviced_fav)} - Rejected FAV: {len(rejected_fav)}")
+            # ######################################################## #
+            # METHOD - BACKLOG ####################################### #
+            # ######################################################## #
 
             if amod.config.max_user_backlogging_delay > 0:
 
                 expired = []
                 for r in rejected:
+
                     # Add time increment to backlog delay
                     r.backlog_delay += amod.config.time_increment
+
+                    # Max. backlog reached -> discard trip
                     if (
                         r.backlog_delay
                         > amod.config.max_user_backlogging_delay
@@ -765,10 +757,14 @@ def alg_adp(
                 rejected = expired
             t_mip += time.time() - t1
 
-            # If reactive rebalance, send vehicles to rejected
-            # user's origins
+            # ######################################################## #
+            # METHOD - REACTIVE REBALANCE ############################ #
+            # ######################################################## #
+
             t_reactive_rebalance_1 = time.time()
             if amod.config.policy_reactive and rejected:
+                # If reactive rebalance, send vehicles to rejected
+                # user's origins
                 logger.debug(
                     "####################"
                     f"[{n:04}]-[{step:04}] REACTIVE REBALANCE "
@@ -915,11 +911,15 @@ def alg_adp(
         )
 
         # If True, saves time details in file times.csv
-        if log_config_dict[la.LOG_TIMES]:
-            print("weighted values:", len(amod.adp.weighted_values))
-            # print("get_state:", amod.adp.get_state.cache_info())
-            # print("preview_decision:", amod.preview_decision.cache_info())
-            # print("post_cost:", amod.post_cost.cache_info())
+        # if log_config_dict[la.LOG_TIMES]:
+
+        # logger.debug("weighted values:", len(amod.adp.weighted_values))
+        # logger.debug("get_state:", amod.adp.get_state.cache_info())
+        # logger.debug(
+        #     "preview_decision:", amod.preview_decision.cache_info()
+        # )
+        # logger.debug(f"Rebalance: {amod.get_zone_neighbors.cache_info()}")
+        # logger.debug("post_cost:", amod.post_cost.cache_info())
 
         # Increasingly let cars to be idle
         if config.idle_annealing is not None:
@@ -1068,7 +1068,6 @@ if __name__ == "__main__":
                 ConfigNetwork.OFFSET_TERMINATION_MIN: 30,
                 ConfigNetwork.OFFSET_REPOSITIONING_MIN: 30,
                 ConfigNetwork.TIME_INCREMENT: 5,
-                ConfigNetwork.LIMIT_REBALANCING_TIME_INCREMENT: True,
                 ConfigNetwork.DEMAND_SAMPLING: True,
                 # Service quality
                 ConfigNetwork.MATCHING_DELAY: 15,
@@ -1092,7 +1091,7 @@ if __name__ == "__main__":
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
                 # MPC ################################################ #
-                ConfigNetwork.MPC_FORECASTING_HORIZON: 5,
+                ConfigNetwork.MPC_FORECASTING_HORIZON: 15,
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
@@ -1100,7 +1099,7 @@ if __name__ == "__main__":
                 # If None, disabled.
                 ConfigNetwork.IDLE_ANNEALING: None,
                 ConfigNetwork.ACTIVATE_THOMPSON: False,
-                ConfigNetwork.MAX_TARGETS: 6,
+                ConfigNetwork.MAX_TARGETS: 12,
                 # When cars start in the last visited point, the model takes
                 # a long time to figure out the best time
                 ConfigNetwork.FLEET_START: conf.FLEET_START_RANDOM,
@@ -1109,19 +1108,26 @@ if __name__ == "__main__":
                 # ConfigNetwork.LEVEL_PARKING_LOTS: 2,
                 # ConfigNetwork.FLEET_START: conf.FLEET_START_LAST_TRIP_ORIGINS,
                 ConfigNetwork.CAR_SIZE_TABU: 0,
+                # REBALANCING ##########################################
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
                 ConfigNetwork.PENALIZE_REBALANCE: True,
-                ConfigNetwork.REBALANCE_SUB_LEVEL: 2,
-                ConfigNetwork.REBALANCE_MAX_TARGETS: 6,
+                # All rebalancing finishes within time increment
+                ConfigNetwork.REBALANCING_TIME_RANGE_MIN: (0, 5),
+                # Consider only rebalance targets from sublevel
+                ConfigNetwork.REBALANCE_SUB_LEVEL: None,
+                # Rebalance to at most max targets
+                ConfigNetwork.REBALANCE_MAX_TARGETS: None,
+                # Remove nodes that dont have at least min. neighbors
+                ConfigNetwork.MIN_NEIGHBORS: 3,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    # (1, 6),
+                    (1, 6),
                     (2, 6),
-                    (3, 6),
+                    # (3, 6),
                     # (3, 4),
                 ),
-                ConfigNetwork.CENTROID_LEVEL: 2,
+                ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
                 ConfigNetwork.MAX_CARS_LINK: 5,
@@ -1184,10 +1190,12 @@ if __name__ == "__main__":
         la.LOG_STEP_SUMMARY: True,
         # ############# ADP ############################################
         # Log duals update process
-        la.LOG_DUALS: False,
+        la.LOG_WEIGHTS: False,
         la.LOG_VALUE_UPDATE: False,
+        la.LOG_DUALS: False,
         la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: False,
+        la.LOG_ATTRIBUTE_CARS: False,
         la.LOG_WEIGHTS: False,
         # Log .lp and .log from MIP models
         la.LOG_MIP: log_mip,

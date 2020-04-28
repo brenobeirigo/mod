@@ -228,13 +228,13 @@ class AmodNetwork(Amod):
 
             # print("After distance filter:", targets)
             # print(
-            #     center,
-            #     len(targets),
-            #     targets,
-            #     len(id_dist),
-            #     self.config.rebalance_max_targets,
-            #     id_dist,
+            #     f"\ncenter={center}",
+            #     f"\ntargets=({len(targets)}/{len(id_dist)}) = {targets}",
             # )
+
+            # for t, dist in id_dist:
+            #     if t in targets:
+            #         print(f"{t:>6} - {dist:6.2f}")
 
         # Limit number of targets
         if self.config.rebalance_max_targets is not None:

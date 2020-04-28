@@ -11,6 +11,7 @@ from mod.env.config import FOLDER_EPISODE_TRACK
 import requests
 import functools
 import math
+from copy import deepcopy
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -42,6 +43,7 @@ class Amod:
         self.fleet_size = config.fleet_size
 
     def init_fleet(self, points, car_positions=[]):
+        print(f"Initializing fleet... Points: {len(points)}")
         # ------------------------------------------------------------ #
         # Fleet ########################################################
         # -------------------------------------------------------------#
@@ -506,30 +508,66 @@ class Amod:
     def get_travel_time_od(self, o, d, unit="min"):
         """Travel time in minutes or steps between od"""
         distance = self.get_distance(o, d)
-
-        return self.get_travel_time(distance, unit=unit)
+        duration = self.get_travel_time(distance, unit=unit)
+        return duration
 
     def get_unreachable_ods(self):
         """Unreachable ods have NO rebalancing neighbors.
-        
+
         Returns
         -------
         set
             Nodes with no neighbors
         """
         unreachable_ods = set()
+        neighbors = {}
 
         # Loop all origin nodes
         for i in self.point_ids_level[self.config.centroid_level]:
 
             # Get all neighbhors
-            neigh = self.get_zone_neighbors(i)
+            neigh = set(self.get_zone_neighbors(i))
 
             # No neighbors found
-            if not neigh:
+            if not neigh or (
+                self.config.min_neighbors is not None
+                and len(neigh) < self.config.min_neighbors
+            ):
                 unreachable_ods.add(i)
 
-        return unreachable_ods
+            else:
+                neighbors[i] = neigh
+
+        # Eliminate all unreacheable from all neighbors
+        new_ureachable = True
+        while new_ureachable:
+
+            print(
+                f"## Neighbors ({len(neighbors)}) "
+                f"- min.:{self.config.min_neighbors}"
+            )
+            pprint(neighbors)
+            print("Unreachable:", len(unreachable_ods))
+
+            new_ureachable = False
+            new_neighbors = dict()
+            for n, reachable in neighbors.items():
+                new_reachable = reachable - unreachable_ods
+
+                # No neighbors found
+                if not new_reachable or (
+                    self.config.min_neighbors is not None
+                    and len(new_reachable) < self.config.min_neighbors
+                ):
+                    new_ureachable = True
+                    unreachable_ods.add(n)
+
+                else:
+                    new_neighbors[n] = new_reachable
+
+            neighbors = deepcopy(new_neighbors)
+
+        return unreachable_ods, neighbors
 
     # ################################################################ #
     # Prints ######################################################### #
@@ -582,6 +620,14 @@ class Amod:
 
     def reset(self, seed=None):
 
+        # print(
+        #     f"Centroid origins: {len(self.point_ids_level[self.config.centroid_level])}"
+        # )
+
+        # print(
+        #     f"Centroid origins (removed unreachable): {len(self.reachable_points)}"
+        # )
+
         new_origins = []
 
         if self.config.cars_start_from_initial_positions:
@@ -602,7 +648,9 @@ class Amod:
                 )
                 random.seed(seed + 1)
 
-            new_origins = random.choices(self.points, k=self.fleet_size)
+            new_origins = random.choices(
+                self.reachable_points, k=self.fleet_size
+            )
 
         elif self.config.cars_start_from_rejected_trip_origins:
             # Start from rejected trip origins
@@ -616,7 +664,9 @@ class Amod:
                 random.seed(seed + 1)
 
             # Start with random origins
-            new_origins = random.choices(self.points, k=self.fleet_size)
+            new_origins = random.choices(
+                self.reachable_points, k=self.fleet_size
+            )
 
             # Slice reject trip origins (maximum size)
             rejected_trip_origins = [
@@ -639,9 +689,12 @@ class Amod:
                 random.seed(seed + 1)
 
             # Start with random origins
-            new_origins = random.choices(self.points, k=self.fleet_size)
+            new_origins = random.choices(
+                self.reachable_points, k=self.fleet_size
+            )
 
             # Slice reject trip origins (maximum size)
+            # Trips are assumed to start from valid nodes
             last_trip_origins = [
                 self.points[o]
                 for o in self.last_trip_origins[: self.fleet_size]
@@ -673,11 +726,6 @@ class Amod:
             self.config.centroid_level > 0
             and not self.config.cars_start_from_parking_lots
         ):
-            # Transform origin points in centroids
-            new_origins = [
-                self.points[p.id_level(self.config.centroid_level)]
-                for p in new_origins
-            ]
 
             print(
                 f"{len(new_origins)} centroid origins "
@@ -697,6 +745,17 @@ class Amod:
 
         self.rebalancing = []
 
+    def car_neigh_stats(self):
+        neigh_cars = []
+        for c in self.cars:
+            neigh_cars.append(
+                len(
+                    self.neighbors[
+                        c.point.id_level(self.config.centroid_level)
+                    ]
+                )
+            )
+
         # self.cars = [
         #     Car(
         #         point,
@@ -705,3 +764,5 @@ class Amod:
         #     )
         #     for point in self.car_origin_points
         # ]
+
+        return np.mean(neigh_cars), np.max(neigh_cars), np.min(neigh_cars)

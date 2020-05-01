@@ -811,7 +811,7 @@ class StepLog:
         )
 
         sq_info = f"({sq_classes})=({sq_counts})"
-        return (
+        summary = (
             f"#{self.n:>4}"
             f"  ###  cost= {self.total_reward:>10.2f}"
             f"  ###  trips={total:<4}"
@@ -821,6 +821,7 @@ class StepLog:
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
             f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"
         )
+        return summary
 
     def overall_log(self, label="Operational"):
         """Show service rate, recharge count, and total profit.

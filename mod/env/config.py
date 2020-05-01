@@ -50,6 +50,7 @@ for f in FOLDERS:
 
 # Spatiotemporal probability
 FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p5min_6h.npy"
+# FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p10min_6h.npy"
 
 # Load all trip paths
 PATHS_TRAINING_TRIPS = [

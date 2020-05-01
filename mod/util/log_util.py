@@ -47,6 +47,7 @@ LOG_STEP_SUMMARY = "LOG_STEP_SUMMARY"
 LOG_COSTS = "LOG_COSTS"
 LOG_SOLUTIONS = "LOG_SOLUTIONS"
 LOG_ATTRIBUTE_CARS = "LOG_ATTRIBUTE_CARS"
+LOG_DECISION_INFO = "LOG_DECISION_INFO"
 
 LOG_ALL = "log_all"
 LEVEL_FILE = "level_file"
@@ -181,6 +182,45 @@ def log_solution(name, decision_vars):
 def format_tuple(d, item_len=4):
     fd = "|".join([f"{e:>4}" for e in d])
     return f"[{fd}]"
+
+
+def log_decision_info(
+    name,
+    trips,
+    decision_cars,
+    available,
+    available_hired,
+    available_fleet_size,
+    trip_origin_count,
+):
+
+    try:
+
+        logger_obj = log_dict[name]
+
+        if logger_obj.LOG_DECISION_INFO:
+
+            logger = logger_obj.logger
+
+            if trip_origin_count:
+
+                origins, counts = list(zip(*trip_origin_count.items()))
+                o_count = {"origin": origins, "#trips": counts}
+                df = pd.DataFrame.from_dict(o_count)
+                logger.debug("\n## TRIP COUNT")
+                logger.debug(df)
+
+            logger.debug(
+                f"  - Getting decisions  "
+                f"(trips={len(trips)}, "
+                f"decisions={len(decision_cars)}, "
+                f"available cars=[PAV={len(available)}, "
+                f"FAV={len(available_hired)}, "
+                f"total={available_fleet_size}])"
+            )
+
+    except Exception as e:
+        print(f"Can't log costs! Exception: {e}")
 
 
 def log_costs(
@@ -605,6 +645,7 @@ class LogAux:
         LOG_COSTS=True,
         LOG_SOLUTIONS=True,
         LOG_ATTRIBUTE_CARS=True,
+        LOG_DECISION_INFO=True,
         log_all=False,
         log_mip=False,
         log_times=False,
@@ -620,7 +661,7 @@ class LogAux:
         self.LOG_STEP_SUMMARY = LOG_STEP_SUMMARY or log_all
         self.LOG_COSTS = LOG_COSTS or log_all
         self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS or log_all
-        self.LOG_STEP_SUMMARY = LOG_STEP_SUMMARY or log_all
+        self.LOG_DECISION_INFO = LOG_DECISION_INFO or log_all
 
         self.logger = create_logger(
             logger_name,
@@ -645,8 +686,9 @@ def get_logger(
     LOG_FLEET_ACTIVITY=False,
     LOG_STEP_SUMMARY=False,
     LOG_COSTS=False,
-    LOG_SOLUTIONS=True,
-    LOG_ATTRIBUTE_CARS=True,
+    LOG_SOLUTIONS=False,
+    LOG_ATTRIBUTE_CARS=False,
+    LOG_DECISION_INFO=False,
     log_all=False,
     log_mip=False,
     log_times=False,
@@ -671,6 +713,7 @@ def get_logger(
             LOG_STEP_SUMMARY=LOG_STEP_SUMMARY,
             LOG_COSTS=LOG_COSTS,
             LOG_SOLUTIONS=LOG_SOLUTIONS,
+            LOG_DECISION_INFO=LOG_DECISION_INFO,
             LOG_ATTRIBUTE_CARS=LOG_ATTRIBUTE_CARS,
             log_all=log_all,
             log_mip=log_mip,

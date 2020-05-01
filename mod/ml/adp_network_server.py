@@ -385,12 +385,15 @@ def alg_adp(
         )
 
     if config.use_class_prob:
-        print("Loading first-class probabilities...")
-        prob_dict = np.load(conf.FIST_CLASS_PROB, allow_pickle=True).item()
-        time_bin = prob_dict["time_bin"]
-        start_time = prob_dict["start"]
-        end_time = prob_dict["end"]
-        print(f"bin={time_bin}, start={start_time}, end={end_time}")
+        try:
+            print("Loading first-class probabilities...")
+            prob_dict = np.load(conf.FIST_CLASS_PROB, allow_pickle=True).item()
+            time_bin = prob_dict["time_bin"]
+            start_time = prob_dict["start"]
+            end_time = prob_dict["end"]
+            print(f"bin={time_bin}, start={start_time}, end={end_time}")
+        except Exception as e:
+            print(f"Exception: '{e}'. Cannot load class probabilities.")
     else:
         prob_dict = None
 
@@ -815,7 +818,7 @@ def alg_adp(
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #
-            step_log.add_record(revenue, serviced, rejected)
+            step_log.add_record(revenue, serviced, rejected, trips=trips)
             t_add_record += time.time() - t1
 
             # -------------------------------------------------------- #
@@ -979,6 +982,7 @@ if __name__ == "__main__":
         log_times = "-log_times" in args
         log_fleet = "-log_fleet" in args
         log_trips = "-log_trips" in args
+        log_summary = "-log_summary" in args
 
         # Save supply and demand plots and dataframes
         save_plots = "-save_plots" in args
@@ -1073,10 +1077,6 @@ if __name__ == "__main__":
                 ConfigNetwork.MATCHING_DELAY: 15,
                 ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: backlog_delay_min,
                 ConfigNetwork.SQ_GUARANTEE: False,
-                # ConfigNetwork.TRIP_REJECTION_PENALTY: {
-                #     "A": 4.8,
-                #     "B": 2.4,
-                # },
                 ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
                 ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_BASE_FARE: (("A", 2.4), ("B", 2.4)),
@@ -1185,9 +1185,9 @@ if __name__ == "__main__":
     # Toggle what is going to be logged
     log_config = {
         # Write each vehicles status
-        la.LOG_FLEET_ACTIVITY: True,
+        la.LOG_FLEET_ACTIVITY: False,
         # Write profit, service level, # trips, car/satus count
-        la.LOG_STEP_SUMMARY: True,
+        la.LOG_STEP_SUMMARY: log_summary,
         # ############# ADP ############################################
         # Log duals update process
         la.LOG_WEIGHTS: False,
@@ -1196,7 +1196,6 @@ if __name__ == "__main__":
         la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: False,
         la.LOG_ATTRIBUTE_CARS: False,
-        la.LOG_WEIGHTS: False,
         # Log .lp and .log from MIP models
         la.LOG_MIP: log_mip,
         # Log time spent across every step in each code section

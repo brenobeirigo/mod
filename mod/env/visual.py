@@ -663,6 +663,7 @@ class StepLog:
     def __init__(self, env):
         self.env = env
         self.reward_list = list()
+        self.sq_class_count = list()
         self.serviced_list = list()
         self.rejected_list = list()
         self.total_list = list()
@@ -694,7 +695,7 @@ class StepLog:
             self.pav_statuses[k].append(pav_status.get(k, 0))
             self.fav_statuses[k].append(fav_status.get(k, 0))
 
-    def add_record(self, reward, serviced, rejected):
+    def add_record(self, reward, serviced, rejected, trips=[]):
         # Fleet step happens after trip step
         self.n += 1
         self.reward_list.append(reward)
@@ -702,6 +703,14 @@ class StepLog:
         self.rejected_list.append(len(rejected))
         total = len(serviced) + len(rejected)
         self.total_list.append(total)
+        self.sq_class_count.append(
+            {
+                sq_class: count
+                for sq_class, count in zip(
+                    *np.unique([t.sq_class for t in trips], return_counts=True)
+                )
+            }
+        )
 
     @property
     def total_reward(self):
@@ -736,10 +745,12 @@ class StepLog:
             sr = self.serviced_list[-1] / self.total_list[-1]
             reward = self.reward_list[-1]
             total = self.total_list[-1]
+            sq_class_count = self.sq_class_count[-1]
         except:
             sr = 0
             reward = 0
             total = 0
+            sq_class_count = {}
 
         status, status_pav, status_fav, battery = self.env.get_fleet_status()
         statuses = ", ".join(
@@ -777,6 +788,15 @@ class StepLog:
             else ""
         )
 
+        try:
+            sq_classes, sq_counts = list(zip(*sq_class_count.items()))
+
+        except:
+            sq_classes, sq_counts = [], []
+
+        sq_classes = ",".join(c for c in sq_classes)
+        sq_counts = ",".join(f"{c/sum(sq_counts):3.2f}" for c in sq_counts)
+
         # Car neighborhood info
         n_neigh_cars_list, avg_reb_delay_list = self.env.car_neigh_stats()
         s_mean, s_max, s_min = (
@@ -790,11 +810,13 @@ class StepLog:
             np.min(avg_reb_delay_list),
         )
 
+        sq_info = f"({sq_classes})=({sq_counts})"
         return (
             f"#{self.n:>4}"
             f"  ###  cost= {self.total_reward:>10.2f}"
             f"  ###  trips={total:<4}"
             f" ({sr:>7.2%})"
+            f" {sq_info:^19}"
             f"  ###  {statuses}{pav_statuses}{fav_statuses}"
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
             f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"

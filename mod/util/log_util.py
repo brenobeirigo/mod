@@ -483,7 +483,7 @@ def log_attribute_cars_dict(
     attribute_cars_dict,
     level_step_inbound_cars,
     unrestricted_ids={},
-    max_cars=5,
+    max_cars=0,
     msg="",
 ):
     try:
@@ -536,6 +536,11 @@ def log_attribute_cars_dict(
             for k, v in car_attributes:
                 car_count = len(v)
                 logger.debug(f"    - {format_tuple(k)} = {car_count}")
+
+            logger.debug("\n### Total inbound cars")
+            logger.debug(
+                df[["g", "step", "cars"]].groupby(["g", "step"]).sum()
+            )
 
     except Exception as e:
         print(f"Can't log car attributes! Exception: {e}")
@@ -615,6 +620,8 @@ class LogAux:
         self.LOG_STEP_SUMMARY = LOG_STEP_SUMMARY or log_all
         self.LOG_COSTS = LOG_COSTS or log_all
         self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS or log_all
+        self.LOG_STEP_SUMMARY = LOG_STEP_SUMMARY or log_all
+
         self.logger = create_logger(
             logger_name,
             log_level,

@@ -418,7 +418,7 @@ def get_step_trip_list(
                 dp_id = df_slice.iloc[i]["dp_id"]
 
                 # Distance in kilometers
-                trip_dist_km = df_slice.iloc[i]["trip_distance"]
+                trip_dist_km = df_slice.iloc[i]["trip_dist_km"]
 
                 # Trip info tuple is added to step
                 trip_list.append(

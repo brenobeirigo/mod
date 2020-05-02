@@ -542,12 +542,12 @@ class Amod:
         new_ureachable = True
         while new_ureachable:
 
-            print(
-                f"## Neighbors ({len(neighbors)}) "
-                f"- min.:{self.config.min_neighbors}"
-            )
-            pprint(neighbors)
-            print("Unreachable:", len(unreachable_ods))
+            # print(
+            #     f"## Neighbors ({len(neighbors)}) "
+            #     f"- min.:{self.config.min_neighbors}"
+            # )
+            # pprint(neighbors)
+            # print("Unreachable:", len(unreachable_ods))
 
             new_ureachable = False
             new_neighbors = dict()

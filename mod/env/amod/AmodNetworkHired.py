@@ -835,7 +835,7 @@ class AmodNetworkHired(AmodNetwork):
                 car = cars_with_attribute.pop(0)
 
                 # Ignores last element (n. times decision was applied)
-                contribution_car = self.cost_func(decision[:-1])
+                contribution_car = self.decision_info[decision[:-1]][0]
 
                 # print(decision, contribution_car)
 

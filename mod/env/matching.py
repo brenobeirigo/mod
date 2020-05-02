@@ -276,26 +276,28 @@ def mpc_opt_car_flow(env, m, cars_pijt, dpt, N, T, s_it, step=0):
     # the start of the slice being analyzed.
 
 
-def log_model(m, env, folder_name="", save_files=False, step=None):
+def log_model(m, env, folder_name="", save_files=False, step=None, label=""):
 
     # Log steps of current episode
     if save_files:
-        print("Saving model...")
+        print(f"Saving MIP{label} model...")
 
         logger_name = env.config.log_path(env.adp.n)
         logger = la.get_logger(logger_name)
 
         m.setParam("LogToConsole", 0)
-        folder_log = f"{env.config.folder_mip_log}{folder_name}/"
-        folder_lp = f"{env.config.folder_mip_lp}{folder_name}/"
+        folder_log = f"{env.config.folder_mip_log}{folder_name:04}/"
+        folder_lp = f"{env.config.folder_mip_lp}{folder_name:04}/"
 
         if not os.path.exists(folder_log):
             os.makedirs(folder_log)
+
+        if not os.path.exists(folder_lp):
             os.makedirs(folder_lp)
 
         step_label = "" if step is None else f"_{step:04}"
-        m.Params.LogFile = f"{folder_log}mip{step_label}.log"
-        m.Params.ResultFile = f"{folder_lp}mip{step_label}.lp"
+        m.Params.LogFile = f"{folder_log}mip{step_label}{label}.log"
+        m.Params.ResultFile = f"{folder_lp}mip{step_label}{label}.lp"
 
         logger.debug(f"Logging MIP execution in '{m.Params.LogFile}'")
         logger.debug(f"Logging MIP model in '{m.Params.ResultFile}'")
@@ -989,7 +991,7 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
 
 
 def max_cars_node_constrs(
-    m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[]
+    m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[],
 ):
     """Restrict the number of cars arriving at each node.
 
@@ -1017,18 +1019,23 @@ def max_cars_node_constrs(
 
     flood_avoidance_constrs = dict()
 
-    for pos, constrs in decisions.items():
+    for pos, t_constrs in decisions.items():
 
-        # Depots are unrestricted (unlimited number of vehicles)
-        if pos not in unrestricted:
+        n_cars_arriving = 0
 
-            n_cars_node = max(
-                0, max_cars_node - len(vehicles_arriving_at[pos])
-            )
+        for t, constrs in sorted(t_constrs.items(), key=lambda x: x[0]):
 
-            flood_avoidance_constrs[pos] = m.addConstr(
-                constrs <= n_cars_node, f"MAX_CARS_LINK[{pos}]"
-            )
+            # Depots are unrestricted (unlimited number of vehicles)
+            if pos not in unrestricted:
+
+                # Vehicles arriving at position in next step
+                n_cars_arriving += len(vehicles_arriving_at[pos][t])
+                # if n_cars_arriving > 0:
+                #     print(pos, t, n_cars_arriving)
+                flood_avoidance_constrs[pos] = m.addConstr(
+                    constrs + n_cars_arriving <= max_cars_node,
+                    f"MAX_CARS_LINK[{pos}][{t}]",
+                )
 
     return flood_avoidance_constrs
 
@@ -1452,10 +1459,18 @@ def service_trips(
     m = Model("assignment")
 
     # Log steps of current episode
-    log_model(m, env, save_files=log_mip, step=time_step)
+    log_model(
+        m,
+        env,
+        folder_name=iteration,
+        save_files=log_mip,
+        step=time_step,
+        label=("_reb" if reactive else ""),
+    )
 
     # Model is deterministic (usefull for testing)
     m.setParam("Seed", 1)
+    # m.setParam("DualReductions", 0)
 
     # ################################################################ #
     # ################################################################ #
@@ -1518,9 +1533,11 @@ def service_trips(
 
     else:
 
+        trip_origin_count = defaultdict(int)
         # Create a dictionary associate
         for trip in trips:
 
+            trip_origin_count[trip.o.id] += 1
             # Trip count per class
             class_count_dict[trip.sq_class] += 1
 
@@ -1561,13 +1578,15 @@ def service_trips(
 
         t_decisions = time.time() - t1_decisions
 
-        logger.debug(
-            f"  - Getting decisions  "
-            f"(trips={len(trips)}, "
-            f"decisions={len(decision_cars)}, "
-            f"available cars=[PAV={len(env.available)}, "
-            f"FAV={len(env.available_hired)}, "
-            f"total={env.available_fleet_size}])"
+        # Logging decision set info
+        la.log_decision_info(
+            logger_name,
+            trips,
+            decision_cars,
+            env.available,
+            env.available_hired,
+            env.available_fleet_size,
+            trip_origin_count,
         )
 
         # Logging cost calculus
@@ -1601,10 +1620,16 @@ def service_trips(
 
     # If reactive, consider rebalancing costs
     if env.config.policy_reactive and reactive:
-        # print(" - REBALANCE CONTRIBUTION")
-        contribution = quicksum(
-            env.cost_func(d, ignore_rebalance_costs=False) * x_var[d]
+
+        # d -> cost, post_cost, post_state
+        # post_state -> (t, point, battery, contract, type, car_origin)
+        env.decision_info = {
+            d: (env.cost_func(d, ignore_rebalance_costs=False),)
+            + (0, env.preview_decision(time_step, d))
             for d in x_var
+        }
+        contribution = quicksum(
+            env.decision_info[d][0] * x_var[d] for d in x_var
         )
 
     # If myopic, do not include post decision costs
@@ -1614,16 +1639,34 @@ def service_trips(
         or env.config.policy_random
         or env.config.policy_reactive
     ):
-        contribution = quicksum(
-            env.cost_func(d, ignore_rebalance_costs=True) * x_var[d]
+        # d -> cost, post_cost, post_state
+        # post_state -> (t, point, battery, contract, type, car_origin)
+        env.decision_info = {
+            d: (env.cost_func(d, ignore_rebalance_costs=True),)
+            + (0, env.preview_decision(time_step, d))
             for d in x_var
+        }
+        contribution = quicksum(
+            env.decision_info[d][0] * x_var[d] for d in x_var
         )
 
     else:
+
+        # d -> cost, post_cost, post_state
+        # post_state -> (t, point, battery, contract, type, car_origin)
+        env.decision_info = {
+            d: (env.cost_func(d),) + env.post_cost(time_step, d) for d in x_var
+        }
+
         # Model has learned shadow costs from previous iterations and
         # can use them to determine post decision costs.
         contribution = quicksum(
-            env.total_cost(time_step, d) * x_var[d] for d in x_var
+            (
+                env.decision_info[d][0]
+                + env.config.discount_factor * env.decision_info[d][1]
+            )
+            * x_var[d]
+            for d in x_var
         )
 
     penalty = 0
@@ -1694,11 +1737,19 @@ def service_trips(
                 m, x_var, env.attribute_cars_dict, max_battery
             )
 
+    # Limit the number of cars staying
+    # for d in decisions_stay:
+    #     pos = d[du.POSITION]
+    #     if pos in env.unrestricted_parking_node_ids:
+    #         m.addConstr(
+    #             x_var[d] <= env.config.max_cars_link, f"STAY_BOUND[{pos}]"
+    #         )
+
     # Limit the number of cars per node (not in reactive rebalance)
     if env.config.max_cars_link is not None and not env.config.policy_reactive:
 
         # decisions_time_pos = defaultdict(list)
-        decisions_destination = defaultdict(int)
+        decisions_destination = defaultdict(lambda: defaultdict(int))
 
         for d in x_var:
 
@@ -1715,24 +1766,27 @@ def service_trips(
             #     continue
 
             # Cars can always pickup customers
-            if d[du.ACTION] == du.TRIP_DECISION:
-                continue
+            # if d[du.ACTION] == du.TRIP_DECISION:
+            #     continue
 
             # # Any number of cars can stay at each point
             # if d[du.ACTION] == du.STAY_DECISION:
             #     continue
 
             # Cars arriving at destination
-            decisions_destination[d[du.DESTINATION]] += x_var[d]
+            post_time = env.decision_info[d][2][0]
+            decisions_destination[d[du.DESTINATION]][post_time] += x_var[d]
+            # if d[du.ACTION] != du.STAY_DECISION:
+            #     decisions_destination[d[du.POSITION]][post_time] -= x_var[d]
 
         # Set up constraint
         # TODO previously env.depots were unrestricted
         max_cars_node_constr = max_cars_node_constrs(
             m,
             decisions_destination,
-            env.cars_inbound_to,
+            env.level_step_inbound_cars[env.config.centroid_level],
             max_cars_node=env.config.max_cars_link,
-            unrestricted=[],  # env.unrestricted_parking_node_ids,
+            unrestricted=env.unrestricted_parking_node_ids,
         )
 
     t_setup_constraints = time.time() - t1_setup_constraints

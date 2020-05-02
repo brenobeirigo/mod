@@ -293,6 +293,9 @@ class AdpHired(adp.Adp):
                     posinf=3.4028235e38,
                 )
 
+        # Log how duals are updated
+        la.log_update_values(self.config.log_path(self.n), step, self.values)
+
     def get_weight(self, g, a, vf_0):
 
         # WEIGHTING ############################################

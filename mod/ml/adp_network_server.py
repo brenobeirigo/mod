@@ -1212,7 +1212,7 @@ if __name__ == "__main__":
         # ############# ADP ############################################
         # Log duals update process
         la.LOG_WEIGHTS: False,
-        la.LOG_VALUE_UPDATE: True,
+        la.LOG_VALUE_UPDATE: False,
         la.LOG_DUALS: False,
         la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: False,

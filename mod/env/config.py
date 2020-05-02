@@ -52,24 +52,30 @@ for f in FOLDERS:
 FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p5min_6h.npy"
 # FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p10min_6h.npy"
 
+
+def get_file_paths(folder):
+    return [f"{folder}{t}" for t in os.listdir(folder) if t.endswith(".csv")]
+
+
 # Load all trip paths
-PATHS_TRAINING_TRIPS = [
-    f"{FOLDER_TRAINING_TRIPS}{t}"
-    for t in os.listdir(FOLDER_TRAINING_TRIPS)
-    if t.endswith(".csv")
-]
+# PATHS_TRAINING_TRIPS = [
+#     f"{FOLDER_TRAINING_TRIPS}{t}"
+#     for t in os.listdir(FOLDER_TRAINING_TRIPS)
+#     if t.endswith(".csv")
+# ]
 
-# Load all test paths
-PATHS_TESTING_TRIPS = [
-    f"{FOLDER_TESTING_TRIPS}{t}"
-    for t in os.listdir(FOLDER_TESTING_TRIPS)
-    if t.endswith(".csv")
-]
 
-print(
-    f"{len(PATHS_TRAINING_TRIPS)} trip files"
-    f" and {len(PATHS_TESTING_TRIPS)} test files loaded."
-)
+# # Load all test paths
+# PATHS_TESTING_TRIPS = [
+#     f"{FOLDER_TESTING_TRIPS}{t}"
+#     for t in os.listdir(FOLDER_TESTING_TRIPS)
+#     if t.endswith(".csv")
+# ]
+
+# print(
+#     f"{len(PATHS_TRAINING_TRIPS)} trip files"
+#     f" and {len(PATHS_TESTING_TRIPS)} test files loaded."
+# )
 
 # Car statuses
 IDLE = 0
@@ -304,6 +310,10 @@ class Config:
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
     UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
+    FOLDER_TRAINING_FILES = "FOLDER_TRAINING_FILES"
+    FOLDER_TESTING_FILES = "FOLDER_TESTING_FILES"
+    CASE_STUDY = "CASE_STUDY"
+    PATH_CLASS_PROB = "PATH_CLASS_PROB"
 
     # NETWORK INFO
     NAME = "NAME"
@@ -568,6 +578,13 @@ class Config:
     def use_class_prob(self):
         """Load 1st class probability from FIST_CLASS_PROB"""
         return self.config[Config.USE_CLASS_PROB]
+
+    @property
+    def path_class_prob(self):
+        """Path of class probabilities"""
+        return f"{FOLDER_INSTANCE}/{self.config[Config.PATH_CLASS_PROB]}"
+
+    PATH_CLASS_PROB
 
     @property
     def trip_cost_fare(self):
@@ -1676,6 +1693,14 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.LEVEL_PARKING_LOTS]
 
     @property
+    def folder_training_files(self):
+        return FOLDER_TRAINING_TRIPS + self.config[Config.CASE_STUDY] + "/"
+
+    @property
+    def folder_testing_files(self):
+        return FOLDER_TESTING_TRIPS + self.config[Config.CASE_STUDY] + "/"
+
+    @property
     def cars_start_from_last_positions(self):
         """True if cars should start from the last visited positions"""
         return self.config[Config.FLEET_START] == FLEET_START_LAST
@@ -2170,6 +2195,10 @@ class ConfigNetwork(ConfigStandard):
             else ""
         )
         return thomp
+
+    @property
+    def case_study(self):
+        return self.config[Config.CASE_STUDY]
 
     @property
     def label(self, name=""):

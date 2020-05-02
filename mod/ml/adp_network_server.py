@@ -386,8 +386,15 @@ def alg_adp(
 
     if config.use_class_prob:
         try:
-            print("Loading first-class probabilities...")
-            prob_dict = np.load(conf.FIST_CLASS_PROB, allow_pickle=True).item()
+
+            print(
+                "Loading first-class probabilities "
+                f"from '{config.path_class_prob}'..."
+            )
+
+            prob_dict = np.load(
+                config.path_class_prob, allow_pickle=True
+            ).item()
             time_bin = prob_dict["time_bin"]
             start_time = prob_dict["start"]
             end_time = prob_dict["end"]
@@ -465,13 +472,17 @@ def alg_adp(
 
             # Load a random .csv file with trips from NYC
             if config.train:
-                trips_file_path = random.choice(conf.PATHS_TRAINING_TRIPS)
+                folder = config.folder_training_files
+                list_files = conf.get_file_paths(folder)
+                trips_file_path = random.choice(list_files)
                 test_i = n
                 # print(f"  -> Trip file - {trips_file_path}")
             else:
+                folder = config.folder_testing_files
+                list_files = conf.get_file_paths(folder)
                 # If testing, select different trip files
-                test_i = n % len(conf.PATHS_TESTING_TRIPS)
-                trips_file_path = conf.PATHS_TESTING_TRIPS[test_i]
+                test_i = n % len(list_files)
+                trips_file_path = list_files[test_i]
                 # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
 
             step_trip_list, step_trip_count = tp.get_ny_demand(
@@ -588,19 +599,20 @@ def alg_adp(
         # When step=0, no users have come from previous round
         # step_log.add_record(0, [], [])
 
-        # Iterate through all steps and match requests to cars
-        for step, trips in enumerate(it_step_trip_list):
-            config.current_step = step
+        total_trips = 0
 
+        # Iterate through all steps and match requests to cars
+        for step, trip_list in enumerate(it_step_trip_list):
+            config.current_step = step
             # Add trips from last step (when user backlogging is enabled)
-            trips.extend(outstanding)
+            trips = trip_list + outstanding
             outstanding = []
 
             logger.debug(
                 "###########################################"
                 "###########################################"
                 "\n###########################################"
-                f" (step={step+1}, trips={len(trips)}) "
+                f" (step={step+1}, trips={len(trip_list)}) "
                 "###########################################"
                 "\n###########################################"
                 "###########################################"
@@ -714,6 +726,11 @@ def alg_adp(
                     car_type_hide=Car.TYPE_FLEET,
                 )
 
+                # total_trips += len(trips)
+                # print(
+                #     f"{len(serviced):>4} + {len(rejected):>4} = {len(trips):>4}/{total_trips})"
+                # )
+
             if amod.config.separate_fleets:
 
                 # Optimize
@@ -818,7 +835,9 @@ def alg_adp(
             # -------------------------------------------------------- #
             # Update log with iteration ############################## #
             # -------------------------------------------------------- #
-            step_log.add_record(revenue, serviced, rejected, trips=trips)
+            step_log.add_record(
+                revenue, serviced, rejected, outstanding, trips=trips
+            )
             t_add_record += time.time() - t1
 
             # -------------------------------------------------------- #
@@ -864,7 +883,7 @@ def alg_adp(
             )
 
             df.to_csv(
-                f"{config.sampled_tripdata_path}trips_result_{test_i:04}.csv",
+                f"{config.sampled_tripdata_path}trips_{test_i:04}_result.csv",
                 index=False,
             )
 
@@ -872,7 +891,7 @@ def alg_adp(
 
             df_cars = amod.get_fleet_df()
             df_cars.to_csv(
-                f"{config.fleet_data_path}cars_result_{test_i:04}.csv",
+                f"{config.fleet_data_path}cars_{test_i:04}_result.csv",
                 index=False,
             )
 
@@ -1060,6 +1079,8 @@ if __name__ == "__main__":
 
         start_config = get_sim_config(
             {
+                ConfigNetwork.CASE_STUDY: "N08Z07SD02",
+                ConfigNetwork.PATH_CLASS_PROB: "distr/class_prob_distribution_p5min_6h.npy",
                 ConfigNetwork.ITERATIONS: n_iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
                 ConfigNetwork.DISCOUNT_FACTOR: 1,
@@ -1082,7 +1103,7 @@ if __name__ == "__main__":
                 ConfigNetwork.TRIP_BASE_FARE: (("A", 2.4), ("B", 2.4)),
                 ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
-                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 10), ("B", 10)),
+                ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 15), ("B", 15)),
                 ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
                 # ADP EXECUTION ###################################### #
                 ConfigNetwork.METHOD: method,
@@ -1111,20 +1132,20 @@ if __name__ == "__main__":
                 # REBALANCING ##########################################
                 # If REACHABLE_NEIGHBORS is True, then PENALIZE_REBALANCE
                 # is False
-                ConfigNetwork.PENALIZE_REBALANCE: True,
+                ConfigNetwork.PENALIZE_REBALANCE: False,
                 # All rebalancing finishes within time increment
-                ConfigNetwork.REBALANCING_TIME_RANGE_MIN: (0, 5),
+                ConfigNetwork.REBALANCING_TIME_RANGE_MIN: (0, 10),
                 # Consider only rebalance targets from sublevel
                 ConfigNetwork.REBALANCE_SUB_LEVEL: None,
                 # Rebalance to at most max targets
                 ConfigNetwork.REBALANCE_MAX_TARGETS: None,
                 # Remove nodes that dont have at least min. neighbors
-                ConfigNetwork.MIN_NEIGHBORS: 3,
+                ConfigNetwork.MIN_NEIGHBORS: 1,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
                 ConfigNetwork.N_CLOSEST_NEIGHBORS: (
                     (1, 6),
                     (2, 6),
-                    # (3, 6),
+                    (3, 6),
                     # (3, 4),
                 ),
                 ConfigNetwork.CENTROID_LEVEL: 1,
@@ -1191,11 +1212,12 @@ if __name__ == "__main__":
         # ############# ADP ############################################
         # Log duals update process
         la.LOG_WEIGHTS: False,
-        la.LOG_VALUE_UPDATE: False,
+        la.LOG_VALUE_UPDATE: True,
         la.LOG_DUALS: False,
         la.LOG_COSTS: False,
         la.LOG_SOLUTIONS: False,
         la.LOG_ATTRIBUTE_CARS: False,
+        la.LOG_DECISION_INFO: False,
         # Log .lp and .log from MIP models
         la.LOG_MIP: log_mip,
         # Log time spent across every step in each code section

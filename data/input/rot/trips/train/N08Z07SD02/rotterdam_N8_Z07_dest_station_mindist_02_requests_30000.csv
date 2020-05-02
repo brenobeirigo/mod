@@ -1,4 +1,4 @@
-pickup_datetime,passenger_count,pk_id,dp_id,pickup_longitude,pickup_latitude,dropoff_longitude,dropoff_latitude,pickup_region,dropoff_region,trip_distance
+pickup_datetime,passenger_count,pk_id,dp_id,pickup_longitude,pickup_latitude,dropoff_longitude,dropoff_latitude,pickup_region,dropoff_region,trip_dist_km
 2011-11-04 06:00:00,1,334,9749,4.4769881,51.874601299999995,4.5307848,51.8791632,1,1,4.211125999999998
 2011-11-04 06:00:00,1,2161,8245,4.467712000000001,51.897580600000005,4.5097325999999995,51.904282200000004,1,1,4.010206
 2011-11-04 06:00:00,1,601,9749,4.5604994,51.8783709,4.5307848,51.8791632,1,1,3.3084759999999998

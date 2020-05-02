@@ -665,6 +665,7 @@ class StepLog:
         self.reward_list = list()
         self.sq_class_count = list()
         self.serviced_list = list()
+        self.outstanding_list = list()
         self.rejected_list = list()
         self.total_list = list()
         self.all_trips = set()
@@ -695,11 +696,12 @@ class StepLog:
             self.pav_statuses[k].append(pav_status.get(k, 0))
             self.fav_statuses[k].append(fav_status.get(k, 0))
 
-    def add_record(self, reward, serviced, rejected, trips=[]):
+    def add_record(self, reward, serviced, rejected, outstanding, trips=[]):
         # Fleet step happens after trip step
         self.n += 1
         self.reward_list.append(reward)
         self.serviced_list.append(len(serviced))
+        self.outstanding_list.append(len(outstanding))
         self.rejected_list.append(len(rejected))
         total = len(serviced) + len(rejected)
         self.total_list.append(total)
@@ -730,8 +732,8 @@ class StepLog:
 
     @property
     def service_rate(self):
-        s = sum(self.serviced_list)
-        t = sum(self.total_list)
+        s = self.serviced
+        t = self.total
         try:
             return s / t
         except ZeroDivisionError:
@@ -817,6 +819,7 @@ class StepLog:
             f"  ###  trips={total:<4}"
             f" ({sr:>7.2%})"
             f" {sq_info:^19}"
+            f" - {self.serviced:>4} + {self.rejected:>4} + {self.outstanding_list[-1]:>4} = {self.total:>4} - "
             f"  ###  {statuses}{pav_statuses}{fav_statuses}"
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
             f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"

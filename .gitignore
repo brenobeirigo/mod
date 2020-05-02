@@ -8,6 +8,8 @@
 # Episode track
 *.npy
 
+!/data/input/rot/distr/**
+
 # Python Cache
 **/__pycache__
 

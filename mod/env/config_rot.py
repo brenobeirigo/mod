@@ -2244,21 +2244,18 @@ class ConfigNetwork(ConfigStandard):
         prob = "_P" if self.use_class_prob else ""
         return (
             f"{self.test_label}_"
-            # Demand ################################################# #
-            f"{self.case_study}_"
-            f"{self.demand_resize_factor:3.2f}({self.label_sample})_"
-            # f"{self.config[Config.DEMAND_SCENARIO]}_"
             # MIP #################################################### #
             # f"{self.label_penalize}_"
             f"{self.label_lin}"
             # Map info ############################################### #
             f"{(f'C{self.centroid_level}_' if self.centroid_level > 0 else '')}"
-            # Rebalance ############################################## #
-            f"R=[{self.label_reb_neigh}]{self.label_explore}{self.label_thomp}_"
             # Fleet ################################################## #
             f"V={self.fleet_size:04}_"
             f"{self.label_idle_annealing}"
             # f"{self.config[Config.BATTERY_LEVELS]:04}_"
+            # Rebalance ############################################## #
+            f"R=[{self.label_reb_neigh}]{self.label_explore}{self.label_thomp}_"
+            f"C={self.recharge_cost_distance:.1f}_"
             # FAV fleet ############################################## #
             # f"{self.fav_fleet_size:04}"
             # f"{self.label_stations}"
@@ -2278,9 +2275,13 @@ class ConfigNetwork(ConfigStandard):
             f"{self.discount_factor:3.2f}_"
             f"{self.stepsize_constant:3.2f}_"
             f"{self.label_artificial}"
-            # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
-            f"C={self.config[ConfigNetwork.RECHARGE_COST_DISTANCE]:.1f}_"
+            # Demand ################################################# #
+            f"{self.case_study}_"
+            f"{self.demand_resize_factor:3.2f}({self.label_sample})_"
+            f"B={self.max_user_backlogging_delay}_"
             f"{self.sl_config_label}"
+            # f"{self.config[Config.DEMAND_SCENARIO]}_"
+            # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             # f"{prob}"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

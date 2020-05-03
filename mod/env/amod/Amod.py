@@ -43,7 +43,7 @@ class Amod:
         self.fleet_size = config.fleet_size
 
     def init_fleet(self, points, car_positions=[]):
-        print(f"Initializing fleet... Points: {len(points)}")
+        print(f"### Initializing fleet... Points: {len(points)}")
         # ------------------------------------------------------------ #
         # Fleet ########################################################
         # -------------------------------------------------------------#

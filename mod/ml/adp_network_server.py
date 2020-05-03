@@ -350,7 +350,7 @@ def alg_adp(
     # Set tabu size (vehicles cannot visit nodes in tabu)
     Car.SIZE_TABU = config.car_size_tabu
 
-    print(f'Saving experimental settings at: "{config.exp_settings}"')
+    print(f'### Saving experimental settings at: "{config.exp_settings}"')
     config.save()
 
     # ---------------------------------------------------------------- #
@@ -359,10 +359,10 @@ def alg_adp(
 
     amod = AmodNetworkHired(config, online=True)
     print(
-        f"Nodes with no neighbors (within time increment) "
+        f"### Nodes with no neighbors (within time increment) "
         f"({len(amod.unreachable_ods)})"
         f" = {amod.unreachable_ods}"
-        f" --- Neighbors (avg, max, min) = {amod.stats_neighbors}"
+        f" --- #neighbors (avg, max, min) = {amod.stats_neighbors}"
     )
 
     episode_log = EpisodeLog(
@@ -388,7 +388,7 @@ def alg_adp(
         try:
 
             print(
-                "Loading first-class probabilities "
+                "### Loading first-class probabilities "
                 f"from '{config.path_class_prob}'..."
             )
 
@@ -398,13 +398,13 @@ def alg_adp(
             time_bin = prob_dict["time_bin"]
             start_time = prob_dict["start"]
             end_time = prob_dict["end"]
-            print(f"bin={time_bin}, start={start_time}, end={end_time}")
+            print(f"### bin={time_bin}, start={start_time}, end={end_time}")
         except Exception as e:
             print(f"Exception: '{e}'. Cannot load class probabilities.")
     else:
         prob_dict = None
 
-    print(f"Loading demand scenario '{config.demand_scenario}'...")
+    print(f"### Loading demand scenario '{config.demand_scenario}'...")
 
     try:
         if config.myopic or config.policy_random or config.policy_reactive:
@@ -716,7 +716,6 @@ def alg_adp(
                     car_type_hide=Car.TYPE_FLEET,
                 )
 
-
             if amod.config.separate_fleets:
 
                 # Optimize
@@ -1002,32 +1001,29 @@ if __name__ == "__main__":
         optimal = "-optimal" in args
         policy_mpc = "-mpc" in args
 
+        # Progress file will be updated every X iterations
+        save_progress_interval = None
+
         if policy_random:
-            print("RANDOM")
             method = ConfigNetwork.METHOD_RANDOM
 
         elif policy_reactive:
-            print("REACTIVE")
             method = ConfigNetwork.METHOD_REACTIVE
 
         elif myopic:
-            print("MYOPIC")
             method = ConfigNetwork.METHOD_MYOPIC
 
         elif train:
-            print("SAVING PROGRESS")
+            method = ConfigNetwork.METHOD_ADP_TRAIN
             try:
                 i = int(args.index("-train"))
                 save_progress_interval = int(args[i + 1])
+
             except:
                 save_progress_interval = 1
-            print(f"Saving progress every {save_progress_interval} iteration.")
-            method = ConfigNetwork.METHOD_ADP_TRAIN
 
         elif test:
             method = ConfigNetwork.METHOD_ADP_TEST
-            save_progress_interval = None
-            print("Progress will not be saved!")
 
         elif optimal:
             method = ConfigNetwork.METHOD_OPTIMAL
@@ -1040,7 +1036,9 @@ if __name__ == "__main__":
         else:
             raise ("Error! Which method?")
 
-        print("METHOD:", method)
+        print(
+            f"### method={method}, save progress={(save_progress_interval if  save_progress_interval else 'no')}"
+        )
 
         try:
             fleet_size_i = args.index(f"-{ConfigNetwork.FLEET_SIZE}")
@@ -1128,11 +1126,7 @@ if __name__ == "__main__":
                 # Remove nodes that dont have at least min. neighbors
                 ConfigNetwork.MIN_NEIGHBORS: 1,
                 ConfigNetwork.REACHABLE_NEIGHBORS: False,
-                ConfigNetwork.N_CLOSEST_NEIGHBORS: (
-                    (1, 6),
-                    (2, 6),
-                    (3, 6),
-                ),
+                ConfigNetwork.N_CLOSEST_NEIGHBORS: ((1, 6), (2, 6), (3, 6),),
                 ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
@@ -1221,7 +1215,5 @@ if __name__ == "__main__":
         # Log chosen (if LOG_ALL, set to lowest, i.e., DEBUG)
         la.LOG_LEVEL: (log_level if not log_all else la.DEBUG),
     }
-
-    print("PROGRESS", start_config.save_progress)
 
     alg_adp(None, start_config, log_config_dict=log_config)

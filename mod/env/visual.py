@@ -103,7 +103,6 @@ class EpisodeLog:
 
     def create_folders(self):
 
-        print("Creating folders at:" + self.config.output_path)
         # If config is not None, then the experiments should be saved
         if self.config:
             self.output_folder_delay = self.config.output_path + FOLDER_TIME
@@ -140,13 +139,13 @@ class EpisodeLog:
                 if not os.path.exists(f):
                     os.makedirs(f)
 
-                print(
-                    f"\n### Saving episodes at:"
-                    f"\n - {self.output_path}"
-                    f"\n### Saving plots at:"
-                    f"\n - {self.output_folder_fleet}"
-                    f"\n - {self.output_folder_service}"
-                )
+            print(
+                f"### Saving episodes at:"
+                f"\n###  - {self.config.output_path}"
+                f"\n### Saving plots at:"
+                f"\n###  - {self.output_folder_fleet}"
+                f"\n###  - {self.output_folder_service}"
+            )
 
     def __init__(
         self,

@@ -1255,17 +1255,14 @@ class AmodNetworkHired(AmodNetwork):
             )
         """
 
-        (
-            action,
-            point,
-            battery,
-            contract_duration,
-            car_type,
-            car_origin,
-            o,
-            d,
-            _,
-        ) = decision
+        action = decision[du.ACTION]
+        point = decision[du.POSITION]
+        battery = decision[du.BATTERY]
+        contract_duration = decision[du.CONTRACT_DURATION]
+        car_type = decision[du.CAR_TYPE]
+        car_origin = decision[du.CAR_ORIGIN]
+        o = decision[du.ORIGIN]
+        d = decision[du.DESTINATION]
 
         battery_post = battery
         type_post = car_type

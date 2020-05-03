@@ -89,13 +89,13 @@ def create_logger(
     log_file,
     formatter_file=FORMATTER_VERBOSE,
 ):
-    print(
-        f"\n#### Creating logger..."
-        f"\n       id = {name}"
-        f"\n    level = {level_labels[log_level]}, "
-        f"console = {level_labels[level_console]}, "
-        f"file = {level_labels[level_file]}\n"
-    )
+    # print(
+    #     f"\n#### Creating logger..."
+    #     f"\n       id = {name}"
+    #     f"\n    level = {level_labels[log_level]}, "
+    #     f"console = {level_labels[level_console]}, "
+    #     f"file = {level_labels[level_file]}\n"
+    # )
 
     logger = logging.getLogger(name)
     logger.setLevel(log_level)

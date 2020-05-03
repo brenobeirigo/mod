@@ -17,6 +17,14 @@ VARIANCE_G = 3
 STEPSIZE_FUNC = 4
 LAMBDA_STEPSIZE = 5
 
+NEG_INF = -3.4028235e38
+POS_INF = 3.4028235e38
+DTYPE = np.float32
+
+# NEG_INF = -1.7976931348623157e308
+# POS_INF = 1.7976931348623157e308
+# DTYPE = np.float64
+
 
 class AdpHired(adp.Adp):
     def __init__(self, points, config):
@@ -59,7 +67,7 @@ class AdpHired(adp.Adp):
 
         self.values = [
             # pygtrie.Trie()
-            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=np.float32))
+            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=DTYPE))
             for g in range(len(self.aggregation_levels))
         ]
 
@@ -81,7 +89,7 @@ class AdpHired(adp.Adp):
             return None
 
     def get_initial_weight_vector(self):
-        v = np.zeros(len(self.aggregation_levels), dtype=np.float32)
+        v = np.zeros(len(self.aggregation_levels), dtype=DTYPE)
         return v
 
     def get_weighted_value(self, disaggregate):
@@ -116,9 +124,7 @@ class AdpHired(adp.Adp):
         # Total variation - (transient bias)**2 is not guaranteed to be
         # positive.
         weight_vector = abs(
-            np.nan_to_num(
-                weight_vector, neginf=-3.4028235e38, posinf=3.4028235e38
-            )
+            np.nan_to_num(weight_vector, neginf=NEG_INF, posinf=POS_INF)
         )
 
         weight_sum = sum(weight_vector)
@@ -178,7 +184,7 @@ class AdpHired(adp.Adp):
 
                 # Update the number of times state was accessed
                 self.values[g][a_g][COUNT] += 1
-                dif_vfs = np.float32(v_ta_sampled - self.values[g][a_g][VF])
+                dif_vfs = DTYPE(v_ta_sampled - self.values[g][a_g][VF])
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
@@ -250,7 +256,7 @@ class AdpHired(adp.Adp):
 
                 # Update the number of times state was accessed
                 self.values[g][a_g][COUNT] += 1
-                dif_vfs = np.float32(v_ta_sampled - self.values[g][a_g][VF])
+                dif_vfs = DTYPE(v_ta_sampled - self.values[g][a_g][VF])
 
                 # Bias due to smoothing of transient data series
                 # (value function change every iteration)
@@ -325,7 +331,7 @@ class AdpHired(adp.Adp):
         # Total variation (variance plus the square of the bias)
         total_variation = variance + (aggregation_bias ** 2)
 
-        weight = np.float32(1.0) / np.float32(total_variation)
+        weight = DTYPE(1.0) / DTYPE(total_variation)
         # if weight <= 0:
         #     print("@@@@@<=0")
         #     # if variance_g == -3.4028235e38 or abs(transient_bias) == 3.4028235e38:
@@ -436,7 +442,7 @@ class AdpHired(adp.Adp):
         self.service_rate = progress.get("service_rate", list())
         self.weights = progress.get("weights", list())
         self.values = [
-            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=np.float32))
+            defaultdict(lambda: np.array([0, 0, 0, 0, 1, 1], dtype=DTYPE))
             for g in range(len(self.aggregation_levels))
         ]
         adp_progress = progress.get("progress")

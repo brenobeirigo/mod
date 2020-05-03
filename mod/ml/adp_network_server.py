@@ -509,18 +509,6 @@ def alg_adp(
             id_destinations = set([t.d.id for t in all_trips])
             amod.unrestricted_parking_node_ids = id_destinations
 
-            # print(
-            #     f"Id destinations {len(id_destinations)} = {id_destinations}"
-            # )
-            # for i in id_destinations:
-            #     neigh = amod.get_zone_neighbors(i)
-            #     print(" - ", neigh)
-            # all_destinations = set(
-            #     itertools.chain(*[t.d.level_ids for t in all_trips])
-            # )
-            # print(f"All destinations {len(all_destinations)}")
-            # print(all_destinations)
-
         # Log events of iteration n
         logger = la.get_logger(
             config.log_path(amod.adp.n),
@@ -659,9 +647,11 @@ def alg_adp(
 
             t1 = time.time()
             logger.debug("\n## Car attributes:")
+
             # Log both fleets
             for c in itertools.chain(amod.cars, amod.hired_cars):
                 logger.debug(f"{c} - {c.attribute}")
+
             # What each vehicle is doing after update?
             # la.log_fleet_activity(
             #     config.log_path(amod.adp.n),
@@ -726,10 +716,6 @@ def alg_adp(
                     car_type_hide=Car.TYPE_FLEET,
                 )
 
-                # total_trips += len(trips)
-                # print(
-                #     f"{len(serviced):>4} + {len(rejected):>4} = {len(trips):>4}/{total_trips})"
-                # )
 
             if amod.config.separate_fleets:
 
@@ -1146,7 +1132,6 @@ if __name__ == "__main__":
                     (1, 6),
                     (2, 6),
                     (3, 6),
-                    # (3, 4),
                 ),
                 ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #

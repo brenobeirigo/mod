@@ -438,10 +438,11 @@ class AmodNetworkHired(AmodNetwork):
             # From car's position to trip's origin, and OD
             cost_pickup = self.cost(decision[du.POSITION], decision[du.ORIGIN])
 
+            # SQ_TIMESBACKLOG
+            sq, times_backlog = decision[du.SQ_CLASS].split("_")
+
             penalty_pk = self.penalty(
-                decision[du.POSITION],
-                decision[du.ORIGIN],
-                decision[du.SQ_CLASS],
+                decision[du.POSITION], decision[du.ORIGIN], sq,
             )
 
             cost_trip = self.cost(
@@ -453,9 +454,7 @@ class AmodNetworkHired(AmodNetwork):
 
             # Base fare + distance cost
             revenue = self.revenue(
-                decision[du.ORIGIN],
-                decision[du.DESTINATION],
-                decision[du.SQ_CLASS],
+                decision[du.ORIGIN], decision[du.DESTINATION], sq,
             )
 
             contribution = PROFIT_MARGIN * (revenue - cost) - CONGESTION_PRICE

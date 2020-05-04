@@ -186,7 +186,9 @@ def format_tuple(d, item_len=4):
 
 def log_decision_info(
     name,
+    step,
     trips,
+    reachable_trips_i,
     decision_cars,
     available,
     available_hired,
@@ -201,6 +203,26 @@ def log_decision_info(
         if logger_obj.LOG_DECISION_INFO:
 
             logger = logger_obj.logger
+
+            logger.debug(
+                "###########################################"
+                "###########################################"
+                "\n###########################################"
+                f" (step={step}, trips={len(trips)}) "
+                "###########################################"
+                "\n###########################################"
+                "###########################################"
+            )
+
+            logger.debug("### Reachable")
+            for i, t in enumerate(trips):
+                if i in reachable_trips_i:
+                    logger.debug(f"  - {t.info()}")
+
+            logger.debug("\n### Unreachable")
+            for i, t in enumerate(trips):
+                if i not in reachable_trips_i:
+                    logger.debug(f"  - {t.info()}")
 
             if trip_origin_count:
 

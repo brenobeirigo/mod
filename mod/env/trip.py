@@ -192,9 +192,10 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
         Dataframe with trip data info.
     """
     d = defaultdict(list)
-    for trips in step_trip_list:
+    for step, trips in enumerate(step_trip_list):
         for t in trips:
             d["placement_datetime"].append(t.placement)
+            d["step"].append(step + 1)
             d["pk_id"].append(t.o.id)
             d["dp_id"].append(t.d.id)
             d["sq_class"].append(t.sq_class)
@@ -255,6 +256,7 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
                 d["picked_by"].append(t.picked_by)
 
     df = pd.DataFrame.from_dict(dict(d))
+    df.sort_values(by=["placement_datetime", "sq_class"], inplace=True)
     return df
 
 

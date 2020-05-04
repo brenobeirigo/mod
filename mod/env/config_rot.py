@@ -2248,6 +2248,10 @@ class ConfigNetwork(ConfigStandard):
 
         min_reb, max_reb = self.rebalancing_time_range_min
         reb_limit = f"[{min_reb}-{max_reb}]"
+        back_logging = (
+            f"_B={self.max_user_backlogging_delay}"
+            if self.max_user_backlogging_delay > 0 else 0
+        )
 
         return (
             f"{self.test_label}_"
@@ -2290,6 +2294,7 @@ class ConfigNetwork(ConfigStandard):
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
             f"C={self.config[ConfigNetwork.RECHARGE_COST_DISTANCE]:.1f}_"
             f"{self.sl_config_label}"
+            f"{back_logging}"
             # f"{prob}"
             # f"{self.config[Config.CONGESTION_PRICE]:2}"
         )

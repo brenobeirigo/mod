@@ -201,8 +201,14 @@ def main(test_labels, focus, N_PROCESSES, method):
             "N08Z10SD04",
         ],
         # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
-        ConfigNetwork.RECHARGE_COST_DISTANCE: [0.1, 0.5, 0.8],
-        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: [0, 10, 20],
+        ConfigNetwork.RECHARGE_COST_DISTANCE: [0.1, 0.5],
+        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: [0, 20],
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [
+            (("A", 0), ("B", 0)),
+            (("A", 2.5), ("B", 2.5)),
+        ],
+        ConfigNetwork.TRIP_OUTSTANDING_PENALTY: [(("A", 0.25), ("B", 0.25))],
+        ConfigNetwork.REBALANCE_SUB_LEVEL: [None, 1],
         # ConfigNetwork.METHOD: [
         #     ConfigNetwork.METHOD_ADP_TRAIN,
         #     ConfigNetwork.METHOD_ADP_TEST,
@@ -210,7 +216,7 @@ def main(test_labels, focus, N_PROCESSES, method):
         #     ConfigNetwork.METHOD_RANDOM,
         # ],
         # Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        Config.DISCOUNT_FACTOR: [0.1, 0.3, 0.5],
+        # Config.DISCOUNT_FACTOR: [0.1, 0.3, 0.5],
         # "CLASS_PROB": [
         #     {
         #         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 1), ("B", 0)),
@@ -266,7 +272,7 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.SQ_GUARANTEE: False,
         ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
         ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
-        ConfigNetwork.TRIP_BASE_FARE: (("A", 2), ("B", 2)),
+        ConfigNetwork.TRIP_BASE_FARE: (("A", 2.5), ("B", 2.5)),
         ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
         ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
         ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 15), ("B", 15)),

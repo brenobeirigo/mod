@@ -292,6 +292,7 @@ class Config:
     METHOD_MYOPIC = "myopic"
     METHOD_MPC = "mpc"
     MPC_FORECASTING_HORIZON = "MPC_FORECASTING_HORIZON"
+    MPC_USE_PERFORMANCE_TO_GO = "MPC_USE_PERFORMANCE_TO_GO"
     METHOD = "METHOD"
     ITERATIONS = "ITERATIONS"
 
@@ -310,6 +311,7 @@ class Config:
     MAX_USER_BACKLOGGING_DELAY = "MAX_USER_BACKLOGGING_DELAY"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
+    TRIP_OUTSTANDING_PENALTY = "TRIP_OUTSTANDING_PENALTY"
     UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
     FOLDER_TRAINING_FILES = "FOLDER_TRAINING_FILES"
     FOLDER_TESTING_FILES = "FOLDER_TESTING_FILES"
@@ -597,6 +599,10 @@ class Config:
         return self.config[Config.TRIP_REJECTION_PENALTY]
 
     @property
+    def trip_outstanding_penalty(self):
+        return self.config[Config.TRIP_OUTSTANDING_PENALTY]
+
+    @property
     def pickup_zone_range(self):
         """Duration of the time steps in (min)"""
         return self.config["PICKUP_ZONE_RANGE"]
@@ -667,9 +673,48 @@ class Config:
         return self.config[Config.MPC_FORECASTING_HORIZON]
 
     @property
+    def mpc_use_performance_to_go(self):
+        return self.config[Config.MPC_USE_PERFORMANCE_TO_GO]
+
+    @property
     def time_increment(self):
         """Duration of the time steps in (min)"""
         return self.config[Config.TIME_INCREMENT]
+
+    @property
+    def max_times_backlog(self):
+        """Number of times user can be backlogged"""
+        return int(
+            self.config[Config.MAX_USER_BACKLOGGING_DELAY] / self.config[Config.TIME_INCREMENT])
+
+    def backlog_rejection_penalty(self, sq_times):
+        """According to service quality class and times user has been
+        backlogged, get penalty.
+
+        Parameters
+        ----------
+        sq_times : str
+            service quality class and times string (e.g., A_0, A_1)
+
+        Returns
+        -------
+        float
+            Backlog or rejection penalty
+        """
+        sq, times_backlog = sq_times.split("_")
+
+        # Times user has been backlogged
+        times_backlog = int(times_backlog)
+
+        if times_backlog * self.config[Config.TIME_INCREMENT] < self.config[Config.MAX_USER_BACKLOGGING_DELAY]:
+            pen = self.trip_outstanding_penalty[sq]*(times_backlog + 1)
+
+        # User can no longer be backlogged (next time will b rejected)
+        else:
+            pen = self.trip_rejection_penalty[sq]
+
+        # print("XXX:", sq_times, pen, times_backlog * self.config[Config.TIME_INCREMENT], self.config[Config.MAX_USER_BACKLOGGING_DELAY])
+        return pen
 
     @property
     def rebalancing_time_range_min(self):
@@ -849,7 +894,8 @@ class Config:
                     f"{sq}_{base:.2f}_"
                     f"{self.config[Config.TRIP_MAX_PICKUP_DELAY][sq]:02}_"
                     f"{self.config[Config.TRIP_TOLERANCE_DELAY_MIN][sq]:02}_"
-                    f"{self.config[Config.TRIP_REJECTION_PENALTY][sq]:.1f}_"
+                    f"{self.config[Config.TRIP_REJECTION_PENALTY][sq]:.2f}_"
+                    f"{self.config[Config.TRIP_OUTSTANDING_PENALTY][sq]:.2f}_"
                     f"{proportion(sq)}"
                 )
                 for sq, base in self.config[Config.TRIP_BASE_FARE].items()
@@ -874,6 +920,9 @@ class Config:
             ][sq]
             sl_config_dict[f"{sq}_trip_rejection_penalty"] = self.config[
                 Config.TRIP_REJECTION_PENALTY
+            ][sq]
+            sl_config_dict[f"{sq}_trip_outstanding_penalty"] = self.config[
+                Config.TRIP_OUTSTANDING_PENALTY
             ][sq]
             sl_config_dict[f"{sq}_trip_class_proportion"] = self.config[
                 Config.TRIP_CLASS_PROPORTION
@@ -986,6 +1035,11 @@ class Config:
                 dict_update[Config.TRIP_REJECTION_PENALTY] = {
                     kv[0]: kv[1]
                     for kv in dict_update[Config.TRIP_REJECTION_PENALTY]
+                }
+            if Config.TRIP_OUTSTANDING_PENALTY in dict_update:
+                dict_update[Config.TRIP_OUTSTANDING_PENALTY] = {
+                    kv[0]: kv[1]
+                    for kv in dict_update[Config.TRIP_OUTSTANDING_PENALTY]
                 }
             if Config.TRIP_BASE_FARE in dict_update:
                 dict_update[Config.TRIP_BASE_FARE] = {
@@ -1595,6 +1649,12 @@ class ConfigNetwork(ConfigStandard):
             Config.SQ_CLASS_1: 4.8,
             Config.SQ_CLASS_2: 2.4,
         }
+
+        self.config[Config.TRIP_OUTSTANDING_PENALTY] = {
+            Config.SQ_CLASS_1: 0,
+            Config.SQ_CLASS_2: 0,
+        }
+
         self.config[Config.TRIP_DISTANCE_RATE_KM] = {
             Config.SQ_CLASS_1: 1,
             Config.SQ_CLASS_2: 1,
@@ -2250,7 +2310,7 @@ class ConfigNetwork(ConfigStandard):
         reb_limit = f"[{min_reb}-{max_reb}]"
         back_logging = (
             f"_B={self.max_user_backlogging_delay}"
-            if self.max_user_backlogging_delay > 0 else 0
+            if self.max_user_backlogging_delay > 0 else ""
         )
 
         return (
@@ -2292,7 +2352,7 @@ class ConfigNetwork(ConfigStandard):
             f"{self.stepsize_constant:3.2f}_"
             f"{self.label_artificial}"
             # f"{self.config[Config.HARMONIC_STEPSIZE]:02}_"
-            f"C={self.config[ConfigNetwork.RECHARGE_COST_DISTANCE]:.1f}_"
+            f"C={self.config[ConfigNetwork.RECHARGE_COST_DISTANCE]:.2f}_"
             f"{self.sl_config_label}"
             f"{back_logging}"
             # f"{prob}"

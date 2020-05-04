@@ -33,10 +33,9 @@ Execute the following commands:
     conda activate env_slevels
     conda install --strict-channel-priority osmnx
     conda install gurobi
-    pip install h3
     conda install gurobipy
     conda install -c conda-forge --strict-channel-priority h3-py
-    conda istall bokeh
+    conda install bokeh
     pip install seaborn
 
 

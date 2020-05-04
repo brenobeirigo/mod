@@ -818,7 +818,7 @@ class StepLog:
             f"  ###  trips={total:<4}"
             f" ({sr:>7.2%})"
             f" {sq_info:^19}"
-            f" - {self.serviced:>4} + {self.rejected:>4} + {self.outstanding_list[-1]:>4} = {self.total:>4} - "
+            f" - [s]{self.serviced:>4} + [r]{self.rejected:>4} + [o]{self.outstanding_list[-1]:>4} = {self.total:>4} - "
             f"  ###  {statuses}{pav_statuses}{fav_statuses}"
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
             f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"

@@ -65,6 +65,10 @@ class ClassedTrip(Trip):
             f" - remaining: {self.max_delay_from_placement:>6.2f} min"
         )
 
+    @property
+    def sq_class_backlog(self):
+        return f"{self.sq_class}_{self.times_backlogged}"
+
     def __init__(
         self,
         o,
@@ -80,6 +84,7 @@ class ClassedTrip(Trip):
     ):
         super().__init__(o, d, time)
         self.sq_class = sq_class
+        self.times_backlogged = 0
 
         # How much time has passed from the beginning of the step
         # to the announcement time
@@ -103,6 +108,14 @@ class ClassedTrip(Trip):
     @property
     def attribute(self, level=0):
         return (self.o.id_level(level), self.d.id_level(level), self.sq_class)
+
+    @property
+    def attribute_backlog(self, level=0):
+        return (
+            self.o.id_level(level),
+            self.d.id_level(level),
+            self.sq_class_backlog,
+        )
 
     def __str__(self):
         return f"{self.sq_class}{self.id:02}({self.o},{self.d})"
@@ -133,7 +146,8 @@ class ClassedTrip(Trip):
             f"max_delay={self.max_delay:6.2f},"
             f"from_placement={self.max_delay_from_placement:6.2f},"
             f"tolerance={self.tolerance:6.2f},"
-            f"elapsed={self.elapsed_sec:6.2f}}}"
+            f"elapsed={self.elapsed_sec:6.2f},"
+            f"backlogged={self.times_backlogged}"
         )
 
 
@@ -229,7 +243,7 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
                     dropoff_datetime_str = datetime.strftime(
                         dropoff_datetime, "%Y-%m-%d %H:%M:%S"
                     )
-
+                d["times_backlogged"].append(t.times_backlogged)
                 d["pickup_step"].append(
                     t.pk_step if t.pk_step is not None else "-"
                 )

@@ -154,8 +154,6 @@ def previous_time(env, p, j, i, t):
 
 def mpc_opt_car_flow(env, m, cars_pijt, dpt, N, T, s_it, step=0):
 
-    print(f"mpc opt. car flow...N={len(N)}, T={len(T)}")
-
     for i in N:
         for t in T:
             # print(i, t)
@@ -286,8 +284,8 @@ def log_model(m, env, folder_name="", save_files=False, step=None, label=""):
         logger = la.get_logger(logger_name)
 
         m.setParam("LogToConsole", 0)
-        folder_log = f"{env.config.folder_mip_log}{folder_name:04}/"
-        folder_lp = f"{env.config.folder_mip_lp}{folder_name:04}/"
+        folder_log = f"{env.config.folder_mip_log}{folder_name}/"
+        folder_lp = f"{env.config.folder_mip_lp}{folder_name}/"
 
         if not os.path.exists(folder_log):
             os.makedirs(folder_log)
@@ -317,8 +315,7 @@ def mpc(
     use_visited_only=True,
     rebalance_to_neighbors=True,
 ):
-    """[summary]
-    
+    """
     Parameters
     ----------
     env : Amod
@@ -337,7 +334,7 @@ def mpc(
     use_visited_only : bool, optional
         If True, remove from node set N all nodes that are not a trip
         origin/destination, by default True
-    
+
     Returns
     -------
     list of decisions, list of trips
@@ -348,27 +345,9 @@ def mpc(
     # Get all nodes from "centroid_level". All nodes a
     N = env.reachable_point_ids
 
-    path_od_travel_time_od = f"od_dist_step_{env.config.centroid_level:02}.npy"
-    try:
-        print("Loading travel times steps...")
-        travel_times = np.load(
-            path_od_travel_time_od, allow_pickle=True
-        ).item()
-
-    except Exception as e:
-        print(f"Failed to load ({e})! Creating travel times steps:")
-        travel_times = {
-            (o, d): env.get_travel_time_od(o, d, unit="step")
-            for o in env.points
-            for d in env.points
-        }
-
-        np.save(path_od_travel_time_od, travel_times)
-
     # Log events of iteration n
     logger = la.get_logger(
-        env.config.log_path(env.adp.n),
-        log_file=env.config.log_path(env.adp.n),
+        env.config.log_path(step), log_file=env.config.log_path(step),
     )
 
     # Current trips is in the first step
@@ -491,17 +470,17 @@ def mpc(
 
     # ijt = set(trips_ijt.keys())
 
-    cars_pijt = m.addVars(vars_pijt, name="x", vtype=GRB.INTEGER, lb=0)
+    cars_pijt = m.addVars(vars_pijt, name="x", vtype=GRB.CONTINUOUS, lb=0)
 
     # The slack variables D = {d_ijt}ijt denote the predicted demand of
     # customers wanting to travel from i to j departing at time t that
     # will remain unsatisfied
-    slack_ijt = m.addVars(ijt, name="d", vtype=GRB.INTEGER, lb=0)
+    slack_ijt = m.addVars(ijt, name="d", vtype=GRB.CONTINUOUS, lb=0)
 
     # w_ijt is a decision variable denoting the number of outstanding
     # customers at region i ∈ N who wish to travel to region j and be
     # picked up at time t ∈ T.
-    outstanding_ijt = m.addVars(ijt, name="w", vtype=GRB.INTEGER, lb=0)
+    outstanding_ijt = m.addVars(ijt, name="w", vtype=GRB.CONTINUOUS, lb=0)
 
     logger.debug(f" - {len(cars_pijt):,} variables created...")
 
@@ -539,6 +518,17 @@ def mpc(
         for d, p, i, j, t in cars_pijt
     )
 
+    if env.config.mpc_user_performance_to_go:
+        # Contribution for future steps
+        contribution_future = quicksum(
+            env.post_cost(t, du.convert_decision(d, p, i, j))[0]
+            * cars_pijt[(d, p, i, j, t)]
+            for d, p, i, j, t in cars_pijt
+            if t == T[-1]
+        )
+    else:
+        contribution_future = 0
+
     # c_outstanding_ijt = cost associated with the waiting time of t
     #                     time steps for an outstanding passenger.
     # c_slack_ijt = cost for not servicing a predicted customer demand
@@ -562,7 +552,10 @@ def mpc(
 
     logger.debug("Setting objective (min. fleet, max. contribution)...")
     # m.setObjectiveN(fleet_size, 0, 2)
-    m.setObjective(contribution - of_outstanding - of_slack, GRB.MAXIMIZE)
+    m.setObjective(
+        contribution + contribution_future - of_outstanding - of_slack,
+        GRB.MAXIMIZE,
+    )
     # m.setObjectiveN(of_outstanding + of_slack, 1, 0)
     # m.setObjectiveN(-contribution, 0, 1)
 
@@ -649,6 +642,12 @@ def mpc(
 
             # Decisions for the whole horizon
             step_decisions_list.append(step_decisions)
+
+        # d -> cost, post_cost, post_state
+        # post_state -> (t, point, battery, contract, type, car_origin)
+        env.decision_info = {
+            d[:-1]: (env.cost_func(d),) for d in step_decisions_list[0]
+        }
 
         return step_decisions_list[0]
 
@@ -1545,7 +1544,7 @@ def service_trips(
             attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
 
             # Group trips with the same ods
-            attribute_trips_sq_dict[trip.attribute].append(trip)
+            attribute_trips_sq_dict[trip.attribute_backlog].append(trip)
 
         # TODO Rebalance based on car productivity (trips/cars/area)
         # How many trips in each region
@@ -1564,9 +1563,12 @@ def service_trips(
         t1_decisions = time.time()
 
         # Trip, stay, and rebalance decisions
-        decision_cars, decision_return, decision_class = du.get_decisions(
-            env, trips
-        )
+        (
+            decision_cars,
+            decision_return,
+            decision_class,
+            reachable_trips_i,
+        ) = du.get_decisions(env, trips)
 
         # virtual_decisions = du.get_virtual_decisions(env, trips)
 
@@ -1581,7 +1583,9 @@ def service_trips(
         # Logging decision set info
         la.log_decision_info(
             logger_name,
+            time_step,
             trips,
+            reachable_trips_i,
             decision_cars,
             env.available,
             env.available_hired,
@@ -1674,15 +1678,27 @@ def service_trips(
     if env.config.trip_rejection_penalty is not None:
         penalty = quicksum(
             (
-                env.config.trip_rejection_penalty[sq]
+                env.config.backlog_rejection_penalty(sq_timesback)
                 * (
                     len(tp_list)
                     - x_var.sum(
-                        du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, sq
+                        du.TRIP_DECISION,
+                        "*",
+                        "*",
+                        "*",
+                        "*",
+                        "*",
+                        o,
+                        d,
+                        sq_timesback,
                     )
                 )
             )
-            for (o, d, sq), tp_list in attribute_trips_sq_dict.items()
+            for (
+                o,
+                d,
+                sq_timesback,
+            ), tp_list in attribute_trips_sq_dict.items()
         )
 
     # for (o, d, sq), tp_list in attribute_trips_sq_dict.items():
@@ -1794,7 +1810,9 @@ def service_trips(
     t1_optimize = time.time()
 
     # Try finding integer values for the fractional variables
-    optimize_and_fix_fractional_vars(m, logger=logger)
+    # optimize_and_fix_fractional_vars(m, logger=logger)
+
+    m.optimize()
 
     t_optimize = time.time() - t1_optimize
 

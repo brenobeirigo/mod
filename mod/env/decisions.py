@@ -168,7 +168,7 @@ def trip_decision(car, trip):
         + car.attribute
         + (trip.o.id,)
         + (trip.d.id,)
-        + (trip.sq_class,)
+        + (trip.sq_class_backlog,)
     )
 
 
@@ -227,6 +227,7 @@ def get_decisions(env, trips):
     decisions = set()
     decisions_return = set()
     decision_class = defaultdict(list)
+    reachable_trips_i = set()
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -349,7 +350,7 @@ def get_decisions(env, trips):
         ):
             decisions.add(recharge_decision(car))
 
-        for trip in trips:
+        for i, trip in enumerate(trips):
 
             # Car cannot service trip because it cannot go back
             # to origin in time
@@ -379,6 +380,9 @@ def get_decisions(env, trips):
             # Can the car reach the trip origin?
             if pk_time <= max_pk_time + trip.tolerance:
 
+                # A car can pick up the trip
+                reachable_trips_i.add(i)
+
                 # Setup decisions
                 d = trip_decision(car, trip)
                 decisions.add(d)
@@ -407,7 +411,7 @@ def get_decisions(env, trips):
         decisions.add(d_stay)
 
         # Try matching trips departing from the closest middle point
-        for trip in trips:
+        for i, trip in enumerate(trips):
 
             # Car cannot service trip because it cannot go back
             # to origin in time
@@ -436,7 +440,9 @@ def get_decisions(env, trips):
                 d = trip_decision(car, trip)
                 decisions.add(d)
 
-    return decisions, decisions_return, decision_class
+                reachable_trips_i.add(i)
+
+    return decisions, decisions_return, decision_class, reachable_trips_i
 
 
 def can_pickup(env, p, o, max_delay=10, tolerance=0):

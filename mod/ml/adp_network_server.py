@@ -596,21 +596,6 @@ def alg_adp(
             trips = trip_list + outstanding
             outstanding = []
 
-            logger.debug(
-                "###########################################"
-                "###########################################"
-                "\n###########################################"
-                f" (step={step+1}, trips={len(trip_list)}) "
-                "###########################################"
-                "\n###########################################"
-                "###########################################"
-            )
-
-            t1 = time.time()
-            for t in trips:
-                logger.debug(f"  - {t}")
-            t_log += time.time() - t1
-
             if plot_track:
                 # Update optimization time step
                 plot_track.opt_step = step
@@ -683,6 +668,13 @@ def alg_adp(
                     step + 1 : step + amod.config.mpc_forecasting_horizon
                 ]
 
+                # Log events of iteration n
+                logger = la.get_logger(
+                    config.log_path(step + 1),
+                    log_file=config.log_path(step + 1),
+                    **log_config_dict,
+                )
+
                 # Trips within the same region are invalid
                 decisions = mpc(
                     # Amod environment with configuration file
@@ -709,7 +701,7 @@ def alg_adp(
                     trips,
                     # Service step (+1 trip placement step)
                     step + 1,
-                    # # Save mip .lp and .log of iteration n
+                    # Save mip .lp and .log of iteration n
                     iteration=n,
                     log_mip=log_config_dict[la.LOG_MIP],
                     log_times=log_config_dict[la.LOG_TIMES],
@@ -748,6 +740,7 @@ def alg_adp(
 
                     # Add time increment to backlog delay
                     r.backlog_delay += amod.config.time_increment
+                    r.times_backlogged += 1
 
                     # Max. backlog reached -> discard trip
                     if (
@@ -1000,6 +993,7 @@ if __name__ == "__main__":
         test = "-test" in args
         optimal = "-optimal" in args
         policy_mpc = "-mpc" in args
+        mpc_horizon = 5
 
         # Progress file will be updated every X iterations
         save_progress_interval = None
@@ -1031,6 +1025,11 @@ if __name__ == "__main__":
 
         elif policy_mpc:
             method = ConfigNetwork.METHOD_MPC
+            try:
+                i = int(args.index("-mpc"))
+                mpc_horizon = int(args[i + 1])
+            except:
+                mpc_horizon = 5
             n_iterations = 1
 
         else:
@@ -1083,8 +1082,12 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: backlog_delay_min,
                 ConfigNetwork.SQ_GUARANTEE: False,
                 ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
-                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
-                ConfigNetwork.TRIP_BASE_FARE: (("A", 2.4), ("B", 2.4)),
+                ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 2.5), ("B", 2.5)),
+                ConfigNetwork.TRIP_OUTSTANDING_PENALTY: (
+                    ("A", 0.25),
+                    ("B", 0.25),
+                ),
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 2.5), ("B", 2.5)),
                 ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 15), ("B", 15)),
@@ -1096,7 +1099,8 @@ if __name__ == "__main__":
                 ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
                 # MPC ################################################ #
-                ConfigNetwork.MPC_FORECASTING_HORIZON: 15,
+                ConfigNetwork.MPC_FORECASTING_HORIZON: mpc_horizon,
+                ConfigNetwork.MPC_USE_PERFORMANCE_TO_GO: True,
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
@@ -1120,7 +1124,7 @@ if __name__ == "__main__":
                 # All rebalancing finishes within time increment
                 ConfigNetwork.REBALANCING_TIME_RANGE_MIN: (0, 10),
                 # Consider only rebalance targets from sublevel
-                ConfigNetwork.REBALANCE_SUB_LEVEL: None,
+                ConfigNetwork.REBALANCE_SUB_LEVEL: 1,
                 # Rebalance to at most max targets
                 ConfigNetwork.REBALANCE_MAX_TARGETS: None,
                 # Remove nodes that dont have at least min. neighbors

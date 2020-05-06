@@ -114,13 +114,19 @@ class AmodNetworkHired(AmodNetwork):
             self.revenue = self.online_revenue
             self.cost = self.online_costs
             self.penalty = self.online_penalty
+            self.od_dists_step = self.online_od_dists
         # Load data from dictionaries
         else:
             self.load_od_data()
             self.revenue = self.loaded_revenue
             self.cost = self.loaded_costs
             self.penalty = self.loaded_penalty
-            self.od_dists_step = self.loaded_od_dists
+            self.od_dists_step = self.loaded_od_dist_step
+
+    def online_od_dists(self, o, d):
+        return self.get_travel_time_od(
+            self.points[o], self.points[d], unit="step"
+        )
 
     def online_penalty(self, car_o, trip_o, sq):
 
@@ -197,27 +203,30 @@ class AmodNetworkHired(AmodNetwork):
             print(
                 f' - Loaded penalties from "{self.config.get_path_od_penalties()}"'
             )
-
             self.od_distance_steps = np.load(
                 self.config.get_path_od_distance_steps(), allow_pickle=True
-            ).item()
+            )
             print(
                 f' - Loaded od distance steps "{self.config.get_path_od_distance_steps()}"'
             )
 
         except:
             n_nodes = len(nw.tenv.distance_matrix)
-            od_costs_dict = np.zeros((n_nodes, n_nodes))
+            od_costs_dict = np.zeros((n_nodes, n_nodes), dtype=np.float32)
             od_dists_step = np.zeros((n_nodes, n_nodes), dtype=np.int16)
-            od_fares_dict = defaultdict(lambda: np.zeros((n_nodes, n_nodes)))
+            od_fares_dict = defaultdict(
+                lambda: np.zeros((n_nodes, n_nodes), dtype=np.float32)
+            )
             od_penalties_dict = defaultdict(
-                lambda: np.zeros((n_nodes, n_nodes))
+                lambda: np.zeros((n_nodes, n_nodes), dtype=np.float32)
             )
             rebalancing_targets = np.zeros(())
             for o in self.points:
                 for d in self.points:
                     dist_trip = nw.get_distance(o.id, d.id)
-                    od_dists_step = self.get_travel_time_od(o, d, unit="step")
+                    od_dists_step[o.id][d.id] = self.get_travel_time_od(
+                        o, d, unit="step"
+                    )
 
                     # Travel cost
                     cost = self.config.get_travel_cost(dist_trip)
@@ -250,9 +259,7 @@ class AmodNetworkHired(AmodNetwork):
             print(
                 f"Saving OD distance steps '{self.config.get_path_od_distance_steps()}'..."
             )
-            np.save(
-                self.config.get_path_od_distance_steps(), dict(od_dists_step)
-            )
+            np.save(self.config.get_path_od_distance_steps(), od_dists_step)
 
             self.od_costs_dict = od_costs_dict
             self.od_fares_dict = od_fares_dict
@@ -485,6 +492,10 @@ class AmodNetworkHired(AmodNetwork):
                 reb_cost = -RETURN_FACTOR * cost - CONGESTION_PRICE
                 # print(action, pos, decision[du.ORIGIN], d, car_type, sq_class, reb_cost)
                 return reb_cost
+
+    def travel_time(self, p, j, i):
+        travel_time = self.od_dists_step(p, j) + self.od_dists_step(j, i)
+        return travel_time
 
     def update_middle(self, car, step):
         """Where is the car at current step?

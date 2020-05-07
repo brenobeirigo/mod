@@ -503,11 +503,15 @@ def alg_adp(
                     index=False,
                 )
 
-            # Trip destination ids are unrestricted, i.e., cars can
-            # always arrive at destinations
-            all_trips = list(itertools.chain(*step_trip_list))
-            id_destinations = set([t.d.id for t in all_trips])
-            amod.unrestricted_parking_node_ids = id_destinations
+            if amod.config.unbound_max_cars_trip_destinations:
+
+                # Trip destination ids are unrestricted, i.e., cars can
+                # always arrive at destinations
+                all_trips = list(itertools.chain(*step_trip_list))
+                id_destinations = set([t.d.id for t in all_trips])
+                amod.unrestricted_parking_node_ids = id_destinations
+            else:
+                amod.unrestricted_parking_node_ids = set()
 
         # Log events of iteration n
         logger = la.get_logger(
@@ -685,7 +689,6 @@ def alg_adp(
                     predicted_trips,
                     # Service step (+1 trip placement step)
                     step=step + 1,
-                    horizon=amod.config.mpc_forecasting_horizon,
                     log_mip=log_config_dict[la.LOG_MIP],
                 )
 
@@ -1063,6 +1066,11 @@ if __name__ == "__main__":
         start_config = get_sim_config(
             {
                 ConfigNetwork.CASE_STUDY: "N08Z07SD02",
+                # Cars can rebalance/stay/travel to trip destinations
+                # indiscriminately
+                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DESTINATIONS: True,
+                # All trip decision can be realized
+                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DECISIONS: False,
                 ConfigNetwork.PATH_CLASS_PROB: "distr/class_prob_distribution_p5min_6h.npy",
                 ConfigNetwork.ITERATIONS: n_iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
@@ -1101,6 +1109,8 @@ if __name__ == "__main__":
                 # MPC ################################################ #
                 ConfigNetwork.MPC_FORECASTING_HORIZON: mpc_horizon,
                 ConfigNetwork.MPC_USE_PERFORMANCE_TO_GO: True,
+                ConfigNetwork.MPC_REBALANCE_TO_NEIGHBORS: True,
+                ConfigNetwork.MPC_USE_TRIP_ODS_ONLY: True,
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
                 # If zero, cars increasingly gain the right of stay
@@ -1136,7 +1146,6 @@ if __name__ == "__main__":
                 # Car operation
                 ConfigNetwork.MAX_CARS_LINK: 5,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-                ConfigNetwork.TIME_MAX_CARS_LINK: 5,
                 # FAV configuration
                 # Functions
                 ConfigNetwork.DEPOT_SHARE: 0.01,

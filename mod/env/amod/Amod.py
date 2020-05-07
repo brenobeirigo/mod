@@ -652,25 +652,27 @@ class Amod:
                 self.reachable_points, k=self.fleet_size
             )
 
-            # Guarantee no more than "max_cars" start from node origins
-            _, counts = np.unique(
-                [o.id for o in new_origins], return_counts=True
-            )
+            if self.config.max_cars_link is not None:
 
-            # Get random origin points until a max. number of cars
-            # start from each node
-            while max(counts) > self.config.max_cars_link:
-                print(
-                    f"Flooded area (points={len(self.reachable_points)}, "
-                    f"max={max(counts)} cars), finding new origins..."
-                )
-
-                new_origins = random.choices(
-                    self.reachable_points, k=self.fleet_size
-                )
+                # Guarantee no more than "max_cars" start from node origins
                 _, counts = np.unique(
                     [o.id for o in new_origins], return_counts=True
                 )
+
+                # Get random origin points until a max. number of cars
+                # start from each node
+                while max(counts) > self.config.max_cars_link:
+                    print(
+                        f"Flooded area (points={len(self.reachable_points)}, "
+                        f"max={max(counts)} cars), finding new origins..."
+                    )
+
+                    new_origins = random.choices(
+                        self.reachable_points, k=self.fleet_size
+                    )
+                    _, counts = np.unique(
+                        [o.id for o in new_origins], return_counts=True
+                    )
 
         elif self.config.cars_start_from_rejected_trip_origins:
             # Start from rejected trip origins

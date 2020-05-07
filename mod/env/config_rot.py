@@ -711,6 +711,8 @@ class Config:
         """According to service quality class and times user has been
         backlogged, get penalty.
 
+        Rejection penalty is applied only when user is about to be rejected.
+
         Parameters
         ----------
         sq_times : str

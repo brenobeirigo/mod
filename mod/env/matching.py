@@ -1583,9 +1583,14 @@ def service_trips(
             for d in x_var
         )
 
+    t_setup_costs = time.time() - t1_setup_costs
+
+    # Time to setup post decision costs
+    t1_setup_penalties = time.time()
+
     penalty = 0
     # pprint(attribute_trips_sq_dict)
-    if env.config.trip_rejection_penalty is not None:
+    if env.config.apply_backlog_rejection_penalty:
         penalty = quicksum(
             (
                 env.config.backlog_rejection_penalty(sq_timesback)
@@ -1611,12 +1616,12 @@ def service_trips(
             ), tp_list in attribute_trips_sq_dict.items()
         )
 
+    t_setup_penalties = time.time() - t1_setup_penalties
+
     # for (o, d, sq), tp_list in attribute_trips_sq_dict.items():
     #     print((o, d, sq), len(tp_list), env.config.trip_rejection_penalty[sq], x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, sq))
 
     m.setObjective(contribution - penalty, GRB.MAXIMIZE)
-
-    t_setup_costs = time.time() - t1_setup_costs
 
     # ---------------------------------------------------------------- #
     # CONSTRAINTS ######################################################
@@ -1671,6 +1676,9 @@ def service_trips(
     #             x_var[d] <= env.config.max_cars_link, f"STAY_BOUND[{pos}]"
     #         )
 
+    t_setup_constraints = time.time() - t1_setup_constraints
+
+    t1_setup_constraints_flood = time.time()
     # Limit the number of cars per node (not in reactive rebalance)
     if env.config.max_cars_link is not None and not env.config.policy_reactive:
 
@@ -1720,7 +1728,7 @@ def service_trips(
             unrestricted=env.unrestricted_parking_node_ids,
         )
 
-    t_setup_constraints = time.time() - t1_setup_constraints
+    t_setup_constraints_flood = time.time() - t1_setup_constraints_flood
 
     t1_optimize = time.time()
 
@@ -1828,7 +1836,7 @@ def service_trips(
         # The penalties must be discounted from the contribution
         applied_penalties = sum(
             [
-                env.config.trip_rejection_penalty[t_r.sq_class]
+                env.config.backlog_rejection_penalty(t_r.sq_class_backlog)
                 for t_r in rejected
             ]
         )
@@ -1852,7 +1860,9 @@ def service_trips(
                     "realize_decision": [t_realize_decision],
                     "update_vf": [t_update],
                     "setup_costs": [t_setup_costs],
+                    "setup_penalties": [t_setup_penalties],
                     "setup_constraints": [t_setup_constraints],
+                    "setup_constraints_flood": [t_setup_constraints_flood],
                     "optimize": [t_optimize],
                     "total": [t_total],
                 }

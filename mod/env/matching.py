@@ -81,6 +81,31 @@ def is_optimal(m):
 #        Mobility-on-Demand Systems
 
 
+def ensure_all_demands_serviced_opt(m, cars_ijt, trips_ijt):
+    """Ensures that all customer demands are serviced
+
+    Parameters
+    ----------
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    trips_ijt : dict
+        Number of trips from i to j at step t
+    """
+    flow_cars_dict = m.addConstrs(
+        (
+            cars_ijt[(du.TRIP_DECISION, i, j, t)]
+            == trips_ijt.get((i, j, t), 0)
+            for d, i, j, t in cars_ijt.keys()
+            if i != j and d == du.TRIP_DECISION
+        ),
+        name="MATCH_DEMAND",
+    )
+
+    return flow_cars_dict
+
+
 def ensure_all_demands_serviced(
     env,
     m,
@@ -115,7 +140,63 @@ def ensure_all_demands_serviced(
         )
 
 
-def mpc_opt_car_flow(env, m, cars_pijt, N, T, s_it, step=0):
+def mpc_optimal_car_flow(env, m, cars_ijt, N, T, s_it):
+    """Enforces that for every time interval and each region, the number
+    of arriving vehicles equals the number of departing vehicles.
+
+    Parameters
+    ----------
+    env : Amod
+        AMoD environment
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    N : list
+        List of node ids
+    T : int
+        Time horizon
+    s_it : var
+        Number of cars per region i and step t
+    """
+
+    m.addConstrs(
+        (
+            cars_ijt.sum("*", i, "*", t)
+            - quicksum(
+                cars_ijt.get(
+                    (d, j, i, t - max(1, env.travel_time(j, j, i))), 0
+                )
+                for j in N
+                for d in [du.TRIP_DECISION, du.REBALANCE_DECISION]
+            )
+            == s_it.get((i, t), 0)
+            for i in N
+            for t in T
+        ),
+        name=f"CAR_FLOW",
+    )
+
+
+def mpc_car_flow(env, m, cars_pijt, N, T, s_it, step=0):
+    """Enforces that for every time interval and each region, the number
+    of arriving vehicles equals the number of departing vehicles.
+
+    Parameters
+    ----------
+    env : Amod
+        AMoD environment
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    N : list
+        List of node ids
+    T : int
+        Time horizon
+    s_it : var
+        Number of cars per region i and step t
+    """
 
     m.addConstrs(
         (
@@ -368,7 +449,7 @@ def mpc(
 
     t1 = time.time()
     logger.debug("Constraint 2 - Guarantee car flow.")
-    mpc_opt_car_flow(env, m, cars_pijt, N, T, s_it, step=step)
+    mpc_car_flow(env, m, cars_pijt, N, T, s_it, step=step)
     logger.debug(f" - time(s):{time.time()-t1:.2f}")
 
     t1 = time.time()
@@ -586,15 +667,17 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
     logger.debug(f"\nTotal trips = {sum([len(trips) for trips in it_trips])}")
 
-    for step, trips in enumerate(it_trips):
-        logger.debug(f" - step={step:04}, n. of trips={len(trips):04}")
+    for appereance_step, trips in enumerate(it_trips):
+        logger.debug(
+            f" - step={appereance_step:04}, n. of trips={len(trips):04}"
+        )
         new_trips = []
         for trip in trips:
 
             # Discard trips with origins and destinations
             # within the same region.
             if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
-                trips_ijt[(trip.o.id, trip.d.id, step)] += 1
+                trips_ijt[(trip.o.id, trip.d.id, appereance_step)] += 1
                 new_trips.append(trip)
 
                 distinct_nodes.add(trip.o.id)
@@ -634,10 +717,10 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
     )
 
     logger.debug("Constraint 1 - Ensure the entire demand is met.")
-    ensure_all_demands_serviced(m, cars_ijt, trips_ijt)
+    ensure_all_demands_serviced_opt(m, cars_ijt, trips_ijt)
 
     logger.debug("Constraint 2 - Guarantee car flow.")
-    mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it)
+    mpc_optimal_car_flow(env, m, cars_ijt, N, T, s_it)
 
     logger.debug("Constraint 3 - Starting vehicles only in the first step.")
     m.addConstrs(
@@ -646,7 +729,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
     logger.debug("\nSetting up contribution...")
     contribution = quicksum(
-        env.cost_func(du.convert_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
+        env.cost_func(du.convert_decision(d, i, i, j)) * cars_ijt[(d, i, j, t)]
         for d, i, j, t in cars_ijt
     )
 
@@ -669,6 +752,9 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
         # ACTION, ORIGIN, DESTINATION, STEP, N.DECISIONS
         best_decisions = extract_decisions(cars_ijt)
 
+        # Add car point (repeat origin)
+        best_decisions = [(d[0],) + (d[1],) + d[1:] for d in best_decisions]
+
         # ORIGIN, STEP (0), N.CARS
         itn_cars = extract_decisions(s_it)
 
@@ -686,35 +772,47 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
         # Decision list per step (played)
         step_decisions_list = []
-        for step, trips in enumerate(it_new_trips):
+
+        # Save all decision contributions
+        env.decision_info = {}
+
+        for appereance_step, trips in enumerate(it_new_trips):
             logger.debug(
-                f"\n## step={step:04} ####################################"
+                f"\n## step={appereance_step:04} ####################################"
             )
 
             # Filter decisions at step
-            step_decisions = [d for d in best_decisions if d[3] == step]
+            step_decisions = [
+                d for d in best_decisions if d[4] == appereance_step
+            ]
+
             logger.debug(f" - Trips = {len(trips)}")
             logger.debug(
                 sorted(
                     [
                         (i, j, trips_ijt[(i, j, t)])
                         for i, j, t in trips_ijt
-                        if t == step
+                        if t == appereance_step
                     ],
                     key=lambda x: (x[0], x[1]),
                 )
             )
+
             logger.debug(" - Decisions:")
             step_decisions = sorted(
                 [
-                    du.convert_decision(d[0], d[1], d[2], n=d[4])
+                    du.convert_decision(d[0], d[1], d[2], d[3], n=d[5])
                     for d in step_decisions
                 ],
                 key=lambda x: (x[du.ACTION], x[du.ORIGIN], x[du.DESTINATION]),
             )
 
+            # print("##########", appereance_step)
+            # pprint(env.decis)
+
             for d in step_decisions:
                 logger.debug(f" - {du.shorten_decision(d)}")
+                env.decision_info[d[:-1]] = (env.cost_func(d),)
 
             step_decisions_list.append(step_decisions)
 
@@ -725,6 +823,8 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
                 env.cars.append(Car(env.points[i]))
                 n_cars -= 1
         env.available = env.cars
+
+        logger.debug(f"MPC optimal fleet size: {fleet_size}")
 
         return step_decisions_list, it_new_trips, fleet_size
 

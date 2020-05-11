@@ -18,6 +18,10 @@ from copy import deepcopy
 import math
 import pandas as pd
 from scipy.stats import gamma, norm, truncnorm
+import time
+
+# exe_times = defaultdict(float)
+# decision_post = dict()
 
 np.set_printoptions(precision=2)
 # Reproducibility of the experiments
@@ -808,6 +812,10 @@ class AmodNetworkHired(AmodNetwork):
 
         for decision in decisions:
 
+            # TODO Option - use saved values
+            # total_reward += self.decision_info[decision[:-1]][0]
+            # total_post += self.decision_info[decision[:-1]][1]
+
             (
                 action,
                 point,
@@ -940,7 +948,25 @@ class AmodNetworkHired(AmodNetwork):
         # users who have been denied service
         denied = list(it.chain.from_iterable(a_trips_dict.values()))
 
-        return (total_reward, serviced, denied)
+        # Apply penalties for rejected/backlogged orders
+        if self.config.apply_backlog_rejection_penalty:
+
+            # The penalties must be discounted from the contribution
+            applied_penalties = sum(
+                [
+                    self.config.backlog_rejection_penalty(t_r.sq_class_backlog)
+                    for t_r in denied
+                ]
+            )
+        else:
+            applied_penalties = 0
+
+        return (
+            total_reward - applied_penalties,
+            applied_penalties,
+            serviced,
+            denied,
+        )
 
     def get_neighbors(self, car_id):
 
@@ -1473,8 +1499,18 @@ class AmodNetworkHired(AmodNetwork):
 
     def post_cost(self, t, decision):
 
+        # t1 = time.time()
+
         # Target attribute if decision was taken
         post_state = self.preview_decision(t, decision)
+
+        # exe_times["preview"] += time.time() - t1
+
+        # t1 = time.time()
+        # decision_post[decision] = (post_state[0] - t, post_state[1:])
+        # exe_times["save_decision"] += time.time() - t1
+
+        # t1 = time.time()
 
         if post_state[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
             edit_post = list(post_state)
@@ -1484,9 +1520,16 @@ class AmodNetworkHired(AmodNetwork):
         if post_state[adp.adp.TIME] >= self.config.time_steps:
             return 0, post_state
 
+        # t1 = time.time()
+
         # Get the post decision state estimate value based on
         # hierarchical aggregation
         estimate = self.adp.get_weighted_value(post_state)
+
+        # exe_times["post_cost"] += time.time() - t1
+        # exe_times["count"] += 1
+
+        # t1 = time.time()
 
         # Penalize long rebalancing decisions
         if (
@@ -1532,6 +1575,7 @@ class AmodNetworkHired(AmodNetwork):
                     # rebalancing
                     estimate = max(0, estimate - avg_busy_stay)
 
+        # exe_times["rebalance_pen"] += time.time() - t1
         return estimate, post_state
 
     def get_car_status_list(self, filter_status=[]):

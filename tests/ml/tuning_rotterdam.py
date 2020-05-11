@@ -212,6 +212,10 @@ def main(test_labels, focus, N_PROCESSES, method):
             "N08Z10SD02",
             # "N08Z10SD04",
         ],
+        ConfigNetwork.TRIP_REJECTION_PENALTY: [
+            (("A", 0), ("B", 0)),
+            (("A", 2.5), ("B", 2.5)),
+        ],
         # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
         # ConfigNetwork.RECHARGE_COST_DISTANCE: [0.1],
         # ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: [0, 20],

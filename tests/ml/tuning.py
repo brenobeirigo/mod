@@ -666,7 +666,6 @@ def main(test_labels, focus, N_PROCESSES, method):
         # Car operation
         ConfigNetwork.MAX_CARS_LINK: 5,
         ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-        ConfigNetwork.TIME_MAX_CARS_LINK: 5,
         # FAV configuration
         ConfigNetwork.DEPOT_SHARE: None,
         ConfigNetwork.FAV_DEPOT_LEVEL: None,

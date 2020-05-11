@@ -52,28 +52,40 @@ def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
 # Reward data for experiment
 reward_data = defaultdict(dict)
 
-ITERATIONS = 2
+ITERATIONS = 10
 
 log_config = {
-    la.LOG_DUALS: False,
+    # Write each vehicles status
     la.LOG_FLEET_ACTIVITY: False,
+    # Write profit, service level, # trips, car/satus count
+    la.LOG_STEP_SUMMARY: False,
+    # ############# ADP ############################################
+    # Log duals update process
+    la.LOG_WEIGHTS: False,
     la.LOG_VALUE_UPDATE: False,
+    la.LOG_DUALS: False,
     la.LOG_COSTS: False,
     la.LOG_SOLUTIONS: False,
-    la.LOG_WEIGHTS: False,
-    la.LOG_MIP: False,
-    la.LOG_TIMES: False,
-    la.LOG_ALL: False,
+    la.LOG_ATTRIBUTE_CARS: False,
     la.LOG_DECISION_INFO: False,
-    la.LOG_STEP_SUMMARY: False,
-    la.LOG_LEVEL: False,
-    la.LOG_ALL: False,
-    la.LOG_LEVEL: la.INFO,
+    # Log .lp and .log from MIP models
+    la.LOG_MIP: False,
+    # Log time spent across every step in each code section
+    la.LOG_TIMES: False,
+    # Save fleet, demand, and delay plots
+    la.SAVE_PLOTS: True,
+    # Save fleet and demand dfs for live plot
+    la.SAVE_DF: True,
+    # Log level saved in file
     la.LEVEL_FILE: la.DEBUG,
+    # Log level printed in screen
     la.LEVEL_CONSOLE: la.INFO,
     la.FORMATTER_FILE: la.FORMATTER_TERSE,
+    # Log everything
+    la.LOG_ALL: False,
+    # Log chosen (if LOG_ALL, set to lowest, i.e., DEBUG)
+    la.LOG_LEVEL: la.DEBUG,
 }
-
 myopic = False
 policy_random = True
 
@@ -179,36 +191,54 @@ def main(test_labels, focus, N_PROCESSES, method):
 
     tuning_focus["rotterdam"] = {
         ConfigNetwork.CASE_STUDY: [
-            # "N08Z06CD02",
+            "N08Z06CD02",
             # "N08Z06CD04",
             "N08Z06SD02",
-            "N08Z06SD04",
-            # "N08Z07CD02",
+            # "N08Z06SD04",
+            "N08Z07CD02",
             # "N08Z07CD04",
             "N08Z07SD02",
-            "N08Z07SD04",
-            # "N08Z08CD02",
+            # "N08Z07SD04",
+            "N08Z08CD02",
             # "N08Z08CD04",
             "N08Z08SD02",
-            "N08Z08SD04",
-            # "N08Z09CD02",
+            # "N08Z08SD04",
+            "N08Z09CD02",
             # "N08Z09CD04",
             "N08Z09SD02",
-            "N08Z09SD04",
-            # "N08Z10CD02",
+            # "N08Z09SD04",
+            "N08Z10CD02",
             # "N08Z10CD04",
             "N08Z10SD02",
-            "N08Z10SD04",
+            # "N08Z10SD04",
         ],
-        # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
-        ConfigNetwork.RECHARGE_COST_DISTANCE: [0.1, 0.5],
-        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: [0, 20],
         ConfigNetwork.TRIP_REJECTION_PENALTY: [
             (("A", 0), ("B", 0)),
             (("A", 2.5), ("B", 2.5)),
         ],
-        ConfigNetwork.TRIP_OUTSTANDING_PENALTY: [(("A", 0.25), ("B", 0.25))],
-        ConfigNetwork.REBALANCE_SUB_LEVEL: [None, 1],
+        # ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: [(("A", 0), ("B", 0))],
+        # ConfigNetwork.RECHARGE_COST_DISTANCE: [0.1],
+        # ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: [0, 20],
+        # ConfigNetwork.TRIP_REJECTION_PENALTY: [
+        #     (("A", 0), ("B", 0)),
+        #     (("A", 2.5), ("B", 2.5)),
+        # ],
+        # ConfigNetwork.TRIP_OUTSTANDING_PENALTY: [(("A", 0.25), ("B", 0.25))],
+        # ConfigNetwork.REBALANCE_SUB_LEVEL: [None, 1],
+        # "CLASS_PROB": [
+        #     {
+        #         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 1), ("B", 0)),
+        #         ConfigNetwork.USE_CLASS_PROB: False,
+        #     },
+        #     {
+        #         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 1)),
+        #         ConfigNetwork.USE_CLASS_PROB: False,
+        #     },
+        #     {
+        #         ConfigNetwork.TRIP_CLASS_PROPORTION: (("A", 0), ("B", 0)),
+        #         ConfigNetwork.USE_CLASS_PROB: True,
+        #     },
+        # ],
         # ConfigNetwork.METHOD: [
         #     ConfigNetwork.METHOD_ADP_TRAIN,
         #     ConfigNetwork.METHOD_ADP_TEST,
@@ -245,6 +275,9 @@ def main(test_labels, focus, N_PROCESSES, method):
     elif method == "-test":
         m = ConfigNetwork.METHOD_ADP_TEST
         ITERATIONS = 51
+    elif method == "-optimal":
+        m = ConfigNetwork.METHOD_OPTIMAL
+        ITERATIONS = 10
     else:
         m = ConfigNetwork.METHOD_ADP_TRAIN
         ITERATIONS = 500
@@ -252,7 +285,9 @@ def main(test_labels, focus, N_PROCESSES, method):
     print(f"ITERATIONS: {ITERATIONS:04} - METHOD: {m}")
 
     shared_settings = {
-        # ConfigNetwork.CASE_STUDY: "N08Z07SD02",
+        ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DESTINATIONS: False,
+        # All trip decisions can be realized
+        ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DECISIONS: True,
         ConfigNetwork.PATH_CLASS_PROB: "distr/class_prob_distribution_p5min_6h.npy",
         ConfigNetwork.ITERATIONS: ITERATIONS,
         ConfigNetwork.TEST_LABEL: test_label,
@@ -269,9 +304,12 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.DEMAND_SAMPLING: True,
         # Service quality
         ConfigNetwork.MATCHING_DELAY: 15,
+        ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: 0,
         ConfigNetwork.SQ_GUARANTEE: False,
         ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
-        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 0), ("B", 0)),
+        ConfigNetwork.APPLY_BACKLOG_REJECTION_PENALTY: True,
+        ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 2.5), ("B", 2.5)),
+        ConfigNetwork.TRIP_OUTSTANDING_PENALTY: (("A", 0.25), ("B", 0.25),),
         ConfigNetwork.TRIP_BASE_FARE: (("A", 2.5), ("B", 2.5)),
         ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
         ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
@@ -284,7 +322,10 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.LINEARIZE_INTEGER_MODEL: False,
         ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
         # MPC ################################################ #
-        ConfigNetwork.MPC_FORECASTING_HORIZON: 15,
+        ConfigNetwork.MPC_FORECASTING_HORIZON: 0,
+        ConfigNetwork.MPC_USE_PERFORMANCE_TO_GO: False,
+        ConfigNetwork.MPC_REBALANCE_TO_NEIGHBORS: False,
+        ConfigNetwork.MPC_USE_TRIP_ODS_ONLY: True,
         # EXPLORATION ######################################## #
         # ANNEALING + THOMPSON
         # If zero, cars increasingly gain the right of stay
@@ -315,12 +356,11 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.MIN_NEIGHBORS: 1,
         ConfigNetwork.REACHABLE_NEIGHBORS: False,
         ConfigNetwork.N_CLOSEST_NEIGHBORS: ((1, 6), (2, 6), (3, 6),),
-        ConfigNetwork.CENTROID_LEVEL: 1,
+        ConfigNetwork.CENTROID_LEVEL: 3,
         # FLEET ############################################## #
         # Car operation
-        ConfigNetwork.MAX_CARS_LINK: 5,
+        ConfigNetwork.MAX_CARS_LINK: None,
         ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
-        ConfigNetwork.TIME_MAX_CARS_LINK: 5,
         # FAV configuration
         # Functions
         ConfigNetwork.DEPOT_SHARE: 0.01,
@@ -337,8 +377,8 @@ def main(test_labels, focus, N_PROCESSES, method):
         ConfigNetwork.PARKING_RATE_MIN: 0,  # = rebalancing 1 min
         # Saving
         ConfigNetwork.USE_SHORT_PATH: False,
-        ConfigNetwork.SAVE_TRIP_DATA: False,
-        ConfigNetwork.SAVE_FLEET_DATA: False,
+        ConfigNetwork.SAVE_TRIP_DATA: True,
+        ConfigNetwork.SAVE_FLEET_DATA: True,
         # Load 1st class probabilities dictionary
         ConfigNetwork.USE_CLASS_PROB: True,
         ConfigNetwork.ENABLE_RECHARGING: False,
@@ -524,29 +564,32 @@ if __name__ == "__main__":
 
     try:
         test_label = sys.argv[1]
-        print("TEST LABEL:", test_label)
     except:
         test_label = "TUNE"
+    print("### TEST LABEL", test_label)
 
     try:
         N_PROCESSES = int(sys.argv[2])
     except:
         N_PROCESSES = 2
+        print("### N. PROCESSES:", N_PROCESSES)
 
     try:
         method = sys.argv[3]
-        print("METHOD:", method)
+        print("### METHOD:", method)
     except:
-        print("Include method [-train, -test, -myopic, -reactive]")
+        print(
+            "### Include method [-train, -test, -myopic, -reactive, -optimal]"
+        )
 
     try:
         focus = sys.argv[4:]
-        print("FOCUS:", focus)
+        print("### FOCUS:", focus)
     except:
-        print("Include tuning focus [sensitivity, sl, adp]")
+        print("### Include tuning focus [sensitivity, sl, adp]")
 
     exp_list = []
     for f in focus:
-        print(f"---> Focus: {f}")
+        print(f"### -> Focus: {f}")
         exp_list.extend(main(test_label, f, N_PROCESSES, method))
     save_outcome_tuning(test_label, exp_list)

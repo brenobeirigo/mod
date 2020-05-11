@@ -46,7 +46,7 @@ def convert_decision(action, p, o, d, n=DISCARD):
     if o == d:
         action = STAY_DECISION
 
-    user = "B" if action == TRIP_DECISION else DISCARD
+    user = "B_0" if action == TRIP_DECISION else DISCARD
 
     return (
         (action,)

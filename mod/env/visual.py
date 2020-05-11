@@ -314,6 +314,7 @@ class EpisodeLog:
         step_log,
         it_step_trip_list,
         processing_time,
+        fleet_size=None,
         plots=True,
         save_df=True,
         save_learning=True,
@@ -514,6 +515,13 @@ class EpisodeLog:
 
             cols.append("time")
             df_stats["time"] = pd.Series([processing_time])
+
+            # MPC optimal defines fleet sizes for each iteration based
+            # on trip data
+            if fleet_size is not None:
+                cols.append("fleet_size")
+                df_stats["fleet_size"] = pd.Series([fleet_size])
+
             stats_file = self.output_path + "overall_stats.csv"
             df_stats.to_csv(
                 stats_file,

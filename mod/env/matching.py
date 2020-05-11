@@ -81,6 +81,31 @@ def is_optimal(m):
 #        Mobility-on-Demand Systems
 
 
+def ensure_all_demands_serviced_opt(m, cars_ijt, trips_ijt):
+    """Ensures that all customer demands are serviced
+
+    Parameters
+    ----------
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    trips_ijt : dict
+        Number of trips from i to j at step t
+    """
+    flow_cars_dict = m.addConstrs(
+        (
+            cars_ijt[(du.TRIP_DECISION, i, j, t)]
+            == trips_ijt.get((i, j, t), 0)
+            for d, i, j, t in cars_ijt.keys()
+            if i != j and d == du.TRIP_DECISION
+        ),
+        name="MATCH_DEMAND",
+    )
+
+    return flow_cars_dict
+
+
 def ensure_all_demands_serviced(
     env,
     m,
@@ -115,163 +140,83 @@ def ensure_all_demands_serviced(
         )
 
 
-def previous_time(env, p, j, i, t):
-    """Get variable of vehicles arriving at locations "i" 
-        that departed in previous step t-tji
-        
-        Parameters
-        ----------
-        d : int
-            Action (TRIP or REBALANCE)
-        i : int
-            Origin id
-        j : int
-            Destination id
-        t : int
-            Current time step
-        
-        Returns
-        -------
-        int
-        time to reach i
+def mpc_optimal_car_flow(env, m, cars_ijt, N, T, s_it):
+    """Enforces that for every time interval and each region, the number
+    of arriving vehicles equals the number of departing vehicles.
+
+    Parameters
+    ----------
+    env : Amod
+        AMoD environment
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    N : list
+        List of node ids
+    T : int
+        Time horizon
+    s_it : var
+        Number of cars per region i and step t
     """
 
-    travel_time = env.get_travel_time_od(
-        env.points[j], env.points[i], unit="step",
+    m.addConstrs(
+        (
+            cars_ijt.sum("*", i, "*", t)
+            - quicksum(
+                cars_ijt.get(
+                    (d, j, i, t - max(1, env.travel_time(j, j, i))), 0
+                )
+                for j in N
+                for d in [du.TRIP_DECISION, du.REBALANCE_DECISION]
+            )
+            == s_it.get((i, t), 0)
+            for i in N
+            for t in T
+        ),
+        name=f"CAR_FLOW",
     )
 
-    if p != j:
-        travel_time += env.get_travel_time_od(
-            env.points[p], env.points[j], unit="step",
-        )
-        # print(d, p, i, j, t, travel_time)
 
-    previous_t = t - max(1, travel_time)
+def mpc_car_flow(env, m, cars_pijt, N, T, s_it, step=0):
+    """Enforces that for every time interval and each region, the number
+    of arriving vehicles equals the number of departing vehicles.
 
-    # print(t, previous_t)
-    return previous_t
+    Parameters
+    ----------
+    env : Amod
+        AMoD environment
+    m : model
+        Gurobi model
+    cars_ijt : var
+        Number of cars moving from i to j at step t
+    N : list
+        List of node ids
+    T : int
+        Time horizon
+    s_it : var
+        Number of cars per region i and step t
+    """
 
-
-def mpc_opt_car_flow(env, m, cars_pijt, dpt, N, T, s_it, step=0):
-
-    for i in N:
-        for t in T:
-            # print(i, t)
-
-            # r = sum(
-            #     [
-            #         [
-            #             cars_pijt.get((d, a, b, p, t_pi), 0)
-            #             for (d, a, b, p, t_pi) in cars_pijt
-            #             if t_pi == previous_time(env, p, p, i, t)
-            #         ]
-            #         for (_, p, in_i, _, _) in cars_pijt
-            #         if in_i == i and p != in_i
-            #     ],
-            #     [],
-            # )
-
-            # print(r)
-
-            # print("QUICK SUM")
-            # print(-quicksum(r))
-            # print(cars_pijt.sum("*", "*", "*", i, t))
-            # print(f"# {i:04} - {t:04} = {s_it.get((i, t),0)}")
-
-            m.addConstr(
-                # Outbound flow from i at time t (rebalance and trip)
-                cars_pijt.sum("*", "*", i, "*", t)  # - sum(r)
-                # Inbound flow to i at time t
-                # - quicksum(
-                #     cars_pijt.sum(
-                #         "*", "*", "*", p, previous_time(env, p, p, i, t)
-                #     )
-                #     for p in N
-                #     if p != i
-                # )
-                # - quicksum(
-                #     cars_pijt.sum(
-                #         "*", "*", "*", p, previous_time(env, p, p, i, t)
-                #     )
-                #     for d, p, t_p in dpt[i]
-                #     if t_p == t and p != i
-                # )
-                # + quicksum(
-                #     cars_pijt.sum(
-                #         "*", "*", p, "*", previous_time(env, p, p, i, t)
-                #     )
-                #     for d, p, t_p in dpt[i]
-                #     if t_p == t and p != i
-                # )
-                - quicksum(
-                    cars_pijt[d, p, j, i, t_pji]
-                    for (d, p, j, in_i, t_pji) in cars_pijt
-                    if in_i == i and t_pji == previous_time(env, p, j, in_i, t)
+    m.addConstrs(
+        (
+            cars_pijt.sum("*", "*", i, "*", t)
+            - quicksum(
+                cars_pijt.get(
+                    (d, j, j, i, t - max(1, env.travel_time(j, j, i))), 0
                 )
-                == s_it.get((i, t), 0),
-                name=f"CAR_FLOW[{i},{t}]",
+                for j in N
+                for d in [du.TRIP_DECISION, du.REBALANCE_DECISION]
+                # for (d, p, j, in_i, t_pji) in cars_pijt
+                # if in_i == i
+                # and t_pji == t - max(1, env.travel_time(p, j, in_i))
             )
-
-    # for i in N:
-    #     for t in T:
-
-    #         # print(i, t)
-
-    #         # r = sum(
-    #         #     [
-    #         #         [
-    #         #             cars_pijt.get((d, a, b, p, t_pi), 0)
-    #         #             for (d, a, b, p, t_pi) in cars_pijt
-    #         #             if t_pi == previous_time(env, p, p, i, t)
-    #         #         ]
-    #         #         for (_, p, in_i, _, _) in cars_pijt
-    #         #         if in_i == i and p != in_i
-    #         #     ],
-    #         #     [],
-    #         # )
-
-    #         # print(r)
-
-    #         # print("QUICK SUM")
-    #         # print(-quicksum(r))
-    #         # print(cars_pijt.sum("*", "*", "*", i, t))
-    #         # print(f"# {i:04} - {t:04} = {s_it.get((i, t),0)}")
-    #         m.addConstr(
-    #             # Outbound flow from i at time t (rebalance and trip)
-    #             cars_pijt.sum("*", "*", i, "*", t)  # - sum(r)
-    #             # Inbound flow to i at time t
-    #             # - quicksum(
-    #             #     cars_pijt.sum(
-    #             #         "*", "*", "*", p, previous_time(env, p, p, i, t)
-    #             #     )
-    #             #     for p in N
-    #             #     if p != i
-    #             # )
-    #             - quicksum(
-    #                 cars_pijt.sum(
-    #                     "*", "*", "*", p, previous_time(env, p, p, i, t)
-    #                 )
-    #                 for d, p, t_p in dpt[i]
-    #                 if t_p == t and p != i
-    #             )
-    #             + quicksum(
-    #                 cars_pijt.sum(
-    #                     "*", "*", p, "*", previous_time(env, p, p, i, t)
-    #                 )
-    #                 for d, p, t_p in dpt[i]
-    #                 if t_p == t and p != i
-    #             )
-    #             - quicksum(
-    #                 cars_pijt[d, p, j, i, t_pji]
-    #                 for (d, p, j, in_i, t_pji) in cars_pijt
-    #                 if in_i == i and t_pji == previous_time(env, p, j, in_i, t)
-    #             )
-    #             == s_it.get((i, t), 0),
-    #             name=f"CAR_FLOW[{i},{t}]",
-    #         )
-
-    # Remember that in s_it, t always start with zero, i.e.,
-    # the start of the slice being analyzed.
+            <= s_it.get((i, t), 0)
+            for i in N
+            for t in T
+        ),
+        name=f"CAR_FLOW",
+    )
 
 
 def log_model(m, env, folder_name="", save_files=False, step=None, label=""):
@@ -306,14 +251,7 @@ def log_model(m, env, folder_name="", save_files=False, step=None, label=""):
 
 
 def mpc(
-    env,
-    current_trips,
-    predicted_trips,
-    step=0,
-    horizon=40,
-    log_mip=True,
-    use_visited_only=True,
-    rebalance_to_neighbors=True,
+    env, current_trips, predicted_trips, step=0, log_mip=True,
 ):
     """
     Parameters
@@ -440,7 +378,7 @@ def mpc(
     logger.debug(f"vars_pijt(trips)={len(vars_pijt)}")
 
     # # Use only nodes where cars or trips are
-    if use_visited_only:
+    if env.config.mpc_use_trip_ods_only:
         N = distinct_nodes
         logger.debug(f"Distinct nodes: {len(N):,}.")
 
@@ -462,7 +400,15 @@ def mpc(
             # Stay
             vars_pijt.add((du.REBALANCE_DECISION, i, i, i, batch_step))
             dpt[i].add((du.REBALANCE_DECISION, i, batch_step))
-            N_d = env.neighbors[i] if rebalance_to_neighbors else N
+
+            # Choose possible rebalancing targets
+            # All nodes X only neighbors
+            N_d = (
+                env.neighbors[i]
+                if env.config.mpc_rebalance_to_neighbors
+                else N
+            )
+
             for j in N_d:
                 vars_pijt.add((du.REBALANCE_DECISION, i, i, j, batch_step))
 
@@ -486,6 +432,7 @@ def mpc(
 
     logger.debug(f"{len(trips_ijt):,} trip od tuples created.")
 
+    t1 = time.time()
     logger.debug("Constraint 1 - Ensure the entire demand is met.")
     ensure_all_demands_serviced(
         env,
@@ -498,10 +445,14 @@ def mpc(
         outstandig_ijt=outstanding_ijt,
         slack_ijt=slack_ijt,
     )
+    logger.debug(f" - time(s):{time.time()-t1:.2f}")
 
+    t1 = time.time()
     logger.debug("Constraint 2 - Guarantee car flow.")
-    mpc_opt_car_flow(env, m, cars_pijt, dpt, N, T, s_it, step=step)
+    mpc_car_flow(env, m, cars_pijt, N, T, s_it, step=step)
+    logger.debug(f" - time(s):{time.time()-t1:.2f}")
 
+    t1 = time.time()
     logger.debug("Constraint 3 - All outstanding passengers are served.")
     m.addConstrs(
         (
@@ -510,15 +461,20 @@ def mpc(
         ),
         name="OUT",
     )
+    logger.debug(f" - time(s):{time.time()-t1:.2f}")
 
     logger.debug("\nSetting up contribution...")
+    t1 = time.time()
     contribution = quicksum(
         env.cost_func(du.convert_decision(d, p, i, j))
         * cars_pijt[(d, p, i, j, t)]
         for d, p, i, j, t in cars_pijt
     )
+    logger.debug(f" - time(s):{time.time()-t1:.2f}")
 
-    if env.config.mpc_user_performance_to_go:
+    if env.config.mpc_use_performance_to_go:
+        logger.debug("\nSetting up performance to go values...")
+        t1 = time.time()
         # Contribution for future steps
         contribution_future = quicksum(
             env.post_cost(t, du.convert_decision(d, p, i, j))[0]
@@ -526,6 +482,7 @@ def mpc(
             for d, p, i, j, t in cars_pijt
             if t == T[-1]
         )
+        logger.debug(f" - time(s):{time.time()-t1:.2f}")
     else:
         contribution_future = 0
 
@@ -534,8 +491,8 @@ def mpc(
     # c_slack_ijt = cost for not servicing a predicted customer demand
     #               at time t.
 
-    COST_OUTSTANDING = 2
-    COST_SLACK = 4
+    COST_OUTSTANDING = 0.25
+    COST_SLACK = 2.5
     of_outstanding = quicksum(
         [
             outstanding_ijt[i, j, t] * ((batch_step - step) * COST_OUTSTANDING)
@@ -710,15 +667,17 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
     logger.debug(f"\nTotal trips = {sum([len(trips) for trips in it_trips])}")
 
-    for step, trips in enumerate(it_trips):
-        logger.debug(f" - step={step:04}, n. of trips={len(trips):04}")
+    for appereance_step, trips in enumerate(it_trips):
+        logger.debug(
+            f" - step={appereance_step:04}, n. of trips={len(trips):04}"
+        )
         new_trips = []
         for trip in trips:
 
             # Discard trips with origins and destinations
             # within the same region.
             if trip.o.id != trip.d.id and trip.o.id in N and trip.d.id in N:
-                trips_ijt[(trip.o.id, trip.d.id, step)] += 1
+                trips_ijt[(trip.o.id, trip.d.id, appereance_step)] += 1
                 new_trips.append(trip)
 
                 distinct_nodes.add(trip.o.id)
@@ -758,10 +717,10 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
     )
 
     logger.debug("Constraint 1 - Ensure the entire demand is met.")
-    ensure_all_demands_serviced(m, cars_ijt, trips_ijt)
+    ensure_all_demands_serviced_opt(m, cars_ijt, trips_ijt)
 
     logger.debug("Constraint 2 - Guarantee car flow.")
-    mpc_opt_car_flow(env, m, cars_ijt, N, T, s_it)
+    mpc_optimal_car_flow(env, m, cars_ijt, N, T, s_it)
 
     logger.debug("Constraint 3 - Starting vehicles only in the first step.")
     m.addConstrs(
@@ -770,7 +729,7 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
     logger.debug("\nSetting up contribution...")
     contribution = quicksum(
-        env.cost_func(du.convert_decision(d, i, j)) * cars_ijt[(d, i, j, t)]
+        env.cost_func(du.convert_decision(d, i, i, j)) * cars_ijt[(d, i, j, t)]
         for d, i, j, t in cars_ijt
     )
 
@@ -793,6 +752,9 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
         # ACTION, ORIGIN, DESTINATION, STEP, N.DECISIONS
         best_decisions = extract_decisions(cars_ijt)
 
+        # Add car point (repeat origin)
+        best_decisions = [(d[0],) + (d[1],) + d[1:] for d in best_decisions]
+
         # ORIGIN, STEP (0), N.CARS
         itn_cars = extract_decisions(s_it)
 
@@ -810,35 +772,47 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
 
         # Decision list per step (played)
         step_decisions_list = []
-        for step, trips in enumerate(it_new_trips):
+
+        # Save all decision contributions
+        env.decision_info = {}
+
+        for appereance_step, trips in enumerate(it_new_trips):
             logger.debug(
-                f"\n## step={step:04} ####################################"
+                f"\n## step={appereance_step:04} ####################################"
             )
 
             # Filter decisions at step
-            step_decisions = [d for d in best_decisions if d[3] == step]
+            step_decisions = [
+                d for d in best_decisions if d[4] == appereance_step
+            ]
+
             logger.debug(f" - Trips = {len(trips)}")
             logger.debug(
                 sorted(
                     [
                         (i, j, trips_ijt[(i, j, t)])
                         for i, j, t in trips_ijt
-                        if t == step
+                        if t == appereance_step
                     ],
                     key=lambda x: (x[0], x[1]),
                 )
             )
+
             logger.debug(" - Decisions:")
             step_decisions = sorted(
                 [
-                    du.convert_decision(d[0], d[1], d[2], n=d[4])
+                    du.convert_decision(d[0], d[1], d[2], d[3], n=d[5])
                     for d in step_decisions
                 ],
                 key=lambda x: (x[du.ACTION], x[du.ORIGIN], x[du.DESTINATION]),
             )
 
+            # print("##########", appereance_step)
+            # pprint(env.decis)
+
             for d in step_decisions:
                 logger.debug(f" - {du.shorten_decision(d)}")
+                env.decision_info[d[:-1]] = (env.cost_func(d),)
 
             step_decisions_list.append(step_decisions)
 
@@ -849,6 +823,8 @@ def optimal_rebalancing(env, it_trips, log_mip=True, use_visited_only=True):
                 env.cars.append(Car(env.points[i]))
                 n_cars -= 1
         env.available = env.cars
+
+        logger.debug(f"MPC optimal fleet size: {fleet_size}")
 
         return step_decisions_list, it_new_trips, fleet_size
 
@@ -990,7 +966,12 @@ def recharge_constrs(m, x_var, type_attribute_cars_dict, battery_levels):
 
 
 def max_cars_node_constrs(
-    m, decisions, vehicles_arriving_at, max_cars_node=5, unrestricted=[],
+    m,
+    decisions,
+    current_step,
+    vehicles_arriving_at,
+    max_cars_node=5,
+    unrestricted=[],
 ):
     """Restrict the number of cars arriving at each node.
 
@@ -1022,18 +1003,47 @@ def max_cars_node_constrs(
 
         n_cars_arriving = 0
 
-        for t, constrs in sorted(t_constrs.items(), key=lambda x: x[0]):
+        all_arriving_times = sorted(
+            list(
+                (set(vehicles_arriving_at[pos].keys()) - {current_step}).union(
+                    set(t_constrs.keys())
+                )
+            )
+        )
 
+        # print(
+        #     f"Current step={current_step}",
+        #     pos,
+        #     all_arriving_times,
+        #     vehicles_arriving_at[pos].keys(),
+        #     t_constrs.keys(),
+        # )
+        constrs = 0
+        for t_arrival in all_arriving_times:
             # Depots are unrestricted (unlimited number of vehicles)
             if pos not in unrestricted:
 
-                # Vehicles arriving at position in next step
-                n_cars_arriving += len(vehicles_arriving_at[pos][t])
+                n_cars_arriving += len(
+                    vehicles_arriving_at[pos].get(t_arrival, [])
+                )
+
                 # if n_cars_arriving > 0:
-                #     print(pos, t, n_cars_arriving)
+                #     pprint(vehicles_arriving_at[pos])
+                #     print(
+                #         f"MAX_CARS_LINK[{pos},{t_arrival}] = "
+                #         f"{max_cars_node} - {n_cars_arriving} = "
+                #         f"{max_cars_node - n_cars_arriving}"
+                #     )
+
+                if t_arrival not in t_constrs:
+                    # print("Constrs = ")
+                    continue
+
+                constrs += t_constrs[t_arrival]
+
                 flood_avoidance_constrs[pos] = m.addConstr(
-                    constrs + n_cars_arriving <= max_cars_node,
-                    f"MAX_CARS_LINK[{pos}][{t}]",
+                    constrs <= max(0, max_cars_node - n_cars_arriving),
+                    f"MAX_CARS_LINK[{pos},{t_arrival}]",
                 )
 
     return flood_avoidance_constrs
@@ -1392,11 +1402,11 @@ def play_decisions(env, trips, time_step, decisions):
 
     # print(f"Attributes (step={time_step})")
     # pprint(env.attribute_cars_dict)
-    reward, serviced, rejected = env.realize_decision(
+    final_obj, applied_penalties, serviced, rejected = env.realize_decision(
         time_step, decisions, attribute_trips_dict, env.attribute_cars_dict,
     )
 
-    return reward, serviced, rejected
+    return final_obj, serviced, rejected
 
 
 def service_trips(
@@ -1469,7 +1479,7 @@ def service_trips(
 
     # Model is deterministic (usefull for testing)
     m.setParam("Seed", 1)
-    # m.setParam("DualReductions", 0)
+    m.setParam("DualReductions", 0)
 
     # ################################################################ #
     # ################################################################ #
@@ -1673,9 +1683,14 @@ def service_trips(
             for d in x_var
         )
 
+    t_setup_costs = time.time() - t1_setup_costs
+
+    # Time to setup post decision costs
+    t1_setup_penalties = time.time()
+
     penalty = 0
     # pprint(attribute_trips_sq_dict)
-    if env.config.trip_rejection_penalty is not None:
+    if env.config.apply_backlog_rejection_penalty:
         penalty = quicksum(
             (
                 env.config.backlog_rejection_penalty(sq_timesback)
@@ -1701,12 +1716,12 @@ def service_trips(
             ), tp_list in attribute_trips_sq_dict.items()
         )
 
+    t_setup_penalties = time.time() - t1_setup_penalties
+
     # for (o, d, sq), tp_list in attribute_trips_sq_dict.items():
     #     print((o, d, sq), len(tp_list), env.config.trip_rejection_penalty[sq], x_var.sum(du.TRIP_DECISION, "*", "*", "*", "*", "*", o, d, sq))
 
     m.setObjective(contribution - penalty, GRB.MAXIMIZE)
-
-    t_setup_costs = time.time() - t1_setup_costs
 
     # ---------------------------------------------------------------- #
     # CONSTRAINTS ######################################################
@@ -1761,6 +1776,9 @@ def service_trips(
     #             x_var[d] <= env.config.max_cars_link, f"STAY_BOUND[{pos}]"
     #         )
 
+    t_setup_constraints = time.time() - t1_setup_constraints
+
+    t1_setup_constraints_flood = time.time()
     # Limit the number of cars per node (not in reactive rebalance)
     if env.config.max_cars_link is not None and not env.config.policy_reactive:
 
@@ -1774,45 +1792,49 @@ def service_trips(
                 if d[du.CAR_ORIGIN] == d[du.DESTINATION]:
                     continue
 
-            # Skip restriction to parking lots
-            # if env.config.cars_start_from_parking_lots and (
-            #     d[du.DESTINATION] in env.level_parking_ids
-            #     or d[du.DESTINATION] in env.unrestricted_parking_node_ids
-            # ):
-            #     continue
-
             # Cars can always pickup customers
-            # if d[du.ACTION] == du.TRIP_DECISION:
-            #     continue
-
-            # # Any number of cars can stay at each point
-            # if d[du.ACTION] == du.STAY_DECISION:
-            #     continue
+            if env.config.unbound_max_cars_trip_decisions:
+                if d[du.ACTION] == du.TRIP_DECISION:
+                    continue
 
             # Cars arriving at destination
             post_time = env.decision_info[d][2][0]
             decisions_destination[d[du.DESTINATION]][post_time] += x_var[d]
-            # if d[du.ACTION] != du.STAY_DECISION:
-            #     decisions_destination[d[du.POSITION]][post_time] -= x_var[d]
+
+            # if (
+            #     d[du.ACTION] == du.TRIP_DECISION
+            #     and d[du.POSITION] != d[du.ORIGIN]
+            # ):
+
+            #     po = env.preview_move(
+            #         d[du.POSITION], d[du.POSITION], d[du.ORIGIN]
+            #     )[0]
+
+            #     # od = env.preview_move(
+            #     #     d[du.ORIGIN], d[du.ORIGIN], d[du.DESTINATION]
+            #     # )[0]
+
+            #     # if time_step + po == post_time:
+            #     #     print(d, time_step, po, post_time)
+            #     decisions_destination[d[du.ORIGIN]][time_step + po] += x_var[d]
 
         # Set up constraint
-        # TODO previously env.depots were unrestricted
         max_cars_node_constr = max_cars_node_constrs(
             m,
             decisions_destination,
+            time_step,
             env.level_step_inbound_cars[env.config.centroid_level],
             max_cars_node=env.config.max_cars_link,
             unrestricted=env.unrestricted_parking_node_ids,
         )
 
-    t_setup_constraints = time.time() - t1_setup_constraints
+    t_setup_constraints_flood = time.time() - t1_setup_constraints_flood
 
     t1_optimize = time.time()
 
     # Try finding integer values for the fractional variables
-    # optimize_and_fix_fractional_vars(m, logger=logger)
-
-    m.optimize()
+    optimize_and_fix_fractional_vars(m, logger=logger)
+    # m.optimize()
 
     t_optimize = time.time() - t1_optimize
 
@@ -1879,7 +1901,12 @@ def service_trips(
                 )
 
         t1_realize_decision = time.time()
-        reward, serviced, rejected = env.realize_decision(
+        (
+            final_obj,
+            applied_penalties,
+            serviced,
+            rejected,
+        ) = env.realize_decision(
             time_step,
             best_decisions,
             attribute_trips_dict,
@@ -1911,18 +1938,9 @@ def service_trips(
                 time.time() - t1_update_vf_artificial
             ]
 
-        # The penalties must be discounted from the contribution
-        applied_penalties = sum(
-            [
-                env.config.trip_rejection_penalty[t_r.sq_class]
-                for t_r in rejected
-            ]
-        )
-        final_obj = reward - applied_penalties
-
         logger.debug(
             f"### Objective Function (costs and post costs) - {m.objVal:6.2f} "
-            f"X {final_obj:6.2f} ({reward:.2f} -  {applied_penalties:.2f})"
+            f"X {final_obj:6.2f} (penalties={applied_penalties:.2f})"
             " - Decision's total reward (costs - penalties)"
         )
 
@@ -1938,7 +1956,9 @@ def service_trips(
                     "realize_decision": [t_realize_decision],
                     "update_vf": [t_update],
                     "setup_costs": [t_setup_costs],
+                    "setup_penalties": [t_setup_penalties],
                     "setup_constraints": [t_setup_constraints],
+                    "setup_constraints_flood": [t_setup_constraints_flood],
                     "optimize": [t_optimize],
                     "total": [t_total],
                 }

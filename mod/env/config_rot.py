@@ -249,6 +249,8 @@ class Config:
     REBALANCE_LEVEL = "REBALANCE_LEVEL"
     REBALANCE_SUB_LEVEL = "REBALANACE_SUB_LEVEL"
     REBALANCE_MAX_TARGETS = "REBALANCE_MAX_TARGETS"
+    UNBOUND_MAX_CARS_TRIP_DESTINATIONS = "UNBOUND_MAX_CARS_TRIP_DESTINATIONS"
+    UNBOUND_MAX_CARS_TRIP_DECISIONS = "UNBOUND_MAX_CARS_TRIP_DECISIONS"
     PENALIZE_REBALANCE = "PENALIZE_REBALANCE"
     REBALANCE_REACH = "REBALANCE_REACH"
     REBALANCE_MULTILEVEL = "REBALANCE_MULTILEVEL"
@@ -258,7 +260,6 @@ class Config:
     # Model constraints
     SQ_GUARANTEE = "SQ_GUARANTEE"
     MAX_CARS_LINK = "MAX_CARS_LINK"
-    TIME_MAX_CARS_LINK = "TIME_MAX_CARS_LINK"
     LINEARIZE_INTEGER_MODEL = "LINEARIZE_INTEGER_MODEL"
     USE_ARTIFICIAL_DUALS = "USE_ARTIFICIAL_DUALS"
     # Mathing methods
@@ -296,6 +297,16 @@ class Config:
     METHOD = "METHOD"
     ITERATIONS = "ITERATIONS"
 
+    # MPC CONFIG
+    # Only rebalance to neighbors instead of all possible nodes
+    MPC_REBALANCE_TO_NEIGHBORS = "MPC_REBALANCE_TO_NEIGHBORS"
+    # How many steps ahead are predicted
+    MPC_FORECASTING_HORIZON = "MPC_FORECASTING_HORIZON"
+    # Use value functions to guide decisions after forecasting horizon
+    MPC_USE_PERFORMANCE_TO_GO = "MPC_USE_PERFORMANCE_TO_GO"
+    # Conslder only trip ods instead of all locations
+    MPC_USE_TRIP_ODS_ONLY = "MPC_USE_TRIP_ODS_ONLY"
+
     # DEMAND
     DEMAND_CENTER_LEVEL = "DEMAND_CENTER_LEVEL"
     DEMAND_TOTAL_HOURS = "DEMAND_TOTAL_HOURS"
@@ -310,6 +321,7 @@ class Config:
     DEMAND_CLASSED = "DEMAND_CLASSED"
     MAX_USER_BACKLOGGING_DELAY = "MAX_USER_BACKLOGGING_DELAY"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
+    APPLY_BACKLOG_REJECTION_PENALTY = "APPLY_BACKLOG_REJECTION_PENALTY"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
     TRIP_OUTSTANDING_PENALTY = "TRIP_OUTSTANDING_PENALTY"
     UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
@@ -599,7 +611,12 @@ class Config:
         return self.config[Config.TRIP_REJECTION_PENALTY]
 
     @property
+    def apply_backlog_rejection_penalty(self):
+        return self.config[Config.APPLY_BACKLOG_REJECTION_PENALTY]
+
+    @property
     def trip_outstanding_penalty(self):
+        """Penalty applied to outstanding requests across steps"""
         return self.config[Config.TRIP_OUTSTANDING_PENALTY]
 
     @property
@@ -673,8 +690,16 @@ class Config:
         return self.config[Config.MPC_FORECASTING_HORIZON]
 
     @property
+    def mpc_rebalance_to_neighbors(self):
+        return self.config[Config.MPC_REBALANCE_TO_NEIGHBORS]
+
+    @property
     def mpc_use_performance_to_go(self):
         return self.config[Config.MPC_USE_PERFORMANCE_TO_GO]
+
+    @property
+    def mpc_use_trip_ods_only(self):
+        return self.config[Config.MPC_USE_TRIP_ODS_ONLY]
 
     @property
     def time_increment(self):
@@ -690,6 +715,8 @@ class Config:
     def backlog_rejection_penalty(self, sq_times):
         """According to service quality class and times user has been
         backlogged, get penalty.
+
+        Rejection penalty is applied only when user is about to be rejected.
 
         Parameters
         ----------
@@ -1973,6 +2000,17 @@ class ConfigNetwork(ConfigStandard):
         return self.config[Config.REBALANCE_MAX_TARGETS]
 
     @property
+    def unbound_max_cars_trip_destinations(self):
+        """If True, cars can ALWAYS rebalance/stay/travel to trip 
+        destinations"""
+        return self.config[Config.UNBOUND_MAX_CARS_TRIP_DESTINATIONS]
+
+    @property
+    def unbound_max_cars_trip_decisions(self):
+        """If True, all trip decisions are unbounded"""
+        return self.config[Config.UNBOUND_MAX_CARS_TRIP_DECISIONS]
+
+    @property
     def penalize_rebalance(self):
         # If True, rebalancing is further punished (discount value that
         # could have been gained by staying still)
@@ -2084,10 +2122,6 @@ class ConfigNetwork(ConfigStandard):
             ]
         )
         return levels
-
-    @property
-    def time_max_cars_link(self):
-        return self.config[Config.TIME_MAX_CARS_LINK]
 
     def get_reb_neighbors(self):
         reb_neigh = ", ".join(

@@ -20,7 +20,11 @@ from mod.env.matching import (
 )
 import mod.util.log_util as la
 
-from mod.env.amod.AmodNetworkHired import AmodNetworkHired
+from mod.env.amod.AmodNetworkHired import (
+    AmodNetworkHired,
+    # exe_times,
+    # decision_post,
+)
 from mod.env.visual import StepLog, EpisodeLog
 import mod.env.adp.adp as adp
 
@@ -102,7 +106,7 @@ def get_sim_config(update_dict):
             # Penalize rebalancing by subtracting the potential
             # profit accrued by staying still during the rebalance
             # process.
-            ConfigNetwork.PENALIZE_REBALANCE: True,
+            ConfigNetwork.PENALIZE_REBALANCE: False,
             # Cars rebalance to up to #region centers at each level
             # CAUTION! Change max_neighbors in tenv application if > 4
             ConfigNetwork.N_CLOSEST_NEIGHBORS: ((0, 8), (1, 8)),
@@ -201,7 +205,7 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
                 adp.AggLevel(
-                    temporal=0,
+                    temporal=1,
                     spatial=2,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -209,7 +213,7 @@ def get_sim_config(update_dict):
                     car_origin=adp.DISCARD,
                 ),
                 adp.AggLevel(
-                    temporal=0,
+                    temporal=2,
                     spatial=3,
                     battery=adp.DISAGGREGATE,
                     contract=adp.DISCARD,
@@ -221,7 +225,7 @@ def get_sim_config(update_dict):
             # TIME LIST multiplies the time increment. E.g.:
             # time increment=5 then [1,2] = [5, 10]
             # time increment=1 then [1,3] = [1, 3]
-            ConfigNetwork.LEVEL_TIME_LIST: [1, 2],
+            ConfigNetwork.LEVEL_TIME_LIST: [1, 2, 3],
             ConfigNetwork.LEVEL_CAR_ORIGIN: {
                 Car.TYPE_FLEET: {adp.DISCARD: adp.DISCARD},
                 Car.TYPE_HIRED: {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
@@ -567,6 +571,7 @@ def alg_adp(
         it_step_trip_list = deepcopy(step_trip_list)
 
         # Get decisions for optimal rebalancing
+        new_fleet_size = None
         if config.method == ConfigNetwork.METHOD_OPTIMAL:
             (
                 it_decisions,
@@ -595,6 +600,8 @@ def alg_adp(
 
         # Iterate through all steps and match requests to cars
         for step, trip_list in enumerate(it_step_trip_list):
+
+            # print(exe_times, len(decision_post))
             config.current_step = step
             # Add trips from last step (when user backlogging is enabled)
             trips = trip_list + outstanding
@@ -887,6 +894,7 @@ def alg_adp(
             step_log,
             it_step_trip_list,
             time.time() - start_time,
+            fleet_size=new_fleet_size,
             save_df=log_config_dict[la.SAVE_DF],
             plots=log_config_dict[la.SAVE_PLOTS],
             save_learning=amod.config.save_progress,
@@ -1065,12 +1073,13 @@ if __name__ == "__main__":
 
         start_config = get_sim_config(
             {
-                ConfigNetwork.CASE_STUDY: "N08Z07SD02",
+                # ConfigNetwork.CASE_STUDY: "N08Z08SD02",
+                ConfigNetwork.CASE_STUDY: "N08Z08CD02",
                 # Cars can rebalance/stay/travel to trip destinations
                 # indiscriminately
-                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DESTINATIONS: True,
-                # All trip decision can be realized
-                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DECISIONS: False,
+                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DESTINATIONS: False,
+                # All trip decisions can be realized
+                ConfigNetwork.UNBOUND_MAX_CARS_TRIP_DECISIONS: True,
                 ConfigNetwork.PATH_CLASS_PROB: "distr/class_prob_distribution_p5min_6h.npy",
                 ConfigNetwork.ITERATIONS: n_iterations,
                 ConfigNetwork.TEST_LABEL: test_label,
@@ -1090,6 +1099,7 @@ if __name__ == "__main__":
                 ConfigNetwork.MAX_USER_BACKLOGGING_DELAY: backlog_delay_min,
                 ConfigNetwork.SQ_GUARANTEE: False,
                 ConfigNetwork.RECHARGE_COST_DISTANCE: 0.1,
+                ConfigNetwork.APPLY_BACKLOG_REJECTION_PENALTY: True,
                 ConfigNetwork.TRIP_REJECTION_PENALTY: (("A", 2.5), ("B", 2.5)),
                 ConfigNetwork.TRIP_OUTSTANDING_PENALTY: (
                     ("A", 0.25),
@@ -1108,8 +1118,8 @@ if __name__ == "__main__":
                 ConfigNetwork.USE_ARTIFICIAL_DUALS: False,
                 # MPC ################################################ #
                 ConfigNetwork.MPC_FORECASTING_HORIZON: mpc_horizon,
-                ConfigNetwork.MPC_USE_PERFORMANCE_TO_GO: True,
-                ConfigNetwork.MPC_REBALANCE_TO_NEIGHBORS: True,
+                ConfigNetwork.MPC_USE_PERFORMANCE_TO_GO: False,
+                ConfigNetwork.MPC_REBALANCE_TO_NEIGHBORS: False,
                 ConfigNetwork.MPC_USE_TRIP_ODS_ONLY: True,
                 # EXPLORATION ######################################## #
                 # ANNEALING + THOMPSON
@@ -1134,7 +1144,7 @@ if __name__ == "__main__":
                 # All rebalancing finishes within time increment
                 ConfigNetwork.REBALANCING_TIME_RANGE_MIN: (0, 10),
                 # Consider only rebalance targets from sublevel
-                ConfigNetwork.REBALANCE_SUB_LEVEL: 1,
+                ConfigNetwork.REBALANCE_SUB_LEVEL: None,
                 # Rebalance to at most max targets
                 ConfigNetwork.REBALANCE_MAX_TARGETS: None,
                 # Remove nodes that dont have at least min. neighbors

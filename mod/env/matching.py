@@ -1302,11 +1302,11 @@ def play_decisions(env, trips, time_step, decisions):
 
     # print(f"Attributes (step={time_step})")
     # pprint(env.attribute_cars_dict)
-    reward, serviced, rejected = env.realize_decision(
+    final_obj, applied_penalties, serviced, rejected = env.realize_decision(
         time_step, decisions, attribute_trips_dict, env.attribute_cars_dict,
     )
 
-    return reward, serviced, rejected
+    return final_obj, serviced, rejected
 
 
 def service_trips(
@@ -1801,7 +1801,12 @@ def service_trips(
                 )
 
         t1_realize_decision = time.time()
-        reward, serviced, rejected = env.realize_decision(
+        (
+            final_obj,
+            applied_penalties,
+            serviced,
+            rejected,
+        ) = env.realize_decision(
             time_step,
             best_decisions,
             attribute_trips_dict,
@@ -1833,18 +1838,9 @@ def service_trips(
                 time.time() - t1_update_vf_artificial
             ]
 
-        # The penalties must be discounted from the contribution
-        applied_penalties = sum(
-            [
-                env.config.backlog_rejection_penalty(t_r.sq_class_backlog)
-                for t_r in rejected
-            ]
-        )
-        final_obj = reward - applied_penalties
-
         logger.debug(
             f"### Objective Function (costs and post costs) - {m.objVal:6.2f} "
-            f"X {final_obj:6.2f} ({reward:.2f} -  {applied_penalties:.2f})"
+            f"X {final_obj:6.2f} (penalties={applied_penalties:.2f})"
             " - Decision's total reward (costs - penalties)"
         )
 

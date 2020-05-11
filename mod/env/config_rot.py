@@ -321,6 +321,7 @@ class Config:
     DEMAND_CLASSED = "DEMAND_CLASSED"
     MAX_USER_BACKLOGGING_DELAY = "MAX_USER_BACKLOGGING_DELAY"
     MAX_IDLE_STEP_COUNT = "MAX_IDLE_STEP_COUNT"
+    APPLY_BACKLOG_REJECTION_PENALTY = "APPLY_BACKLOG_REJECTION_PENALTY"
     TRIP_REJECTION_PENALTY = "TRIP_REJECTION_PENALTY"
     TRIP_OUTSTANDING_PENALTY = "TRIP_OUTSTANDING_PENALTY"
     UNIVERSAL_SERVICE = "UNIVERSAL_SERVICE"
@@ -608,6 +609,10 @@ class Config:
     @property
     def trip_rejection_penalty(self):
         return self.config[Config.TRIP_REJECTION_PENALTY]
+
+    @property
+    def apply_backlog_rejection_penalty(self):
+        return self.config[Config.APPLY_BACKLOG_REJECTION_PENALTY]
 
     @property
     def trip_outstanding_penalty(self):

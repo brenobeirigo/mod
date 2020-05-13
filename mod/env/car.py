@@ -222,7 +222,7 @@ class Car:
             f"(previous={self.previous_step:>5},step={self.step:>5})"
             f" - Traveled: {self.distance_traveled:>6.2f}"
             f" -> ({self.previous.id:>5},{self.middle_point.id:>5},{self.point.id:>5})"
-            f" - interruped={self.interrupted_rebalance_count:>4}"
+            f" - interrupted={self.interrupted_rebalance_count:>4}"
             # f" - Revenue: {self.revenue:>6.2f}"
             # f" - #Trips: {self.n_trips:>3}"
             # f" - #Previous: {self.previous.id:>4}"

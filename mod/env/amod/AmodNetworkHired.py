@@ -539,7 +539,10 @@ class AmodNetworkHired(AmodNetwork):
             # Car takes "time_legs" to move from "previous_node" to
             # "leg_d"
             if time_legs >= elapsed:
-                car.middle_point = self.points[leg_d]
+                centroid_id = self.points[leg_d].id_level(
+                    self.config.centroid_level
+                )
+                car.middle_point = self.points[centroid_id]
                 # Time from current location (middle of edge) to middle
                 car.elapsed = time_legs - elapsed
 

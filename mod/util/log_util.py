@@ -194,6 +194,7 @@ def log_decision_info(
     available_hired,
     available_fleet_size,
     trip_origin_count,
+    trip_destination_count,
 ):
 
     try:
@@ -213,13 +214,15 @@ def log_decision_info(
                 "\n###########################################"
                 "###########################################"
             )
-
-            logger.debug("### Reachable")
+            logger.debug(f"### Reachable ({len(reachable_trips_i)})")
             for i, t in enumerate(trips):
                 if i in reachable_trips_i:
+
                     logger.debug(f"  - {t.info()}")
 
-            logger.debug("\n### Unreachable")
+            logger.debug(
+                f"\n### Unreachable ({len(trips)-len(reachable_trips_i)})"
+            )
             for i, t in enumerate(trips):
                 if i not in reachable_trips_i:
                     logger.debug(f"  - {t.info()}")
@@ -229,6 +232,16 @@ def log_decision_info(
                 origins, counts = list(zip(*trip_origin_count.items()))
                 o_count = {"origin": origins, "#trips": counts}
                 df = pd.DataFrame.from_dict(o_count)
+                logger.debug("\n## TRIP COUNT")
+                logger.debug(df)
+
+            if trip_destination_count:
+
+                destinations, counts = list(
+                    zip(*trip_destination_count.items())
+                )
+                d_count = {"destinations": destinations, "#trips": counts}
+                df = pd.DataFrame.from_dict(d_count)
                 logger.debug("\n## TRIP COUNT")
                 logger.debug(df)
 
@@ -312,16 +325,18 @@ def log_costs(
                 if post_opt:
                     # Remove decision count
                     decision = d[:-1]
+                    times = d[-1]
                 else:
                     decision = d
+                    times = 1
 
                 cost = cost_func(decision)
-                overall_cost += cost
+                overall_cost += cost * times
 
                 post_cost, post_state = post_cost_func(time_step, decision)
                 overall_post += post_cost
 
-                total = cost + discount_factor * post_cost
+                total = cost * times + discount_factor * post_cost
 
                 logger.debug(
                     f"{format_tuple(d)} {cost:>7.2f} + {discount_factor:>6.2f}*{post_cost:>12.6f} = {total:>12.6f}"

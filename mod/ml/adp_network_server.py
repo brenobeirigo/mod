@@ -632,7 +632,9 @@ def alg_adp(
             t1 = time.time()
             # If policy is reactive, rebalancing cars can be rerouted
             # from the intermediate nodes along the shortest path
-            # to the rebalancing target.
+            # to the rebalancing target. Notice that, if level > 0,
+            # miiddle points will correspond to corresponding hierarchi-
+            # cal superior node.
             amod.update_fleet_status(
                 step + 1, use_rebalancing_cars=amod.config.policy_reactive
             )
@@ -649,14 +651,14 @@ def alg_adp(
                 logger.debug(f"{c} - {c.attribute}")
 
             # What each vehicle is doing after update?
-            # la.log_fleet_activity(
-            #     config.log_path(amod.adp.n),
-            #     step + 1,
-            #     skip_steps,
-            #     step_log,
-            #     filter_status=[],
-            #     msg="post update",
-            # )
+            la.log_fleet_activity(
+                config.log_path(amod.adp.n),
+                step + 1,
+                skip_steps,
+                step_log,
+                filter_status=[],
+                msg="post update",
+            )
             t_log += time.time() - t1
 
             t1 = time.time()
@@ -783,15 +785,28 @@ def alg_adp(
                     logger.debug(f"{r}")
 
                 # print(step, amod.available_fleet_size,  len(rejected))
-                # Update fleet headings to isolate Idle vehicles
+                # Update fleet headings to isolate Idle vehicles.
+                # Only empty cars are considered for rebalancing.
                 amod.update_fleet_status(step + 1)
+
+                t1 = time.time()
+                # What each vehicle is doing?
+                la.log_fleet_activity(
+                    config.log_path(amod.adp.n),
+                    step,
+                    skip_steps,
+                    step_log,
+                    filter_status=[],
+                    msg="before rebalancing",
+                )
+                t_log += time.time() - t1
 
                 # Service idle vehicles
                 rebal_costs, _, _ = service_trips(
                     # Amod environment with configuration file
                     amod,
                     # Trips to be matched
-                    rejected,
+                    rejected + outstanding,
                     # Service step (+1 trip placement step)
                     step + 1,
                     # # Save mip .lp and .log of iteration n
@@ -1154,7 +1169,7 @@ if __name__ == "__main__":
                 ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
-                ConfigNetwork.MAX_CARS_LINK: 5,
+                ConfigNetwork.MAX_CARS_LINK: None,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 # FAV configuration
                 # Functions

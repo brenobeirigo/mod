@@ -1543,10 +1543,12 @@ def service_trips(
     else:
 
         trip_origin_count = defaultdict(int)
+        trip_destination_count = defaultdict(int)
         # Create a dictionary associate
         for trip in trips:
 
             trip_origin_count[trip.o.id] += 1
+            trip_destination_count[trip.d.id] += 1
             # Trip count per class
             class_count_dict[trip.sq_class] += 1
 
@@ -1601,6 +1603,7 @@ def service_trips(
             env.available_hired,
             env.available_fleet_size,
             trip_origin_count,
+            trip_destination_count,
         )
 
         # Logging cost calculus
@@ -1611,7 +1614,7 @@ def service_trips(
             env.post_cost,
             time_step,
             env.config.discount_factor,
-            msg="TRIP DECISIONS",
+            # msg="",
             # filter_decisions=set([du.TRIP_DECISION]),
             post_opt=False,
         )
@@ -1646,13 +1649,8 @@ def service_trips(
             env.decision_info[d][0] * x_var[d] for d in x_var
         )
 
-    # If myopic, do not include post decision costs
     # If random, discard rebalance costs and add them later
-    elif (
-        env.config.myopic
-        or env.config.policy_random
-        or env.config.policy_reactive
-    ):
+    elif env.config.policy_random or env.config.policy_reactive:
         # d -> cost, post_cost, post_state
         # post_state -> (t, point, battery, contract, type, car_origin)
         env.decision_info = {
@@ -1664,6 +1662,19 @@ def service_trips(
             env.decision_info[d][0] * x_var[d] for d in x_var
         )
 
+    # If myopic, do not include post decision costs
+    elif env.config.myopic:
+        # d -> cost, post_cost, post_state
+        # post_state -> (t, point, battery, contract, type, car_origin)
+        env.decision_info = {
+            d: (env.cost_func(d, ignore_rebalance_costs=False),)
+            + (0, env.preview_decision(time_step, d))
+            for d in x_var
+        }
+        contribution = quicksum(
+            env.decision_info[d][0] * x_var[d] for d in x_var
+        )
+    # ADP policy = cost + vfs
     else:
 
         # d -> cost, post_cost, post_state

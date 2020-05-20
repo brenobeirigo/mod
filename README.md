@@ -181,6 +181,29 @@ If you define `amod = AmodNetworkHired(config, online=True)` the following is ac
 
 If `online=False`, revenue, cost, and penalty data are loaded into dictionaries.
 
+# Logged information
+
+
+| Keyword | Description |
+|---------|--------|
+|step=NUMBER| Indicate the start of step.|
+|Reachable| List of reachable trips.|
+|Unreachable| List of trips that cannot be reached by any vehicle.|
+|TRIP COUNT ORIGIN| Number of trips per origin location.|
+|TRIP COUNT DESTINATON| Number of trips per destination location.|
+|LOG COSTS [DECISION, SOLUTIONS]| Cost calculation of decision set(DECISION -> COST + DISCOUNT * POST = TOTAL).|
+|SOLUTIONS| DECISION = TIMES APPLIED|
+|Car attributes| List of cars and attributes (id, position)|
+|NODE - NEIGHBORHOOD| Table: node_id, levels_ids, unreachable, neighborhood|
+|ATTRIBUTE CAR COUNT| Table: g, step, inbound, cars, unrestricted|
+
+## Methods
+### Reactive rebalancing
+
+    1 - Match idle/rebalancing cars to trips (ignore rebalancing decisions)
+    2 - Update fleet, such that non-matched cars that were previosly rebalancing, continue to do so.
+    3 - Match rejected & outstanding trip origins (the rebalancing targets) to idle vehicles.
+
 ## Tuning
 
 

@@ -772,7 +772,7 @@ def alg_adp(
             # ######################################################## #
 
             t_reactive_rebalance_1 = time.time()
-            if amod.config.policy_reactive and rejected:
+            if amod.config.policy_reactive and (rejected or outstanding):
                 # If reactive rebalance, send vehicles to rejected
                 # user's origins
                 logger.debug(
@@ -784,10 +784,12 @@ def alg_adp(
                 for r in rejected:
                     logger.debug(f"{r}")
 
-                # print(step, amod.available_fleet_size,  len(rejected))
+                # print(step, amod.available_fleet_size, len(rejected))
                 # Update fleet headings to isolate Idle vehicles.
                 # Only empty cars are considered for rebalancing.
+                t1 = time.time()
                 amod.update_fleet_status(step + 1)
+                t_update += time.time() - t1
 
                 t1 = time.time()
                 # What each vehicle is doing?
@@ -874,7 +876,9 @@ def alg_adp(
             # self.post_cost.cache_clear()
 
         # LAST UPDATE (Closing the episode)
+        t1 = time.time()
         amod.update_fleet_status(step + 1)
+        t_update += time.time() - t1
 
         # Save random data (fleet and trips)
         if amod.config.save_trip_data:
@@ -1120,7 +1124,7 @@ if __name__ == "__main__":
                     ("A", 0.25),
                     ("B", 0.25),
                 ),
-                ConfigNetwork.TRIP_BASE_FARE: (("A", 2.5), ("B", 2.5)),
+                ConfigNetwork.TRIP_BASE_FARE: (("A", 7.5), ("B", 2.5)),
                 ConfigNetwork.TRIP_DISTANCE_RATE_KM: (("A", 1), ("B", 1)),
                 ConfigNetwork.TRIP_TOLERANCE_DELAY_MIN: (("A", 0), ("B", 0)),
                 ConfigNetwork.TRIP_MAX_PICKUP_DELAY: (("A", 15), ("B", 15)),
@@ -1169,7 +1173,7 @@ if __name__ == "__main__":
                 ConfigNetwork.CENTROID_LEVEL: 1,
                 # FLEET ############################################## #
                 # Car operation
-                ConfigNetwork.MAX_CARS_LINK: None,
+                ConfigNetwork.MAX_CARS_LINK: 5,
                 ConfigNetwork.MAX_IDLE_STEP_COUNT: None,
                 # FAV configuration
                 # Functions

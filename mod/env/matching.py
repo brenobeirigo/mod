@@ -1702,29 +1702,39 @@ def service_trips(
     penalty = 0
     # pprint(attribute_trips_sq_dict)
     if env.config.apply_backlog_rejection_penalty:
+
+        # Penalty (o, d, sq_times)
+        penalty_var = m.addVars(
+            tuplelist(attribute_trips_sq_dict.keys()),
+            name="y",
+            vtype=GRB.CONTINUOUS,
+            lb=0,
+        )
+
+        for (o, d, sq_timesback), tp_list in attribute_trips_sq_dict.items():
+            m.addConstr(
+                penalty_var[o, d, sq_timesback]
+                == len(tp_list)
+                - x_var.sum(
+                    du.TRIP_DECISION,
+                    "*",
+                    "*",
+                    "*",
+                    "*",
+                    "*",
+                    o,
+                    d,
+                    sq_timesback,
+                ),
+                f"PEN[{o},{d},{sq_timesback}]",
+            )
+
         penalty = quicksum(
             (
                 env.config.backlog_rejection_penalty(sq_timesback)
-                * (
-                    len(tp_list)
-                    - x_var.sum(
-                        du.TRIP_DECISION,
-                        "*",
-                        "*",
-                        "*",
-                        "*",
-                        "*",
-                        o,
-                        d,
-                        sq_timesback,
-                    )
-                )
+                * penalty_var[o, d, sq_timesback]
             )
-            for (
-                o,
-                d,
-                sq_timesback,
-            ), tp_list in attribute_trips_sq_dict.items()
+            for (o, d, sq_timesback,) in penalty_var
         )
 
     t_setup_penalties = time.time() - t1_setup_penalties

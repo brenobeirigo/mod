@@ -801,6 +801,8 @@ class AmodNetworkHired(AmodNetwork):
         return dict(step_fav)
 
     def realize_decision(self, t, decisions, a_trips_dict, a_cars_dict):
+
+        a_trips_dict = {k: list(v) for k, v in a_trips_dict.items()}
         total_reward = 0
         serviced = list()
 

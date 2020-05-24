@@ -228,6 +228,7 @@ def get_decisions(env, trips):
     decisions_return = set()
     decision_class = defaultdict(list)
     reachable_trips_i = set()
+    trip_od = defaultdict(set)
 
     # ##################################################################
     # SORT CARS ########################################################
@@ -352,14 +353,12 @@ def get_decisions(env, trips):
 
         for i, trip in enumerate(trips):
 
+            to, td = trip.o.id, trip.d.id
+
             # Car cannot service trip because it cannot go back
             # to origin in time
             if isinstance(car, HiredCar) and not env.can_move(
-                car.point.id,
-                trip.o.id,
-                trip.d.id,
-                car.depot.id,
-                car.contract_duration,
+                car.point.id, to, td, car.depot.id, car.contract_duration,
             ):
                 continue
 
@@ -368,7 +367,9 @@ def get_decisions(env, trips):
 
             # Discount time increment because it covers the worst case
             # scenario (user waiting since the beginning of the round)
-            max_pk_time = trip.max_delay - env.config.time_increment
+            max_pk_time = (
+                trip.max_delay - env.config.time_increment - trip.backlog_delay
+            )
 
             # Trip delay cannot be considered because they have different
             # placement times. Hence, decision OD cannot be taken in bulk.
@@ -380,8 +381,22 @@ def get_decisions(env, trips):
             # Can the car reach the trip origin?
             if pk_time <= max_pk_time + trip.tolerance:
 
+                # if trip.backlog_delay > 0:
+
+                #     print(
+                #         car.point.id,
+                #         trip.o.id,
+                #         pk_time,
+                #         trip.max_delay,
+                #         trip.max_delay_from_placement,
+                #         trip.backlog_delay,
+                #         max_pk_time,
+                #         trip.times_backlogged,
+                #     )
+
                 # A car can pick up the trip
                 reachable_trips_i.add(i)
+                trip_od[(to, td)].add(trip)
 
                 # Setup decisions
                 d = trip_decision(car, trip)
@@ -413,12 +428,14 @@ def get_decisions(env, trips):
         # Try matching trips departing from the closest middle point
         for i, trip in enumerate(trips):
 
+            to, td = trip.o.id, trip.d.id
+
             # Car cannot service trip because it cannot go back
             # to origin in time
             if isinstance(car, HiredCar) and not env.can_move(
                 car.middle_point.id,
-                trip.o.id,
-                trip.d.id,
+                to,
+                td,
                 car.depot.id,
                 car.contract_duration,
                 delay_offset=car.elapsed,  # Time to reach middle
@@ -428,6 +445,10 @@ def get_decisions(env, trips):
             # Discount time increment because it covers the worst case
             # scenario (user waiting since the beginning of the round)
             max_pk_time = trip.max_delay - env.config.time_increment
+
+            max_pk_time = (
+                trip.max_delay - env.config.time_increment - trip.backlog_delay
+            )
 
             # Time to reach trip origin
             pk_time = env.get_travel_time_od(
@@ -441,8 +462,15 @@ def get_decisions(env, trips):
                 decisions.add(d)
 
                 reachable_trips_i.add(i)
+                trip_od[(to, td)].add(trip)
 
-    return decisions, decisions_return, decision_class, reachable_trips_i
+    return (
+        decisions,
+        decisions_return,
+        decision_class,
+        reachable_trips_i,
+        trip_od,
+    )
 
 
 def can_pickup(env, p, o, max_delay=10, tolerance=0):

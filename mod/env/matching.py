@@ -1502,6 +1502,8 @@ def service_trips(
     # List of trips per OD
     attribute_trips_sq_dict = defaultdict(list)
 
+    rejected_upfront = []
+
     # ################################################################ #
     # REACTIVE REBALANCING ########################################### #
     # ################################################################ #
@@ -1544,19 +1546,6 @@ def service_trips(
 
         trip_origin_count = defaultdict(int)
         trip_destination_count = defaultdict(int)
-        # Create a dictionary associate
-        for trip in trips:
-
-            trip_origin_count[trip.o.id] += 1
-            trip_destination_count[trip.d.id] += 1
-            # Trip count per class
-            class_count_dict[trip.sq_class] += 1
-
-            # Group trips with the same ods
-            attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
-
-            # Group trips with the same ods
-            attribute_trips_sq_dict[trip.attribute_backlog].append(trip)
 
         # TODO Rebalance based on car productivity (trips/cars/area)
         # How many trips in each region
@@ -1580,7 +1569,31 @@ def service_trips(
             decision_return,
             decision_class,
             reachable_trips_i,
+            attribute_trips_dict,
         ) = du.get_decisions(env, trips)
+
+        # Trips that could not be matched to any vehicle
+        rejected_upfront = [
+            trip for i, trip in enumerate(trips) if i not in reachable_trips_i
+        ]
+
+        # # Create a dictionary associate
+        # for i, trip in enumerate(trips):
+
+        #     # Trip stats
+        #     trip_origin_count[trip.o.id] += 1
+        #     trip_destination_count[trip.d.id] += 1
+        #     class_count_dict[trip.sq_class] += 1
+
+        #     if i in reachable_trips_i:
+
+        #         # Group trips with the same ods
+        #         attribute_trips_dict[(trip.o.id, trip.d.id)].append(trip)
+
+        #         # Group trips with the same ods
+        #         attribute_trips_sq_dict[trip.attribute_backlog].append(trip)
+        #     else:
+        #         rejected_upfront.append(trip)
 
         # virtual_decisions = du.get_virtual_decisions(env, trips)
 
@@ -1933,6 +1946,14 @@ def service_trips(
             attribute_trips_dict,
             env.attribute_cars_dict,
         )
+
+        # print("Rejected:")
+        # pprint(rejected)
+
+        # print("Rejected upfront:")
+        # pprint(rejected_upfront)
+
+        rejected = rejected + rejected_upfront
 
         time_dict = dict()
 

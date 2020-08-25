@@ -15,6 +15,7 @@
 
 # IDE
 .vscode/
+.idea/
 
 # Images
 *.png
@@ -22,6 +23,7 @@
 
 # Results
 data/output/
+tuning/
 
 # Tuning settings
 data/input/tuning/

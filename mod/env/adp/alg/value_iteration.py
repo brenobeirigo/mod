@@ -22,24 +22,25 @@ from mod.env.simulator import PlotTrack
 
 
 class ValueIteration:
-
     def __init__(
-            self, plot_track,
-            config,
-            # PLOT ########################################################### #
-            step_delay=PlotTrack.STEP_DELAY,
-            # LOG ############################################################ #
-            skip_steps=1,
-            # TRIPS ########################################################## #
-            classed_trips=True,
-            # Create service rate and fleet status plots for each iteration
-            save_plots=True,
-            # Save .csv files for each iteration with fleet and demand statuses
-            # throughtout all time steps
-            save_df=True,
-            # Save total reward, total service rate, and weights after iteration
-            save_overall_stats=True,
-            log_config_dict=None):
+        self,
+        plot_track,
+        config,
+        # PLOT ########################################################### #
+        step_delay=PlotTrack.STEP_DELAY,
+        # LOG ############################################################ #
+        skip_steps=1,
+        # TRIPS ########################################################## #
+        classed_trips=True,
+        # Create service rate and fleet status plots for each iteration
+        save_plots=True,
+        # Save .csv files for each iteration with fleet and demand statuses
+        # throughtout all time steps
+        save_df=True,
+        # Save total reward, total service rate, and weights after iteration
+        save_overall_stats=True,
+        log_config_dict=None,
+    ):
 
         self.plot_track = plot_track
         self.config = config
@@ -49,7 +50,9 @@ class ValueIteration:
         self.save_plots = save_plots
         self.save_df = save_df
         self.save_overall_stats = save_overall_stats
-        self.log_config_dict = log_config_dict if log_config_dict else la.get_standard()
+        self.log_config_dict = (
+            log_config_dict if log_config_dict else la.get_standard()
+        )
         self.config.log_config_dict = self.log_config_dict
 
         self.amod = AmodNetworkHired(self.config, online=True)
@@ -70,7 +73,9 @@ class ValueIteration:
         # Set tabu size (vehicles cannot visit nodes in tabu)
         Car.SIZE_TABU = self.config.car_size_tabu
 
-        print(f'### Saving experimental settings at: "{self.config.exp_settings}"')
+        print(
+            f'### Saving experimental settings at: "{self.config.exp_settings}"'
+        )
         self.config.save()
 
         # ---------------------------------------------------------------- #
@@ -93,15 +98,19 @@ class ValueIteration:
                 show_lines=PlotTrack.SHOW_LINES,
             )
 
-        print(f"### Loading demand scenario '{self.config.demand_scenario}'...")
+        print(
+            f"### Loading demand scenario '{self.config.demand_scenario}'..."
+        )
 
         self.load_progress()
 
-        print(f" - Iterating from {self.first_iteration:>4} to {self.config.iterations:>4}...")
+        print(
+            f" - Iterating from {self.first_iteration:>4} to {self.config.iterations:>4}..."
+        )
 
     def load_progress(self):
         try:
-            if self.config.myopic or self.config.policy_random or self.config.policy_reactive:
+            if self.config.ignore_training:
                 print("Ignore training.")
             else:
                 # Load last episode
@@ -143,8 +152,12 @@ class ValueIteration:
             iteration.save_fleet_data_result()
 
             total_execution_time = time.time() - t_start_episode
-            iteration.compute(step_log, self.episode_log, total_execution_time,
-                              save_overall_stats=self.save_overall_stats)
+            iteration.compute(
+                step_log,
+                self.episode_log,
+                total_execution_time,
+                save_overall_stats=self.save_overall_stats,
+            )
 
             # Clean weight track
             self.amod.adp.reset_weight_track()
@@ -166,7 +179,9 @@ class ValueIteration:
             if self.config.idle_annealing is not None:
                 # By the end of all iterations, cars cannot be forced to
                 # rebalance anymore
-                self.config.config[ConfigNetwork.IDLE_ANNEALING] += 1  # 1/episodes
+                self.config.config[
+                    ConfigNetwork.IDLE_ANNEALING
+                ] += 1  # 1/episodes
 
         # Plot overall performance (reward, service rate, and weights)
         self.episode_log.compute_learning()
@@ -251,7 +266,9 @@ class ValueIteration:
             self.plot_track.opt_step = current_step.step
 
             # Create trip dictionary of coordinates
-            self.plot_track.trips_dict[current_step.step] = vi.compute_trips(current_step.trips)
+            self.plot_track.trips_dict[current_step.step] = vi.compute_trips(
+                current_step.trips
+            )
 
     def compute_fleet_status(self, iteration, step_log):
         t1 = time.time()
@@ -264,7 +281,8 @@ class ValueIteration:
 
     def log_fleet_status(self):
         return (
-                self.log_config_dict[la.SAVE_PLOTS]
-                or self.log_config_dict[la.SAVE_DF]
-                or self.log_config_dict[la.LOG_STEP_SUMMARY]
+            self.log_config_dict[la.SAVE_PLOTS]
+            or self.log_config_dict[la.SAVE_DF]
+            or self.log_config_dict[la.LOG_STEP_SUMMARY]
         )
+

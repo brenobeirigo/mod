@@ -3,7 +3,7 @@ import time
 import mod.util.log_util as la
 from mod.env.car import Car
 from mod.env.matching import (
-    service_trips,
+    Matching,
     play_decisions,
     mpc,
 )
@@ -32,8 +32,8 @@ class Step:
     def mpc_method(self, it_step_trip_list):
         # Predicted trips for next steps (exclusive)
         predicted_trips = it_step_trip_list[
-            self.step + 1: self.step + self.amod.config.mpc_forecasting_horizon
-        ]
+                          self.step + 1: self.step + self.amod.config.mpc_forecasting_horizon
+                          ]
 
         # Trips within the same region are invalid
         decisions = mpc(
@@ -52,8 +52,8 @@ class Step:
         )
 
     def adp_separate_fleet(self):
-        # Optimize
-        revenue_fav, serviced_fav, rejected_fav = service_trips(
+
+        matching = Matching(
             # Amod environment with configuration file
             self.amod,
             # Trips to be matched
@@ -64,15 +64,18 @@ class Step:
             iteration=self.iteration.n,
             car_type_hide=Car.TYPE_FLEET,
             log_times=self.amod.config.log_config_dict[la.LOG_TIMES],
-            log_mip=self.amod.config.log_config_dict[la.LOG_MIP],
+            log_mip=self.amod.config.log_config_dict[la.LOG_MIP]
         )
+
+        # Optimize
+        revenue_fav, serviced_fav, rejected_fav = matching.service_trips()
 
         self.revenue += (revenue_fav,)
         self.serviced += (serviced_fav,)
         self.rejected = rejected_fav
 
     def adp_method(self):
-        self.revenue, self.serviced, self.rejected = service_trips(
+        matching = Matching(
             # Amod environment with configuration file
             self.amod,
             # Trips to be matched
@@ -83,8 +86,10 @@ class Step:
             iteration=self.iteration.n,
             log_mip=self.amod.config.log_config_dict[la.LOG_MIP],
             log_times=self.amod.config.log_config_dict[la.LOG_TIMES],
-            car_type_hide=Car.TYPE_FLEET,
+            car_type_hide=Car.TYPE_FLEET
         )
+
+        self.revenue, self.serviced, self.rejected = matching.service_trips()
 
     def backlog_users(self):
         expired = []
@@ -136,7 +141,7 @@ class Step:
         iteration.execution_time_dict["t_log"] += time.time() - t1
 
         # Service idle vehicles
-        rebal_costs, _, _ = service_trips(
+        matching = Matching(
             # Amod environment with configuration file
             self.amod,
             # Trips to be matched
@@ -150,6 +155,8 @@ class Step:
             car_type_hide=Car.TYPE_FLEET,
             reactive=True,
         )
+
+        rebal_costs, _, _ = matching.service_trips()
 
         self.revenue -= rebal_costs
         iteration.logger.debug(f"\n# REB. COSTS: {rebal_costs:6.2f}")

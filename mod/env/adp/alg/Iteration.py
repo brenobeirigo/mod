@@ -7,13 +7,10 @@ import mod.env.config as conf
 import mod.env.trip as tp
 import mod.util.log_util as la
 from mod.env.adp.alg.Scenario import ScenarioUmbalanced, ScenarioNYC
-from mod.env.matching import (
-    optimal_rebalancing,
-)
+from mod.env.matching import optimal_rebalancing
 
 
 class Iteration:
-
     def __init__(self, n, amod):
         self.n = n
         self.amod = amod
@@ -27,7 +24,9 @@ class Iteration:
 
         self.save_sampled_tripdata_from_iteration()
 
-        self.amod.unbound_max_cars_destinations_from(self.scenario.step_trip_list)
+        self.amod.bound_max_cars_at_trip_destinations_from(
+            self.scenario.step_trip_list
+        )
 
         self.logger = self.get_iteration_logger()
 
@@ -42,7 +41,13 @@ class Iteration:
         if self.amod.config.policy_optimal:
             self.mpc_optimal()
 
-    def compute(self, step_log, episode_log, total_execution_time, save_overall_stats=True):
+    def compute(
+        self,
+        step_log,
+        episode_log,
+        total_execution_time,
+        save_overall_stats=True,
+    ):
         self.logger.debug("  - Computing iteration...")
         t1 = time.time()
         episode_log.compute_episode(
@@ -55,12 +60,12 @@ class Iteration:
             save_learning=self.amod.config.save_progress,
             save_overall_stats=save_overall_stats,
         )
-        self.execution_time_dict['t_epi'] = time.time() - t1
+        self.execution_time_dict["t_epi"] = time.time() - t1
 
     def assign(self, current_step, step_log):
         t1 = time.time()
         if self.amod.config.policy_optimal:
-            current_step.mpc_optimal_play_decisions()
+            current_step.mpc_optimal_play_decisions(self.it_decisions)
 
         elif self.amod.config.policy_mpc:
             current_step.mpc_method(self.it_step_trip_list)
@@ -82,7 +87,9 @@ class Iteration:
         if current_step.apply_reactive_rebalancing():
             t_reactive_rebalance_1 = time.time()
             current_step.rebalance_to_not_serviced(self)
-            self.execution_time_dict["t_reactive_rebalance"] += time.time() - t_reactive_rebalance_1
+            self.execution_time_dict["t_reactive_rebalance"] += (
+                time.time() - t_reactive_rebalance_1
+            )
 
     def log_pre_rebalancing(self, current_step, step_log, skip_steps=1):
         t1 = time.time()
@@ -138,7 +145,8 @@ class Iteration:
         # middle points will correspond to corresponding hierarchi-
         # cal superior node.
         self.amod.update_fleet_status(
-            current_step.step + 1, use_rebalancing_cars=self.amod.config.policy_reactive
+            current_step.step + 1,
+            use_rebalancing_cars=self.amod.config.policy_reactive,
         )
         self.execution_time_dict["t_update"] += time.time() - t1
 
@@ -156,8 +164,13 @@ class Iteration:
             self.scenario = ScenarioUmbalanced(self.amod, self.trips_file_path)
 
         elif self.amod.config.demand_scenario == conf.SCENARIO_NYC:
-            self.test_i, self.trips_file_path = self.amod.config.get_demand_file_index(self.n)
-            self.scenario = ScenarioNYC(self.amod, self.trips_file_path, self.n)
+            (
+                self.test_i,
+                self.trips_file_path,
+            ) = self.amod.config.get_demand_file_index(self.n)
+            self.scenario = ScenarioNYC(
+                self.amod, self.trips_file_path, self.n
+            )
 
     def save_sampled_tripdata_from_iteration(self):
         if self.amod.config.save_trip_data:
@@ -173,14 +186,16 @@ class Iteration:
             # Save car distribution
             df_cars = self.amod.get_fleet_df()
             df_cars.to_csv(
-                f"{self.amod.config.fleet_data_path}cars_{self.test_i:04}.csv", index=False
+                f"{self.amod.config.fleet_data_path}cars_{self.test_i:04}.csv",
+                index=False,
             )
 
     def save_fleet_data_result(self):
         if self.amod.config.save_fleet_data:
             df_cars = self.amod.get_fleet_df()
             df_cars.to_csv(
-                f"{self.amod.config.fleet_data_path}cars_{self.n:04}_result.csv", index=False,
+                f"{self.amod.config.fleet_data_path}cars_{self.n:04}_result.csv",
+                index=False,
             )
 
     def log(self, s):
@@ -192,7 +207,9 @@ class Iteration:
             it_step_trip_list_distinct_od_areas,
             self.new_fleet_size,
         ) = optimal_rebalancing(
-            self.amod, self.it_step_trip_list, log_mip=self.amod.config.log_config_dict[la.LOG_MIP]
+            self.amod,
+            self.it_step_trip_list,
+            log_mip=self.amod.config.log_config_dict[la.LOG_MIP],
         )
 
         self.it_step_trip_list = it_step_trip_list_distinct_od_areas

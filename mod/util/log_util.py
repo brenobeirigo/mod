@@ -1,19 +1,17 @@
 import logging
 import sys
-import numpy as np
+import traceback
 from collections import defaultdict
+
+import numpy as np
 import pandas as pd
 
 np.set_printoptions(precision=3)
 pd.set_option("display.max_rows", None)
 
-FORMATTER_TERSE = logging.Formatter("%(message)s")
-
-FORMATTER = logging.Formatter("%(asctime)s — %(levelname)s — %(message)s")
-
-FORMATTER_VERBOSE = logging.Formatter(
-    "%(asctime)s — %(name)s — %(levelname)s — %(message)s"
-)
+FORMATTER_TERSE = "FORMATTER_TERSE"
+FORMATTER_STANDARD = "FORMATTER_STANDARD"
+FORMATTER_VERBOSE = "FORMATTER_VERBOSE"
 
 # NOTSET 0, DEBUG 10, INFO 20, WARNING 30, ERROR 40, CRITICAL 50
 DEBUG = logging.DEBUG
@@ -29,6 +27,12 @@ levels = {
     "WARNING": WARNING,
     "NOTSET": NOTSET,
     "CRITICAL": CRITICAL,
+}
+
+formatters = {
+    FORMATTER_TERSE: logging.Formatter("%(message)s"),
+    FORMATTER_STANDARD: logging.Formatter("%(asctime)s — %(levelname)s — %(message)s"),
+    FORMATTER_VERBOSE: logging.Formatter("%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 }
 level_labels = {
     INFO: "INFO",
@@ -67,7 +71,7 @@ log_dict = dict()
 
 def get_console_handler():
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(FORMATTER_TERSE)
+    console_handler.setFormatter(formatters[FORMATTER_TERSE])
     return console_handler
 
 
@@ -75,19 +79,19 @@ def get_console_handler():
 ch = get_console_handler()
 
 
-def get_file_handler(log_file, mode="w", formatter=FORMATTER_VERBOSE):
+def get_file_handler(log_file, mode="w", formatter=formatters[FORMATTER_VERBOSE]):
     file_handler = logging.FileHandler(log_file, mode=mode)
     file_handler.setFormatter(formatter)
     return file_handler
 
 
 def create_logger(
-    name,
-    log_level,
-    level_file,
-    level_console,
-    log_file,
-    formatter_file=FORMATTER_VERBOSE,
+        name,
+        log_level,
+        level_file,
+        level_console,
+        log_file,
+        formatter_file,
 ):
     # print(
     #     f"\n#### Creating logger..."
@@ -116,7 +120,6 @@ def create_logger(
 
 
 def log_node_centroid(name, cars, points, unreachable_ods, neighbors):
-
     try:
 
         logger_obj = log_dict[name]
@@ -150,7 +153,6 @@ def log_node_centroid(name, cars, points, unreachable_ods, neighbors):
 
 
 def log_solution(name, decision_vars):
-
     try:
 
         logger_obj = log_dict[name]
@@ -185,23 +187,23 @@ def format_tuple(d, item_len=4):
 
 
 def log_decision_info(
-    name,
-    step,
-    trips,
-    reachable_trips_i,
-    decision_cars,
-    available,
-    available_hired,
-    available_fleet_size,
-    trip_origin_count,
-    trip_destination_count,
+        name,
+        step,
+        trips,
+        reachable_trips_i,
+        decision_cars,
+        available,
+        available_hired,
+        available_fleet_size,
 ):
-
     try:
 
         logger_obj = log_dict[name]
 
         if logger_obj.LOG_DECISION_INFO:
+
+            trip_origin_count = []
+            trip_destination_count = []
 
             logger = logger_obj.logger
 
@@ -217,18 +219,16 @@ def log_decision_info(
             logger.debug(f"### Reachable ({len(reachable_trips_i)})")
             for i, t in enumerate(trips):
                 if i in reachable_trips_i:
-
                     logger.debug(f"  - {t.info()}")
 
             logger.debug(
-                f"\n### Unreachable ({len(trips)-len(reachable_trips_i)})"
+                f"\n### Unreachable ({len(trips) - len(reachable_trips_i)})"
             )
             for i, t in enumerate(trips):
                 if i not in reachable_trips_i:
                     logger.debug(f"  - {t.info()}")
 
             if trip_origin_count:
-
                 origins, counts = list(zip(*trip_origin_count.items()))
                 o_count = {"origin": origins, "#trips": counts}
                 df = pd.DataFrame.from_dict(o_count)
@@ -236,7 +236,6 @@ def log_decision_info(
                 logger.debug(df)
 
             if trip_destination_count:
-
                 destinations, counts = list(
                     zip(*trip_destination_count.items())
                 )
@@ -259,17 +258,16 @@ def log_decision_info(
 
 
 def log_costs(
-    name,
-    best_decisions,
-    cost_func,
-    post_cost_func,
-    time_step,
-    discount_factor,
-    msg="",
-    filter_decisions=set(),
-    post_opt=False,
+        name,
+        best_decisions,
+        cost_func,
+        post_cost_func,
+        time_step,
+        discount_factor,
+        msg="",
+        filter_decisions=set(),
+        post_opt=False,
 ):
-
     try:
 
         logger_obj = log_dict[name]
@@ -345,7 +343,7 @@ def log_costs(
                 overall_total += total
 
             logger.debug(
-                f"Overall total = {overall_total:>6.2f} ({overall_cost:>6.2f} + {discount_factor:>6.2f}*{overall_post:>12.6f}[{discount_factor*overall_post:>12.6f}])"
+                f"Overall total = {overall_total:>6.2f} ({overall_cost:>6.2f} + {discount_factor:>6.2f}*{overall_post:>12.6f}[{discount_factor * overall_post:>12.6f}])"
             )
 
     except Exception as e:
@@ -361,9 +359,8 @@ def delete(name):
 
 
 def log_fleet_activity(
-    name, step, skip_steps, step_log, filter_status=[], msg=""
+        name, step, skip_steps, step_log, filter_status=[], msg=""
 ):
-
     try:
 
         logger_obj = log_dict[name]
@@ -372,7 +369,6 @@ def log_fleet_activity(
             logger = logger_obj.logger
 
             if logger_obj.LOG_STEP_SUMMARY:
-
                 logger.debug("")
                 logger.debug(
                     "----------------------------------------"
@@ -393,15 +389,13 @@ def log_fleet_activity(
 
     except Exception as e:
         print(f"Can't log fleet activity! Exception: {e}")
+        traceback.print_exc(file=sys.stdout)
 
 
 def log_weights(name, state, weights, value_vector, value_estimation):
-
     try:
         logger_obj = log_dict[name]
-
         if logger_obj.LOG_WEIGHTS:
-
             logger = logger_obj.logger
 
             logger.debug(
@@ -416,7 +410,6 @@ def log_weights(name, state, weights, value_vector, value_estimation):
 
 
 def log_update_values_smoothed(name, t, level_update_list, values):
-
     try:
         logger_obj = log_dict[name]
 
@@ -460,7 +453,6 @@ def log_update_values_smoothed(name, t, level_update_list, values):
                 ) = a_g
 
                 if g_time != previous_g_time or g != previous_g:
-
                     previous_g = g
                     previous_g_time = g_time
 
@@ -503,7 +495,6 @@ def log_update_values_smoothed(name, t, level_update_list, values):
 
 
 def log_update_values(name, t, values):
-
     logger_obj = log_dict[name]
 
     if logger_obj.LOG_VALUE_UPDATE:
@@ -556,12 +547,12 @@ def log_update_values(name, t, values):
 
 
 def log_attribute_cars_dict(
-    name,
-    attribute_cars_dict,
-    level_step_inbound_cars,
-    unrestricted_ids={},
-    max_cars=0,
-    msg="",
+        name,
+        attribute_cars_dict,
+        level_step_inbound_cars,
+        unrestricted_ids={},
+        max_cars=0,
+        msg="",
 ):
     try:
         logger_obj = log_dict[name]
@@ -667,29 +658,28 @@ def log_duals(name, duals, msg=""):
 
 class LogAux:
     def __init__(
-        self,
-        logger_name,
-        log_level,
-        level_file,
-        level_console,
-        log_file,
-        formatter_file=FORMATTER_VERBOSE,
-        LOG_WEIGHTS=True,
-        LOG_VALUE_UPDATE=True,
-        LOG_DUALS=True,
-        LOG_FLEET_ACTIVITY=True,
-        LOG_STEP_SUMMARY=True,
-        LOG_COSTS=True,
-        LOG_SOLUTIONS=True,
-        LOG_ATTRIBUTE_CARS=True,
-        LOG_DECISION_INFO=True,
-        log_all=False,
-        log_mip=False,
-        log_times=False,
-        save_plots=False,
-        save_df=False,
+            self,
+            logger_name,
+            log_level,
+            level_file,
+            level_console,
+            log_file,
+            formatter_file=FORMATTER_VERBOSE,
+            LOG_WEIGHTS=True,
+            LOG_VALUE_UPDATE=True,
+            LOG_DUALS=True,
+            LOG_FLEET_ACTIVITY=True,
+            LOG_STEP_SUMMARY=True,
+            LOG_COSTS=True,
+            LOG_SOLUTIONS=True,
+            LOG_ATTRIBUTE_CARS=True,
+            LOG_DECISION_INFO=True,
+            log_all=False,
+            log_mip=False,
+            log_times=False,
+            save_plots=False,
+            save_df=False,
     ):
-
         self.LOG_SOLUTIONS = LOG_SOLUTIONS or log_all
         self.LOG_WEIGHTS = LOG_WEIGHTS or log_all
         self.LOG_VALUE_UPDATE = LOG_VALUE_UPDATE or log_all
@@ -700,41 +690,45 @@ class LogAux:
         self.LOG_ATTRIBUTE_CARS = LOG_ATTRIBUTE_CARS or log_all
         self.LOG_DECISION_INFO = LOG_DECISION_INFO or log_all
 
+        formatter = formatters[formatter_file]
+        level_console = levels[level_console]
+        level_file = levels[level_file]
+        log_level = levels[log_level]
+
         self.logger = create_logger(
             logger_name,
             log_level,
             level_file,
             level_console,
             log_file,
-            formatter_file=formatter_file,
+            formatter_file=formatter,
         )
 
 
 def get_logger(
-    name,
-    log_level=INFO,
-    level_file=DEBUG,
-    level_console=INFO,
-    log_file="traces.log",
-    formatter_file=FORMATTER_VERBOSE,
-    LOG_WEIGHTS=False,
-    LOG_VALUE_UPDATE=False,
-    LOG_DUALS=False,
-    LOG_FLEET_ACTIVITY=False,
-    LOG_STEP_SUMMARY=False,
-    LOG_COSTS=False,
-    LOG_SOLUTIONS=False,
-    LOG_ATTRIBUTE_CARS=False,
-    LOG_DECISION_INFO=False,
-    log_all=False,
-    log_mip=False,
-    log_times=False,
-    save_plots=False,
-    save_df=False,
+        name,
+        log_level="INFO",
+        level_file="DEBUG",
+        level_console="INFO",
+        log_file="traces.log",
+        formatter_file="FORMATTER_VERBOSE",
+        LOG_WEIGHTS=False,
+        LOG_VALUE_UPDATE=False,
+        LOG_DUALS=False,
+        LOG_FLEET_ACTIVITY=False,
+        LOG_STEP_SUMMARY=False,
+        LOG_COSTS=False,
+        LOG_SOLUTIONS=False,
+        LOG_ATTRIBUTE_CARS=False,
+        LOG_DECISION_INFO=False,
+        log_all=False,
+        log_mip=False,
+        log_times=False,
+        save_plots=False,
+        save_df=False,
 ):
     try:
         return log_dict[name].logger
-
     except:
         logger = LogAux(
             name,
@@ -761,3 +755,36 @@ def get_logger(
         log_dict[name] = logger
 
         return log_dict[name].logger
+
+
+def get_standard():
+    return LogAux(**{
+        # Write each vehicles status
+        LOG_FLEET_ACTIVITY: False,
+        # Write profit, service level, # trips, car/satus count
+        LOG_STEP_SUMMARY: True,
+        # ############# ADP ############################################
+        # Log duals update process
+        LOG_DUALS: False,
+        LOG_VALUE_UPDATE: False,
+        LOG_COSTS: False,
+        LOG_SOLUTIONS: False,
+        LOG_WEIGHTS: False,
+        # Log .lp and .log from MIP models
+        LOG_MIP: False,
+        # Log time spent across every step in each code section
+        LOG_TIMES: False,
+        # Save fleet, demand, and delay plots
+        SAVE_PLOTS: False,
+        # Save fleet and demand dfs for live plot
+        SAVE_DF: False,
+        # Log level saved in file
+        LEVEL_FILE: "DEBUG",
+        # Log level printed in screen
+        LEVEL_CONSOLE: "INFO",
+        FORMATTER_FILE: "FORMATTER_TERSE",
+        # Log everything
+        LOG_ALL: True,
+        # Log chosen (if LOG_ALL, set to lowest, i.e., DEBUG)
+        LOG_LEVEL: "DEBUG",
+    })

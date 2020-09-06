@@ -13,7 +13,7 @@ import requests
 import functools
 
 from mod.env.amod.Amod import Amod
-import mod.env.decision_utils as du
+import mod.env.adp.decisions as du
 from mod.env.adp.AdpHiredVector import AdpHired
 
 port = 4999
@@ -212,7 +212,7 @@ class AmodNetwork(Amod):
             # Sort rebalancing targets (farther first)
             id_dist = sorted(
                 [
-                    (d, self.get_travel_time(nw.get_distance(center, d)))
+                    (d, self.get_travel_time(nw.tenv.get_distance(center, d)))
                     for d in targets
                 ],
                 key=lambda x: x[1],

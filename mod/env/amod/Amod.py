@@ -1,17 +1,16 @@
-from mod.env.car import Car, HiredCar
-from mod.env.trip import Trip
-from mod.env.network import Point
-import mod.env.decision_utils as du
 import itertools as it
-from collections import defaultdict
-import numpy as np
-import random
-from pprint import pprint
-from mod.env.config import FOLDER_EPISODE_TRACK
-import requests
-import functools
 import math
+import random
+from collections import defaultdict
 from copy import deepcopy
+from pprint import pprint
+
+import numpy as np
+
+
+import mod.env.adp.decisions as du
+from mod.env.car import Car, HiredCar
+from mod.env.network import Point
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -556,8 +555,8 @@ class Amod:
 
                 # No neighbors found
                 if not new_reachable or (
-                    self.config.min_neighbors is not None
-                    and len(new_reachable) < self.config.min_neighbors
+                        self.config.min_neighbors is not None
+                        and len(new_reachable) < self.config.min_neighbors
                 ):
                     new_ureachable = True
                     unreachable_ods.add(n)
@@ -697,7 +696,7 @@ class Amod:
             ]
 
             # Add rejected to random
-            new_origins[0 : len(rejected_trip_origins)] = rejected_trip_origins
+            new_origins[0: len(rejected_trip_origins)] = rejected_trip_origins
 
         elif self.config.cars_start_from_last_trip_origins:
             # Start from rejected trip origins
@@ -723,7 +722,7 @@ class Amod:
             ]
 
             # Add rejected to random
-            new_origins[0 : len(last_trip_origins)] = last_trip_origins
+            new_origins[0: len(last_trip_origins)] = last_trip_origins
 
         elif self.config.cars_start_from_parking_lots:
             # Start from rejected trip origins
@@ -745,10 +744,9 @@ class Amod:
 
         # Cars start from centroids
         if (
-            self.config.centroid_level > 0
-            and not self.config.cars_start_from_parking_lots
+                self.config.centroid_level > 0
+                and not self.config.cars_start_from_parking_lots
         ):
-
             print(
                 f"{len(new_origins)} centroid origins "
                 f"(level={self.config.centroid_level})"

@@ -1,24 +1,20 @@
 import itertools
-from mod.env.car import Car, HiredCar
-from mod.env.trip import Trip
-from mod.env.network import Point
-import mod.env.adp.AdpHired as adp
-import mod.env.network as nw
 import itertools as it
-from collections import defaultdict
-import numpy as np
-import random
-from pprint import pprint
-from mod.env.config import FOLDER_EPISODE_TRACK
-import requests
-import functools
-from mod.env.amod.AmodNetwork import AmodNetwork
-import mod.env.decisions as du
-from copy import deepcopy
 import math
+import random
+from collections import defaultdict, namedtuple
+from pprint import pprint
+
+import numpy as np
 import pandas as pd
-from scipy.stats import gamma, norm, truncnorm
-import time
+from scipy.stats import truncnorm
+
+import mod.env.adp.AdpHired as adp
+import mod.env.adp.decisions as du
+import mod.env.network as nw
+from mod.env.amod.AmodNetwork import AmodNetwork
+from mod.env.car import Car, HiredCar
+from mod.env.network import Point
 
 # exe_times = defaultdict(float)
 # decision_post = dict()
@@ -27,7 +23,7 @@ np.set_printoptions(precision=2)
 # Reproducibility of the experiments
 random.seed(1)
 
-
+PostState = namedtuple("PostState", "time,point,battery,contract,type,station")
 class BetaSampler:
     def __init__(self, seed):
         self.rnd = np.random.RandomState(seed)
@@ -126,6 +122,58 @@ class AmodNetworkHired(AmodNetwork):
             self.cost = self.loaded_costs
             self.penalty = self.loaded_penalty
             self.od_dists_step = self.loaded_od_dist_step
+
+        #
+        # self.origins, self.destinations = self.get_od_lists()
+
+    def get_od_lists(self):
+
+        try:
+            o_ids, d_ids = self.config.load_ods()
+            origins = [self.points[o] for o in o_ids]
+            destinations = [self.points[d] for d in d_ids]
+            print(
+                f"Loading {len(origins)} origins and "
+                f"{len(destinations)} destinations."
+            )
+
+        except Exception as e:
+
+            print(f"Error!{e}")
+
+            # Create random centers from where trips come from
+            # TODO choose level to query origins
+            origins = nw.query_centers(
+                self.points,
+                self.config.origin_centers,
+                self.config.demand_center_level,
+            )
+
+            destinations = nw.query_centers(
+                self.points,
+                self.config.destination_centers,
+                self.config.demand_center_level,
+            )
+
+            print(
+                f"\nSaving {len(origins)} origins and "
+                f"{len(destinations)} destinations."
+            )
+            self.config.save_ods(
+                [o.id for o in origins], [d.id for d in destinations]
+            )
+
+        return origins, destinations
+
+    def bound_max_cars_at_trip_destinations_from(self, step_trip_list):
+        """Trip destination ids are unrestricted, i.e., cars can always 
+        arrive at destinations"""
+        if self.config.unbound_max_cars_trip_destinations:
+            all_trips = list(itertools.chain(*step_trip_list))
+            id_destinations = set([t.d.id for t in all_trips])
+            self.unrestricted_parking_node_ids = id_destinations
+        else:
+            self.unrestricted_parking_node_ids = set()
 
     def online_od_dists(self, o, d):
         return self.get_travel_time_od(
@@ -340,6 +388,49 @@ class AmodNetworkHired(AmodNetwork):
             self.cost_func(d)
             + self.config.discount_factor * self.post_cost(t, d)[0]
         )
+
+    def car_battery_level_low(self, car):
+        return self.config.enable_recharging and car.battery_level < self.config.battery_levels
+
+    def get_all_rebalancing_vehicles(self):
+        return itertools.chain(self.rebalancing, self.rebalancing_hired)
+
+    def get_all_available_vehicles(self):
+        return itertools.chain(self.available, self.available_hired)
+
+    def car_rebalancing_can_return_to_station_after_servicing_trip(self, car, trip):
+        return self.can_move(
+            car.middle_point.id,
+            trip.o.id,
+            trip.o.id,
+            car.depot.id,
+            car.contract_duration,
+            delay_offset=car.elapsed,  # Time to reach middle
+        )
+
+    def car_can_return_to_station_after_servicing_trip(self, car, trip):
+        return self.can_move(car.point.id, trip.o.id, trip.d.id, car.depot.id, car.contract_duration)
+
+    def car_can_pickup_trip(self, car, trip):
+
+        pk_time = self.get_travel_time_od(car.point, trip.o, unit="min")
+
+        max_pk_time = self.get_max_pk_time_discounting_time_increment(trip)
+
+        # Can the car reach the trip origin?
+        return pk_time <= max_pk_time + trip.tolerance
+
+    def get_max_pk_time_discounting_time_increment(self, trip):
+        # Discount time increment because it covers the worst case
+        # scenario (user waiting since the beginning of the round)
+        max_pk_time = trip.max_delay - self.config.time_increment - trip.backlog_delay
+        # Trip delay cannot be considered because they have different
+        # placement times. Hence, decision OD cannot be taken in bulk.
+        # E.g.: t1 [o,d] (3) - 7 min --> Pk=6 -- OK!
+        #       t2 [o,d] (5) - 5 min --> Pk=6 -- FAIL
+        # Add 2 decisions to pickup [o,d], but t2 cannot be picked up
+        # in time.
+        return max_pk_time
 
     def total_cost_ucb(self, t, d):
         cost = (
@@ -559,7 +650,7 @@ class AmodNetworkHired(AmodNetwork):
                 # Distance to middle (from previous)
                 car.distance_o_m = distance_legs
 
-                # Distance remaining to finish rebalancig
+                # Distance remaining to finish rebalancing
                 # In case movement is stopped, discount travel costs
                 # from this distance in vehicle contribution
                 car.remaining_distance = (
@@ -864,7 +955,6 @@ class AmodNetworkHired(AmodNetwork):
 
                 # Start contract, if not started
                 if car_type == Car.TYPE_HIRED:
-
                     # Hired car will be used by the system
                     car.started_contract = True
 
@@ -1090,7 +1180,6 @@ class AmodNetworkHired(AmodNetwork):
             else:
                 # Car is moving (rebalancing or servicing)
                 if use_rebalancing_cars and car.status == Car.REBALANCE:
-
                     # Find car's current position
                     self.update_middle(car, time_step)
 
@@ -1174,7 +1263,6 @@ class AmodNetworkHired(AmodNetwork):
                     self.cars_inbound_to[car.point.id].append(car)
 
                 if use_rebalancing_cars and car.status == Car.REBALANCE:
-
                     self.update_middle(car, time_step)
 
                     # print(car.m_data())
@@ -1341,7 +1429,7 @@ class AmodNetworkHired(AmodNetwork):
                 duration / self.config.contract_duration_level
             )
 
-        return (
+        return PostState(
             time_step,
             point,
             battery_post,
@@ -1411,7 +1499,6 @@ class AmodNetworkHired(AmodNetwork):
         d = defaultdict(list)
 
         for car in itertools.chain(self.cars, self.overall_hired):
-
             d["id"].append(car.id)
             d["type"].append(car.type)
             # Current node or destination
@@ -1552,7 +1639,6 @@ class AmodNetworkHired(AmodNetwork):
             if post_time > t + 1:
 
                 for busy_reb_t in range(t + 1, post_state[adp.adp.TIME]):
-
                     stay = (du.STAY_DECISION,) + decision[1:]
 
                     # Target attribute if decision was taken
@@ -1565,7 +1651,6 @@ class AmodNetworkHired(AmodNetwork):
                     avg_busy_stay += estimate_stay
 
                 if avg_busy_stay > 0:
-
                     # avg_stay = avg_busy_stay / (post_t - t + 1)
                     # avg_stay = avg_busy_stay
                     # print(
@@ -1603,3 +1688,12 @@ class AmodNetworkHired(AmodNetwork):
             count_status[c.status] += 1
 
         return car_status_list
+
+    def hire_favs_available_at_step(self, step):
+        if self.config.fav_fleet_size > 0:
+            hired_cars = self.step_favs.get(step, [])
+
+            # Add hired fleet to model
+            self.hired_cars.extend(hired_cars)
+            self.available_hired.extend(hired_cars)
+            self.overall_hired.extend(hired_cars)

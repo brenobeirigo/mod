@@ -2,8 +2,12 @@ import hashlib
 import json
 import os
 import sys
+from collections import namedtuple
 from copy import deepcopy
 from datetime import datetime, date, timedelta
+import random
+
+import numpy as np
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -14,8 +18,8 @@ sys.path.append(root)
 # #################################################################### #
 
 # Scenarios
-# INSTANCE = "nyc"
-INSTANCE = "rot"
+INSTANCE = "nyc"
+# INSTANCE = "rot"
 FOLDER_INSTANCE = root + f"/data/input/{INSTANCE}"
 FOLDER_TRAINING_TRIPS = f"{FOLDER_INSTANCE}/trips/train/"
 FOLDER_TESTING_TRIPS = f"{FOLDER_INSTANCE}/trips/test/"
@@ -33,6 +37,11 @@ FOLDERS = [
     FOLDER_OD_DATA,
 ]
 
+AggLevel = namedtuple(
+    "AggregationLevel",
+    "temporal, spatial, battery, contract, car_type, car_origin",
+)
+
 # Create all folders
 for f in FOLDERS:
     if not os.path.exists(f):
@@ -42,6 +51,7 @@ for f in FOLDERS:
 # #################################################################### #
 # ## FILE PATHS####################################################### #
 # #################################################################### #
+
 
 def get_file_paths(folder):
     return [f"{folder}{t}" for t in os.listdir(folder) if t.endswith(".csv")]
@@ -444,7 +454,7 @@ class Config:
     def min_battery_level(self):
         """Trip base fare in dollars"""
         return (
-                self.config["RECHARGE_THRESHOLD"] * self.config["BATTERY_LEVELS"]
+            self.config["RECHARGE_THRESHOLD"] * self.config["BATTERY_LEVELS"]
         )
 
     @property
@@ -470,18 +480,18 @@ class Config:
     def calculate_cost_recharge(self, recharging_time_min):
         recharging_time_h = recharging_time_min / 60.0
         return self.config["RECHARGE_BASE_FARE"] + (
-                self.config["RECHARGE_COST_DISTANCE"]
-                * self.config["RECHARGE_RATE"]
-                * recharging_time_h
+            self.config["RECHARGE_COST_DISTANCE"]
+            * self.config["RECHARGE_RATE"]
+            * recharging_time_h
         )
 
     def get_parking_cost(self):
         """Return the cost of travelling 'distance' meters"""
         return (
-                self.config[Config.RECHARGE_COST_DISTANCE]
-                * self.time_increment
-                * self.speed
-                / 60
+            self.config[Config.RECHARGE_COST_DISTANCE]
+            * self.time_increment
+            * self.speed
+            / 60
         )
 
     @property
@@ -512,7 +522,7 @@ class Config:
         minutes_recharging = hours_recharging * 60
 
         time_steps_recharging = (
-                minutes_recharging / self.config["TIME_INCREMENT"]
+            minutes_recharging / self.config["TIME_INCREMENT"]
         )
 
         # print(
@@ -639,6 +649,10 @@ class Config:
         return True
 
     @property
+    def ignore_training(self):
+        return self.myopic or self.policy_random or self.policy_reactive
+
+    @property
     def myopic(self):
         return self.config[Config.METHOD] == Config.METHOD_MYOPIC
 
@@ -698,7 +712,9 @@ class Config:
     def max_times_backlog(self):
         """Number of times user can be backlogged"""
         return int(
-            self.config[Config.MAX_USER_BACKLOGGING_DELAY] / self.config[Config.TIME_INCREMENT])
+            self.config[Config.MAX_USER_BACKLOGGING_DELAY]
+            / self.config[Config.TIME_INCREMENT]
+        )
 
     def backlog_rejection_penalty(self, sq_times):
         """According to service quality class and times user has been
@@ -721,7 +737,10 @@ class Config:
         # Times user has been backlogged
         times_backlog = int(times_backlog)
 
-        if times_backlog * self.config[Config.TIME_INCREMENT] < self.config[Config.MAX_USER_BACKLOGGING_DELAY]:
+        if (
+            times_backlog * self.config[Config.TIME_INCREMENT]
+            < self.config[Config.MAX_USER_BACKLOGGING_DELAY]
+        ):
             pen = self.trip_outstanding_penalty[sq] * (times_backlog + 1)
 
         # User can no longer be backlogged (next time will b rejected)
@@ -888,8 +907,8 @@ class Config:
             ]
         )
         return (
-                FOLDER_OD_DATA
-                + f"od_base_{base_fares}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
+            FOLDER_OD_DATA
+            + f"od_base_{base_fares}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
         )
 
     @property
@@ -976,22 +995,22 @@ class Config:
             ]
         )
         return (
-                FOLDER_OD_DATA
-                + f"od_penalties_{sl_config_label}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
+            FOLDER_OD_DATA
+            + f"od_penalties_{sl_config_label}_rate_{self.config[Config.TRIP_COST_DISTANCE]:.2f}.{extension}"
         )
 
     def get_path_od_costs(self, extension="npy"):
         """Path of saved costs per o, d"""
         return (
-                FOLDER_OD_DATA
-                + f"od_costs_km_{self.config[Config.RECHARGE_COST_DISTANCE]:.2f}.{extension}"
+            FOLDER_OD_DATA
+            + f"od_costs_km_{self.config[Config.RECHARGE_COST_DISTANCE]:.2f}.{extension}"
         )
 
     def get_path_od_distance_steps(self, extension="npy"):
         """Path of saved costs per o, d"""
         return (
-                FOLDER_OD_DATA
-                + f"od_steps_inc_{self.config[Config.TIME_INCREMENT]:02}.{extension}"
+            FOLDER_OD_DATA
+            + f"od_steps_inc_{self.config[Config.TIME_INCREMENT]:02}.{extension}"
         )
 
     def update(self, dict_update_base):
@@ -1019,9 +1038,11 @@ class Config:
             )
 
         if Config.AGGREGATION_LEVELS in dict_update:
-            dict_update[Config.AGGREGATION_LEVELS] = tuple(
-                dict_update[Config.AGGREGATION_LEVELS]
-            )
+            agg_levels = [
+                AggLevel(**level)
+                for level in dict_update[Config.AGGREGATION_LEVELS]
+            ]
+            dict_update[Config.AGGREGATION_LEVELS] = tuple(agg_levels)
 
         # TODO check data structure
         try:
@@ -1060,83 +1081,93 @@ class Config:
                 dict_update[Config.TRIP_BASE_FARE] = {
                     kv[0]: kv[1] for kv in dict_update[Config.TRIP_BASE_FARE]
                 }
-        except:
-            pass
 
-        self.config.update(dict_update)
+            self.config.update(dict_update)
 
-        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
-                self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
-        )
+            self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+                self.config["BATTERY_SIZE"]
+                / self.config["BATTERY_SIZE_DISTANCE"]
+            )
 
-        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
-                self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
-        )
+            self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+                self.config["BATTERY_SIZE"]
+                / self.config["BATTERY_SIZE_DISTANCE"]
+            )
 
-        # # Total number of time periods
-        # self.config["TIME_PERIODS"] = int(
-        #     self.config["OFFSET_REPOSITIONING_MIN"]
-        #     + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
-        #     + self.config["OFFSET_TERMINATION_MIN"]
-        # )
+            # # Total number of time periods
+            # self.config["TIME_PERIODS"] = int(
+            #     self.config["OFFSET_REPOSITIONING_MIN"]
+            #     + self.config["TOTAL_TIME"] * 60 / self.config["TIME_INCREMENT"]
+            #     + self.config["OFFSET_TERMINATION_MIN"]
+            # )
 
-        #       Total number of time periods
-        self.config["TIME_PERIODS"] = int(
-            (
+            #       Total number of time periods
+            self.config["TIME_PERIODS"] = int(
+                (
                     self.config["OFFSET_REPOSITIONING_MIN"]
                     + self.config[Config.DEMAND_TOTAL_HOURS] * 60
                     + self.config["OFFSET_TERMINATION_MIN"]
+                )
+                / self.config["TIME_INCREMENT"]
             )
-            / self.config["TIME_INCREMENT"]
-        )
 
-        self.config["TIME_PERIODS_TERMINATION"] = int(
-            (
+            self.config["TIME_PERIODS_TERMINATION"] = int(
+                (
                     self.config["OFFSET_REPOSITIONING_MIN"]
                     + self.config[Config.DEMAND_TOTAL_HOURS] * 60
+                )
+                / self.config["TIME_INCREMENT"]
             )
-            / self.config["TIME_INCREMENT"]
-        )
 
-        self.config[Config.BATTERY_DISTANCE_LEVEL] = (
+            self.config[Config.BATTERY_DISTANCE_LEVEL] = (
                 self.config[Config.BATTERY_SIZE_DISTANCE]
                 / self.config[Config.BATTERY_LEVELS]
-        )
+            )
 
-        self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
-                self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
-        )
+            self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
+                self.config["BATTERY_SIZE"]
+                / self.config["BATTERY_SIZE_DISTANCE"]
+            )
 
-        self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
+            self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
                 self.config["BATTERY_SIZE_DISTANCE"]
                 / self.config["BATTERY_LEVELS"]
-        )
+            )
 
-        self.config[
-            Config.COST_RECHARGE_SINGLE_INCREMENT
-        ] = self.calculate_cost_recharge(self.time_increment)
+            self.config[
+                Config.COST_RECHARGE_SINGLE_INCREMENT
+            ] = self.calculate_cost_recharge(self.time_increment)
 
-        self.config[Config.DEMAND_MAX_STEPS] = int(
-            self.config[Config.DEMAND_TOTAL_HOURS] * 60 / self.time_increment
-        )
-        self.config[Config.EARLIEST_STEP_MIN] = int(
-            self.config[Config.DEMAND_EARLIEST_HOUR] * 60 / self.time_increment
-        )
+            self.config[Config.DEMAND_MAX_STEPS] = int(
+                self.config[Config.DEMAND_TOTAL_HOURS]
+                * 60
+                / self.time_increment
+            )
+            self.config[Config.EARLIEST_STEP_MIN] = int(
+                self.config[Config.DEMAND_EARLIEST_HOUR]
+                * 60
+                / self.time_increment
+            )
 
-        self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
-            minutes=self.config[Config.TIME_INCREMENT]
-        )
+            self.config[Config.TIME_INCREMENT_TIMEDELTA] = timedelta(
+                minutes=self.config[Config.TIME_INCREMENT]
+            )
 
-        self.config[Config.DEMAND_EARLIEST_DATETIME] = (
+            self.config[Config.DEMAND_EARLIEST_DATETIME] = (
                 datetime.strptime("2011-02-01 00:00", "%Y-%m-%d %H:%M")
                 + timedelta(hours=self.config[Config.DEMAND_EARLIEST_HOUR])
-                - timedelta(minutes=self.config[Config.OFFSET_REPOSITIONING_MIN])
-        )
+                - timedelta(
+                    minutes=self.config[Config.OFFSET_REPOSITIONING_MIN]
+                )
+            )
 
-        # Convert levels to tuples to facilitate pickle
-        self.config[Config.AGGREGATION_LEVELS] = [
-            tuple(a) for a in self.config[Config.AGGREGATION_LEVELS]
-        ]
+            # Convert levels to tuples to facilitate pickle
+            self.config[Config.AGGREGATION_LEVELS] = [
+                tuple(a) for a in self.config[Config.AGGREGATION_LEVELS]
+            ]
+
+        except:
+            pass
 
     @property
     def fleet_plot_config(self):
@@ -1284,9 +1315,9 @@ class Config:
     @property
     def latest_hour(self):
         return (
-                self.demand_earliest_hour
-                + self.demand_total_hours
-                + self.offset_termination_hour
+            self.demand_earliest_hour
+            + self.demand_total_hours
+            + self.offset_termination_hour
         )
 
     @property
@@ -1313,8 +1344,8 @@ class Config:
         """Return time corresponding to the steps elapsed since the
         the first time step"""
         t = (
-                self.demand_earliest_datetime
-                + steps * self.time_increment_timedelta
+            self.demand_earliest_datetime
+            + steps * self.time_increment_timedelta
         )
         return t.strftime(format)
 
@@ -1352,18 +1383,18 @@ class ConfigStandard(Config):
 
         # How many KWh per mile?
         self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
-                self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
         self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
-                self.config["BATTERY_SIZE_DISTANCE"]
-                / self.config["BATTERY_LEVELS"]
+            self.config["BATTERY_SIZE_DISTANCE"]
+            / self.config["BATTERY_LEVELS"]
         )
 
         # How many miles each level has?
         self.config[Config.BATTERY_DISTANCE_LEVEL] = (
-                self.config[Config.BATTERY_SIZE_DISTANCE]
-                / self.config[Config.BATTERY_LEVELS]
+            self.config[Config.BATTERY_SIZE_DISTANCE]
+            / self.config[Config.BATTERY_LEVELS]
         )
 
         ################################################################
@@ -1394,9 +1425,9 @@ class ConfigStandard(Config):
         # Total number of time periods
         self.config["TIME_PERIODS"] = int(
             (
-                    self.config["OFFSET_REPOSITIONING_MIN"]
-                    + self.config["TOTAL_TIME"] * 60
-                    + self.config["OFFSET_TERMINATION_MIN"]
+                self.config["OFFSET_REPOSITIONING_MIN"]
+                + self.config["TOTAL_TIME"] * 60
+                + self.config["OFFSET_TERMINATION_MIN"]
             )
             / self.config["TIME_INCREMENT"]
         )
@@ -1404,8 +1435,8 @@ class ConfigStandard(Config):
         # Total number of time periods
         self.config["TIME_PERIODS_TERMINATION"] = int(
             (
-                    self.config["OFFSET_REPOSITIONING_MIN"]
-                    + self.config["TOTAL_TIME"] * 60
+                self.config["OFFSET_REPOSITIONING_MIN"]
+                + self.config["TOTAL_TIME"] * 60
             )
             / self.config["TIME_INCREMENT"]
         )
@@ -1603,12 +1634,12 @@ class ConfigNetwork(ConfigStandard):
         self.config["BATTERY_SIZE_DISTANCE"] = 322
 
         self.config["BATTERY_SIZE_KWH_DISTANCE"] = (
-                self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
+            self.config["BATTERY_SIZE"] / self.config["BATTERY_SIZE_DISTANCE"]
         )
 
         self.config["BATTERY_SIZE_DISTANCE_LEVEL"] = (
-                self.config["BATTERY_SIZE_DISTANCE"]
-                / self.config["BATTERY_LEVELS"]
+            self.config["BATTERY_SIZE_DISTANCE"]
+            / self.config["BATTERY_LEVELS"]
         )
 
         # Time #########################################################
@@ -1747,8 +1778,8 @@ class ConfigNetwork(ConfigStandard):
         """True if cars should start from reject trip origins from 
         previous iterations"""
         return (
-                self.config[Config.FLEET_START]
-                == FLEET_START_REJECTED_TRIP_ORIGINS
+            self.config[Config.FLEET_START]
+            == FLEET_START_REJECTED_TRIP_ORIGINS
         )
 
     @property
@@ -1797,6 +1828,23 @@ class ConfigNetwork(ConfigStandard):
 
     def get_step_level(self, level):
         return level * self.config["STEP_SECONDS"]
+
+    def get_demand_file_index(self, n):
+        # Load a random .csv file with trips from NYC
+        if self.train:
+            folder = self.folder_training_files
+            list_files = get_file_paths(folder)
+            trips_file_path = random.choice(list_files)
+            test_i = n
+            # print(f"  -> Trip file - {trips_file_path}")
+        else:
+            folder = self.folder_testing_files
+            list_files = get_file_paths(folder)
+            # If testing, select different trip files
+            test_i = n % len(list_files)
+            trips_file_path = list_files[test_i]
+            # print(f"  -> Trip file test ({test_i:02}) - {trips_file_path}")
+        return test_i, trips_file_path
 
     @property
     def projection(self):
@@ -1910,8 +1958,8 @@ class ConfigNetwork(ConfigStandard):
     @property
     def match_max_neighbors(self):
         return (
-                self.config[Config.MATCH_MAX_NEIGHBORS]
-                == Config.MATCH_MAX_NEIGHBORS
+            self.config[Config.MATCH_MAX_NEIGHBORS]
+            == Config.MATCH_MAX_NEIGHBORS
         )
 
     @property
@@ -2098,13 +2146,13 @@ class ConfigNetwork(ConfigStandard):
                     f"{self.config[Config.LEVEL_DIST_LIST][spatial]}"
                 )
                 for (
-                temporal,
-                spatial,
-                battery,
-                contract,
-                car_type,
-                car_origin,
-            ) in self.config[Config.AGGREGATION_LEVELS]
+                    temporal,
+                    spatial,
+                    battery,
+                    contract,
+                    car_type,
+                    car_origin,
+                ) in self.config[Config.AGGREGATION_LEVELS]
             ]
         )
         return levels
@@ -2114,8 +2162,8 @@ class ConfigNetwork(ConfigStandard):
             [
                 f"{level}-{n_neighbors}"
                 for level, n_neighbors in self.config[
-                Config.N_CLOSEST_NEIGHBORS
-            ]
+                    Config.N_CLOSEST_NEIGHBORS
+                ]
             ]
         )
         return reb_neigh
@@ -2133,8 +2181,8 @@ class ConfigNetwork(ConfigStandard):
             [
                 f"{level}-{n_neighbors}"
                 for level, n_neighbors in self.config[
-                Config.N_CLOSEST_NEIGHBORS
-            ]
+                    Config.N_CLOSEST_NEIGHBORS
+                ]
             ]
         )
         return reb_neigh
@@ -2151,8 +2199,8 @@ class ConfigNetwork(ConfigStandard):
             [
                 f"{level}-{n_neighbors}"
                 for level, n_neighbors in self.config[
-                Config.N_CLOSEST_NEIGHBORS_EXPLORE
-            ]
+                    Config.N_CLOSEST_NEIGHBORS_EXPLORE
+                ]
             ]
         )
         return reb_neigh_explore
@@ -2174,13 +2222,13 @@ class ConfigNetwork(ConfigStandard):
                     f"{car_origin}"
                 )
                 for (
-                temporal,
-                spatial,
-                battery,
-                contract,
-                car_type,
-                car_origin,
-            ) in self.config[Config.AGGREGATION_LEVELS]
+                    temporal,
+                    spatial,
+                    battery,
+                    contract,
+                    car_type,
+                    car_origin,
+                ) in self.config[Config.AGGREGATION_LEVELS]
             ]
         )
 
@@ -2330,7 +2378,8 @@ class ConfigNetwork(ConfigStandard):
         reb_limit = f"[{min_reb}-{max_reb}]"
         back_logging = (
             f"_B={self.max_user_backlogging_delay}"
-            if self.max_user_backlogging_delay > 0 else ""
+            if self.max_user_backlogging_delay > 0
+            else ""
         )
 
         return (
@@ -2340,14 +2389,12 @@ class ConfigNetwork(ConfigStandard):
             f"{self.demand_resize_factor:3.2f}({self.label_sample})_"
             # f"{self.config[Config.DEMAND_SCENARIO]}_"
             # MIP #################################################### #
-            # f"{self.label_penalize}_"
+            f"{self.label_penalize}_"
             f"{self.label_lin}"
             # Map info ############################################### #
             f"{(f'C{self.centroid_level}_' if self.centroid_level > 0 else '')}"
-
             # Rebalance ############################################## #
             f"R=[{self.label_reb_neigh}]{sub_reb}{reb_limit}{self.label_explore}{self.label_thomp}_"
-
             # Fleet ################################################## #
             f"V={self.fleet_size:04}_"
             f"{self.label_idle_annealing}"
@@ -2385,15 +2432,19 @@ class ConfigNetwork(ConfigStandard):
             config = json.load(f)
             c = ConfigNetwork(config)
             c.update(config)
-            for k1 in [
-                "CENTER_COUNT",
-                "LEVEL_CAR_ORIGIN",
-                "LEVEL_CAR_TYPE",
-                "LEVEL_CONTRACT_DURATION",
-            ]:
-                c.config[k1] = {int(k2): v for k2, v in c.config[k1].items()}
+            ConfigNetwork.make_int_keys(c)
 
         return c
+
+    @staticmethod
+    def make_int_keys(c):
+        for k1 in [
+            "CENTER_COUNT",
+            "LEVEL_CAR_ORIGIN",
+            "LEVEL_CAR_TYPE",
+            "LEVEL_CONTRACT_DURATION",
+        ]:
+            c.config[k1] = {int(k2): v for k2, v in c.config[k1].items()}
 
     @property
     def path_depot_list(self):
@@ -2410,6 +2461,57 @@ class ConfigNetwork(ConfigStandard):
         )
 
         return path_depots
+
+    @property
+    def prob_dict(self):
+        return load_first_class_distribution_from(self.path_class_prob)
+
+    def save_ods(self, origin_ids, destination_ids):
+        """Save trip ods in .npy file. When method is restarted, same
+        ods can be used to guarantee consistency.
+
+        Parameters
+        ----------
+        origin_ids : list of ints
+            Origin ids
+        destination_ids : list of ints
+            Destination ids
+        """
+        ods = {"origin": origin_ids, "destination": destination_ids}
+        np.save(self.output_path + "/trip_od_ids.npy", ods)
+
+    def load_ods(self):
+        try:
+            path_od_ids = self.output_path + "/trip_od_ids.npy"
+            ods = np.load(path_od_ids, allow_pickle=True).item()
+            return ods["origin"], ods["destination"]
+
+        except Exception as e:
+            print(f'Origins at "{path_od_ids}" could not be find {e}.')
+            raise Exception
+
+
+def load_first_class_distribution_from(path_class_prob):
+    try:
+
+        print(
+            "### Loading first-class probability distribution "
+            f"from '{path_class_prob}'..."
+        )
+
+        prob_dict = np.load(path_class_prob, allow_pickle=True).item()
+        time_bin = prob_dict["time_bin"]
+        start_time = prob_dict["start"]
+        end_time = prob_dict["end"]
+        print(f"### bin={time_bin}, start={start_time}, end={end_time}")
+
+    except Exception as e:
+        print(
+            f"Exception: '{e}'. Cannot load first-class probability distribution."
+        )
+        prob_dict = None
+
+    return prob_dict
 
 
 def save_json(data, file_path=None, folder=None, file_name=None):

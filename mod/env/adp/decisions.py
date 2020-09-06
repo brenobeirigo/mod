@@ -1,20 +1,14 @@
 import itertools
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+
 from mod.env.car import HiredCar, VirtualCar
-import random
-import numpy as np
 
 # Decision codes
 
 TRIP_DECISION = 0
-
 STAY_DECISION = 1
-
 RECHARGE_DECISION = 2
-
 REBALANCE_DECISION = 3
-
-# Drive back to origin
 RETURN_DECISION = 4
 
 label_dict = {
@@ -24,7 +18,6 @@ label_dict = {
     REBALANCE_DECISION: "REBA",
     RETURN_DECISION: "BACK",
 }
-
 
 # Labels for decision tuples
 ACTION = 0
@@ -41,173 +34,7 @@ N_DECISIONS = 9
 DISCARD = "-"
 
 
-def convert_decision(action, p, o, d, n=DISCARD):
-
-    if o == d:
-        action = STAY_DECISION
-
-    user = "B_0" if action == TRIP_DECISION else DISCARD
-
-    return (
-        (action,)
-        + (p,)
-        + (1,)
-        + ("Inf",)
-        + (0,)
-        + (DISCARD,)
-        + (o,)
-        + (d,)
-        + (user,)
-        + (n,)
-    )
-
-
-def stay_decision(car):
-    """Stay in current position"""
-    return (
-        (STAY_DECISION,)
-        + car.attribute
-        + (car.point.id,)
-        + (car.point.id,)
-        + (DISCARD,)
-    )
-
-
-def stay_decision_reb(car):
-    """Stay in middle position"""
-    return (
-        (STAY_DECISION,)
-        + car.attribute
-        + (car.middle_point.id,)
-        + (car.middle_point.id,)
-        + (DISCARD,)
-    )
-
-
-def recharge_decision(car):
-    """Stay in current position recharging"""
-    return (
-        (RECHARGE_DECISION,)
-        + car.attribute
-        + (car.point.id,)
-        + (car.point.id,)
-        + (DISCARD,)
-    )
-
-
-def return_decision(car):
-    """Back to car origin"""
-    return (
-        (RETURN_DECISION,)
-        + car.attribute
-        + (car.point.id,)
-        + (car.origin.id,)
-        + (DISCARD,)
-    )
-
-
-def rebalance_decision(car, neighbor):
-    """Rebalance car to neighbor"""
-    return (
-        (REBALANCE_DECISION,)
-        + car.attribute
-        + (car.point.id,)
-        + (neighbor,)
-        + (DISCARD,)
-    )
-
-
-def rebalance_decisions(car, targets, env):
-    rebalance_decisions = set()
-    for t in targets:
-        # Car cannot service trip because it cannot go back
-        # to origin in time
-        if isinstance(car, HiredCar) and not env.can_move(
-            car.point.id, car.point.id, t, car.depot.id, car.contract_duration
-        ):
-            continue
-
-        rebalance_decisions.add(rebalance_decision(car, t))
-    return rebalance_decisions
-
-
-def rebalance_decisions_thompson(car, targets, env):
-    rebalance_decisions = set()
-    prob_d = list()
-    for t in targets:
-        # Car cannot rebalance since it cannot go back to origin in time
-        if isinstance(car, HiredCar) and not env.can_move(
-            car.point.id, car.point.id, t, car.depot.id, car.contract_duration
-        ):
-            continue
-
-        d_summary = (env.cur_step, car.point.id, t)
-        a = env.beta_ab[(d_summary)]["a"]
-        b = env.beta_ab[(d_summary)]["b"]
-        prob = env.beta_sampler.next_sample(a, b)
-        prob_d.append((prob, t, d_summary))
-
-        # Cars know what decisions they generated
-        # rebalance_decisions.add(d_rebalance)
-    # TODO make it more efficient
-    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[
-        0 : env.config.max_targets
-    ]
-
-    for _, t, d_summary in selected:
-        env.beta_ab[(d_summary)]["b"] += 1
-        d_rebalance = rebalance_decision(car, t)
-        rebalance_decisions.add(d_rebalance)
-
-    return rebalance_decisions
-
-
-def trip_decision(car, trip):
-    return (
-        (TRIP_DECISION,)
-        + car.attribute
-        + (trip.o.id,)
-        + (trip.d.id,)
-        + (trip.sq_class_backlog,)
-    )
-
-
-# #################################################################### #
-# Manipulate decisions ############################################### #
-# #################################################################### #
-
-
-def get_virtual_decisions(trips):
-    """Create virtual trip and stay decisions.
-    When the system must fullfil all orders, virtual cars can be
-    used to pretend customers were serviced.
-
-    Parameters
-    ----------
-    trips : list
-        Trip list from where virtual car origins are drawn.
-
-    Returns
-    -------
-    list
-        Virtual decisions
-    """
-
-    decisions = set()
-
-    for trip in trips:
-
-        virtual_car = VirtualCar(trip.o)
-        # Stay
-        decisions.add(stay_decision(virtual_car))
-
-        # Pickup
-        decisions.add(trip_decision(virtual_car, trip))
-
-    return decisions
-
-
-def get_decisions(env, trips):
+def get_decisions_old(env, trips):
     """Get list of decision tuples.
 
     Parameters
@@ -256,8 +83,8 @@ def get_decisions(env, trips):
 
         # Cars can only stay at parking lots
         elif env.config.cars_start_from_parking_lots and (
-            car.point.id in env.level_parking_ids
-            or car.point.id in env.unrestricted_parking_node_ids
+                car.point.id in env.level_parking_ids
+                or car.point.id in env.unrestricted_parking_node_ids
         ):
             d_stay = stay_decision(car)
             decisions.add(d_stay)
@@ -346,8 +173,8 @@ def get_decisions(env, trips):
 
         # Recharge ################################################### #
         if (
-            env.config.enable_recharging
-            and car.battery_level < env.config.battery_levels
+                env.config.enable_recharging
+                and car.battery_level < env.config.battery_levels
         ):
             decisions.add(recharge_decision(car))
 
@@ -358,7 +185,7 @@ def get_decisions(env, trips):
             # Car cannot service trip because it cannot go back
             # to origin in time
             if isinstance(car, HiredCar) and not env.can_move(
-                car.point.id, to, td, car.depot.id, car.contract_duration,
+                    car.point.id, to, td, car.depot.id, car.contract_duration,
             ):
                 continue
 
@@ -368,7 +195,7 @@ def get_decisions(env, trips):
             # Discount time increment because it covers the worst case
             # scenario (user waiting since the beginning of the round)
             max_pk_time = (
-                trip.max_delay - env.config.time_increment - trip.backlog_delay
+                    trip.max_delay - env.config.time_increment - trip.backlog_delay
             )
 
             # Trip delay cannot be considered because they have different
@@ -380,7 +207,6 @@ def get_decisions(env, trips):
 
             # Can the car reach the trip origin?
             if pk_time <= max_pk_time + trip.tolerance:
-
                 # if trip.backlog_delay > 0:
 
                 #     print(
@@ -433,12 +259,12 @@ def get_decisions(env, trips):
             # Car cannot service trip because it cannot go back
             # to origin in time
             if isinstance(car, HiredCar) and not env.can_move(
-                car.middle_point.id,
-                to,
-                td,
-                car.depot.id,
-                car.contract_duration,
-                delay_offset=car.elapsed,  # Time to reach middle
+                    car.middle_point.id,
+                    to,
+                    td,
+                    car.depot.id,
+                    car.contract_duration,
+                    delay_offset=car.elapsed,  # Time to reach middle
             ):
                 continue
 
@@ -447,7 +273,7 @@ def get_decisions(env, trips):
             max_pk_time = trip.max_delay - env.config.time_increment
 
             max_pk_time = (
-                trip.max_delay - env.config.time_increment - trip.backlog_delay
+                    trip.max_delay - env.config.time_increment - trip.backlog_delay
             )
 
             # Time to reach trip origin
@@ -464,111 +290,172 @@ def get_decisions(env, trips):
                 reachable_trips_i.add(i)
                 trip_od[(to, td)].add(trip)
 
+    return (decisions, decisions_return, decision_class, reachable_trips_i, trip_od)
+
+
+def convert_decision(action, p, o, d, n=DISCARD):
+    if o == d:
+        action = STAY_DECISION
+
+    user = "B_0" if action == TRIP_DECISION else DISCARD
+
     return (
-        decisions,
-        decisions_return,
-        decision_class,
-        reachable_trips_i,
-        trip_od,
+            (action,)
+            + (p,)
+            + (1,)
+            + ("Inf",)
+            + (0,)
+            + (DISCARD,)
+            + (o,)
+            + (d,)
+            + (user,)
+            + (n,)
     )
 
 
-def can_pickup(env, p, o, max_delay=10, tolerance=0):
-
-    # Time to reach trip origin
-    pk_time = env.get_travel_time_od(env.points[p], env.points[o], unit="min")
-
-    # Discount time increment because it covers the worst case
-    # scenario (user waiting since the beginning of the round)
-    max_pk_time = max_delay - env.config.time_increment
-
-    # Trip delay cannot be considered because they have different
-    # placement times. Hence, decision OD cannot be taken in bulk.
-    # E.g.: t1 [o,d] (3) - 7 min --> Pk=6 -- OK!
-    #       t2 [o,d] (5) - 5 min --> Pk=6 -- FAIL
-    # Add 2 decisions to pickup [o,d], but t2 cannot be picked up
-    # in time.
-    # print(p, o, "==" if p == o else "<>", pk_time, max_pk_time, tolerance)
-    # Can the car reach the trip origin?
-    if pk_time <= max_pk_time + tolerance:
-        # print("XXXX")
-        return True
-    return False
+def stay_decision(car):
+    """Stay in current position"""
+    return (
+            (STAY_DECISION,)
+            + car.attribute
+            + (car.point.id,)
+            + (car.point.id,)
+            + (DISCARD,)
+    )
 
 
-def shorten_decision(d):
-    return (label_dict[d[ACTION]], d[ORIGIN], d[DESTINATION], d[N_DECISIONS])
+def stay_decision_reb(car):
+    """Stay in middle position"""
+    return (
+            (STAY_DECISION,)
+            + car.attribute
+            + (car.middle_point.id,)
+            + (car.middle_point.id,)
+            + (DISCARD,)
+    )
 
 
-def get_rebalancing_decisions(env, targets):
-    """Stay and rebalancing decisions for the reactive rebalancing
-    policy.
+def recharge_decision(car):
+    """Stay in current position recharging"""
+    return (
+            (RECHARGE_DECISION,)
+            + car.attribute
+            + (car.point.id,)
+            + (car.point.id,)
+            + (DISCARD,)
+    )
+
+
+def return_decision(car):
+    """Back to car origin"""
+    return (
+            (RETURN_DECISION,)
+            + car.attribute
+            + (car.point.id,)
+            + (car.origin.id,)
+            + (DISCARD,)
+    )
+
+
+def rebalance_decision(car, neighbor):
+    """Rebalance car to neighbor"""
+    return (
+            (REBALANCE_DECISION,)
+            + car.attribute
+            + (car.point.id,)
+            + (neighbor,)
+            + (DISCARD,)
+    )
+
+
+def rebalance_decisions(car, targets, env):
+    rebalance_decisions = set()
+    for t in targets:
+        # Car cannot service trip because it cannot go back
+        # to origin in time
+        if isinstance(car, HiredCar) and not env.can_move(
+                car.point.id, car.point.id, t, car.depot.id, car.contract_duration
+        ):
+            continue
+
+        rebalance_decisions.add(rebalance_decision(car, t))
+    return rebalance_decisions
+
+
+def rebalance_decisions_thompson(car, targets, env):
+    rebalance_decisions = set()
+    prob_d = list()
+    for t in targets:
+        # Car cannot rebalance since it cannot go back to origin in time
+        if isinstance(car, HiredCar) and not env.can_move(
+                car.point.id, car.point.id, t, car.depot.id, car.contract_duration
+        ):
+            continue
+
+        d_summary = (env.cur_step, car.point.id, t)
+        a = env.beta_ab[(d_summary)]["a"]
+        b = env.beta_ab[(d_summary)]["b"]
+        prob = env.beta_sampler.next_sample(a, b)
+        prob_d.append((prob, t, d_summary))
+
+        # Cars know what decisions they generated
+        # rebalance_decisions.add(d_rebalance)
+    # TODO make it more efficient
+    selected = sorted(prob_d, reverse=True, key=lambda k: (k[0],))[
+               0: env.config.max_targets
+               ]
+
+    for _, t, d_summary in selected:
+        env.beta_ab[(d_summary)]["b"] += 1
+        d_rebalance = rebalance_decision(car, t)
+        rebalance_decisions.add(d_rebalance)
+
+    return rebalance_decisions
+
+
+def trip_decision(car, trip):
+    return (
+            (TRIP_DECISION,)
+            + car.attribute
+            + (trip.o.id,)
+            + (trip.d.id,)
+            + (trip.sq_class_backlog,)
+    )
+
+
+# #################################################################### #
+# Manipulate decisions ############################################### #
+# #################################################################### #
+
+
+def get_virtual_decisions(trips):
+    """Create virtual trip and stay decisions.
+    When the system must fullfil all orders, virtual cars can be
+    used to pretend customers were serviced.
 
     Parameters
     ----------
-    env : AMoD
-        AMoD environment
-    targets : list
-        Rebalancing targets
+    trips : list
+        Trip list from where virtual car origins are drawn.
 
     Returns
     -------
-    set, int
-        Set of all decisions (rebalancing + stay)
-        Number of cars that can rebalance
+    list
+        Virtual decisions
     """
+
     decisions = set()
 
-    # How many cars can rebalance? Hired cars can rebalance only if
-    # contract limit is not surpassed.
-    n_can_rebalance = 0
+    for trip in trips:
+        virtual_car = VirtualCar(trip.o)
+        # Stay
+        decisions.add(stay_decision(virtual_car))
 
-    # ##################################################################
-    # SORT CARS ########################################################
-    # ##################################################################
+        # Pickup
+        decisions.add(trip_decision(virtual_car, trip))
 
-    for car in itertools.chain(env.available, env.available_hired):
+    return decisions
 
-        # Stay ####################################################### #
-        d_stay = stay_decision(car)
-        decisions.add(d_stay)
 
-        if env.config.activate_thompson:
-            d_rebalance = rebalance_decisions_thompson(car, targets, env)
-        else:
-            d_rebalance = rebalance_decisions(car, targets, env)
-
-        if not d_rebalance:
-            # Remove from tabu if not empty.
-            # Avoid cars are corned indefinitely
-            if car.tabu:
-                car.tabu.popleft()
-        else:
-            # Rebalance decision was created
-            n_can_rebalance += 1
-
-        # TODO this is here because of a lack or rebalancing options
-        # thompson selected is small 0.2
-        if len(d_rebalance) == 1:
-            d_stay = stay_decision(car)
-            decisions.add(d_stay)
-
-        # Vehicles can stay idle for a maximum number of steps.
-        # If they surpass this number, they can rebalance to farther
-        # areas.
-        if env.config.max_idle_step_count:
-
-            # Car can rebalance to farther locations besides the
-            # closest after staying still for idle_step_count steps
-            if car.idle_step_count >= env.config.max_idle_step_count:
-                farther = env.get_zone_neighbors(car.point.id, explore=True)
-
-                # print(f"farther: {farther} - d_rebalance: {d_rebalance}")
-                d_rebalance.update(rebalance_decisions(car, farther, env))
-                # d_rebalance = d_rebalance | farther
-
-        # print(f"farther: {d_rebalance}")
-
-        decisions.update(d_rebalance)
-
-    return decisions, n_can_rebalance
+def shorten_decision(d):
+    return label_dict[d[ACTION]], d[ORIGIN], d[DESTINATION], d[N_DECISIONS]

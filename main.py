@@ -62,8 +62,8 @@ if __name__ == "__main__":
 
     else:
         folder = "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/config/"
-        # filename = "standard_adp_manhattan_TS.json"
-        filename = "standard_mpc.json"
+        filename = "standard_adp_manhattan_TS.json"
+        # filename = "standard_mpc.json"
         filepath_method_config = folder + filename
         filepath_log = folder + "base_log.json"
 

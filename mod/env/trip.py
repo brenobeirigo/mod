@@ -1,10 +1,12 @@
+import math
 import random
-import pandas as pd
-import numpy as np
+import time
 from collections import defaultdict
 from datetime import timedelta, datetime
-import math
-import time
+
+import numpy as np
+import pandas as pd
+
 import mod.env.network as nw
 
 # Reproducibility of the experiments
@@ -44,7 +46,6 @@ class Trip:
         return f"T{self.id:03}[{self.o:>4},{self.d:>4}]"
 
     def __repr__(self):
-
         return (
             f"Trip{{"
             f"id={self.id:03},"
@@ -70,17 +71,17 @@ class ClassedTrip(Trip):
         return f"{self.sq_class}_{self.times_backlogged}"
 
     def __init__(
-        self,
-        o,
-        d,
-        time,
-        sq_class,
-        elapsed_sec=0,
-        placement=None,
-        max_delay=10,
-        tolerance=5,
-        distance_km=None,
-        time_increment=1,
+            self,
+            o,
+            d,
+            time,
+            sq_class,
+            elapsed_sec=0,
+            placement=None,
+            max_delay=10,
+            tolerance=5,
+            distance_km=None,
+            time_increment=1,
     ):
         super().__init__(o, d, time)
         self.sq_class = sq_class
@@ -121,7 +122,6 @@ class ClassedTrip(Trip):
         return f"{self.sq_class}{self.id:02}({self.o},{self.d})"
 
     def __repr__(self):
-
         return (
             f"Trip{{"
             f"id={self.id:03},"
@@ -134,7 +134,6 @@ class ClassedTrip(Trip):
         )
 
     def info(self):
-
         return (
             f"Trip{{"
             f"id={self.id:03},"
@@ -163,7 +162,6 @@ trip_demand_dict = dict()
 
 
 def load_trips_ods_from(tripdata_path, config):
-
     global trip_od_list
 
     # Load previously read ods
@@ -275,15 +273,14 @@ def get_df(step_trip_list, show_service_data=False, earliest_datetime=None):
 
 
 def get_ny_demand(
-    config,
-    tripdata_path,
-    points,
-    seed=None,
-    prob_dict=None,
-    centroid_level=0,
-    unreachable_ods=None,
+        config,
+        tripdata_path,
+        points,
+        seed=None,
+        prob_dict=None,
+        centroid_level=0,
+        unreachable_ods=None,
 ):
-
     step_trip_od_list = load_trips_ods_from(tripdata_path, config)
 
     if tripdata_path not in trip_demand_dict or seed is not None:
@@ -321,9 +318,8 @@ def get_ny_demand(
 
 
 def get_trip_count_step(
-    path, step=15, multiply_for=1, earliest_step=0, max_steps=None
+        path, step=15, multiply_for=1, earliest_step=0, max_steps=None
 ):
-
     df_trips = pd.read_csv(path, index_col="pickup_datetime", parse_dates=True)
 
     # Select first column
@@ -334,14 +330,14 @@ def get_trip_count_step(
 
     if max_steps:
         trip_count_step = trip_count_step[
-            earliest_step : earliest_step + max_steps
-        ]
+                          earliest_step: earliest_step + max_steps
+                          ]
 
     return trip_count_step
 
 
 def get_step_trip_list(
-    path, step=15, earliest_step=0, max_steps=None, resize_factor=1
+        path, step=15, earliest_step=0, max_steps=None, resize_factor=1
 ):
     """Read trip csv file and return list of trips for each time step.
     The list of trips is saved in a .npy file in the same directory
@@ -433,8 +429,12 @@ def get_step_trip_list(
                 # Destination id
                 dp_id = df_slice.iloc[i]["dp_id"]
 
-                # Distance in kilometers
-                trip_dist_km = df_slice.iloc[i]["trip_dist_km"]
+                try:
+                    # Distance in kilometers (Rotterdam)
+                    trip_dist_km = df_slice.iloc[i]["trip_dist_km"]
+                except:
+                    # Distance in kilometers (TS)
+                    trip_dist_km = df_slice.iloc[i]["trip_distance"]
 
                 # Trip info tuple is added to step
                 trip_list.append(
@@ -463,23 +463,23 @@ def get_step_trip_list(
             if from_datetime >= limit_datetime:
                 break
 
-        print(f"Processed finished {time.time()-t1:10.6f} seconds. Saving...")
+        print(f"Processed finished {time.time() - t1:10.6f} seconds. Saving...")
         t2 = time.time()
         np.save(path_npy, step_trip_list)
-        print(f"Saved in {time.time()-t2:10.6f} seconds.")
+        print(f"Saved in {time.time() - t2:10.6f} seconds.")
 
     return step_trip_list
 
 
 def get_random_trips(
-    locations_list,
-    time_step,
-    min_trips,
-    max_trips,
-    class_proportion,
-    origins=None,
-    destinations=None,
-    classed=False,
+        locations_list,
+        time_step,
+        min_trips,
+        max_trips,
+        class_proportion,
+        origins=None,
+        destinations=None,
+        classed=False,
 ):
     """ Return a random number of trips
     """
@@ -529,15 +529,14 @@ def get_random_trips(
 
 
 def get_trip_list_step(
-    points,
-    n_steps,
-    min_trips,
-    max_trips,
-    class_proportion,
-    offset_start=0,
-    offset_end=0,
+        points,
+        n_steps,
+        min_trips,
+        max_trips,
+        class_proportion,
+        offset_start=0,
+        offset_end=0,
 ):
-
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
 
@@ -558,16 +557,15 @@ def get_trip_list_step(
 
 
 def get_trips_random_ods(
-    points,
-    step_trip_count,
-    class_proportion,
-    offset_start=0,
-    offset_end=0,
-    origins=None,
-    destinations=None,
-    classed=False,
+        points,
+        step_trip_count,
+        class_proportion,
+        offset_start=0,
+        offset_end=0,
+        origins=None,
+        destinations=None,
+        classed=False,
 ):
-
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
 
@@ -631,22 +629,21 @@ def get_class(pk_id, pickup_datetime, prob_info, min_bin_size=30):
 
 
 def get_trips(
-    points,
-    step_trips,
-    class_proportion,
-    max_delay,
-    tolerance,
-    offset_start=0,
-    offset_end=0,
-    classed=False,
-    resize_factor=1,
-    seed=None,
-    prob_dict=None,
-    centroid_level=0,
-    time_increment=1,
-    unreachable_ods=None,
+        points,
+        step_trips,
+        class_proportion,
+        max_delay,
+        tolerance,
+        offset_start=0,
+        offset_end=0,
+        classed=False,
+        resize_factor=1,
+        seed=None,
+        prob_dict=None,
+        centroid_level=0,
+        time_increment=1,
+        unreachable_ods=None,
 ):
-
     # Populate first steps with empty lists
     step_trip_list = [[]] * offset_start
 
@@ -666,7 +663,7 @@ def get_trips(
 
             # Unreachable ods are excluded
             if unreachable_ods and (
-                o in unreachable_ods or d in unreachable_ods
+                    o in unreachable_ods or d in unreachable_ods
             ):
                 continue
 

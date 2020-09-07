@@ -24,6 +24,8 @@ np.set_printoptions(precision=2)
 random.seed(1)
 
 PostState = namedtuple("PostState", "time,point,battery,contract,type,station")
+
+
 class BetaSampler:
     def __init__(self, seed):
         self.rnd = np.random.RandomState(seed)
@@ -190,7 +192,7 @@ class AmodNetworkHired(AmodNetwork):
         # Include time increment because it covers the worst case
         # scenario (user waiting since the beginning of the round)
         max_pk_delay = (
-            self.config.trip_max_pickup_delay[sq] - self.config.time_increment
+                self.config.trip_max_pickup_delay[sq] - self.config.time_increment
         )
 
         # Pickup travel time
@@ -367,11 +369,11 @@ class AmodNetworkHired(AmodNetwork):
                     contract_duration_h,
                     current_step=step,
                     current_arrival=(
-                        self.config.reposition_h
-                        + earliest_h
-                        - self.config.demand_earliest_hour
-                    )
-                    * 60,
+                                            self.config.reposition_h
+                                            + earliest_h
+                                            - self.config.demand_earliest_hour
+                                    )
+                                    * 60,
                     duration_level=self.config.contract_duration_level,
                 )
                 for depot_id, earliest_h, contract_duration_h, deadline_h in car_info
@@ -385,8 +387,8 @@ class AmodNetworkHired(AmodNetwork):
 
     def total_cost(self, t, d):
         return (
-            self.cost_func(d)
-            + self.config.discount_factor * self.post_cost(t, d)[0]
+                self.cost_func(d)
+                + self.config.discount_factor * self.post_cost(t, d)[0]
         )
 
     def car_battery_level_low(self, car):
@@ -434,8 +436,8 @@ class AmodNetworkHired(AmodNetwork):
 
     def total_cost_ucb(self, t, d):
         cost = (
-            self.cost_func(d)
-            + self.config.discount_factor * self.post_cost(t, d)[0]
+                self.cost_func(d)
+                + self.config.discount_factor * self.post_cost(t, d)[0]
         )
         if du.ACTION != du.TRIP_DECISION:
             # Number of times we have sampled action
@@ -654,20 +656,20 @@ class AmodNetworkHired(AmodNetwork):
                 # In case movement is stopped, discount travel costs
                 # from this distance in vehicle contribution
                 car.remaining_distance = (
-                    nw.get_distance(car.previous.id, car.point.id)
-                    - car.distance_o_m
+                        nw.get_distance(car.previous.id, car.point.id)
+                        - car.distance_o_m
                 )
 
                 break
 
     def can_move(
-        self,
-        pos,
-        waypoint,
-        target,
-        start,
-        remaining_hiring_slots,
-        delay_offset=0,
+            self,
+            pos,
+            waypoint,
+            target,
+            start,
+            remaining_hiring_slots,
+            delay_offset=0,
     ):
         pos, waypoint, target, start = (
             Point.point_dict[pos],
@@ -685,7 +687,7 @@ class AmodNetworkHired(AmodNetwork):
         duration_movement = self.get_travel_time(total_dist, unit="min")
 
         remaining_hiring_time = (
-            remaining_hiring_slots * self.config.contract_duration_level
+                remaining_hiring_slots * self.config.contract_duration_level
         )
 
         # TODO delay_offset is used when middle point is the current
@@ -791,8 +793,8 @@ class AmodNetworkHired(AmodNetwork):
 
         # Earlist times of FAVs arriving in node n
         earliest_time = (
-            truncnorm.rvs(ear_a, ear_b, size=n_favs)
-            + self.config.fav_earliest_features[0]
+                truncnorm.rvs(ear_a, ear_b, size=n_favs)
+                + self.config.fav_earliest_features[0]
         )
 
         return earliest_time
@@ -803,8 +805,8 @@ class AmodNetworkHired(AmodNetwork):
 
         # Contract durations of FAVs arriving in node n
         contract_duration = (
-            truncnorm.rvs(avail_a, avail_b, size=n_favs)
-            + self.config.fav_availability_features[0]
+                truncnorm.rvs(avail_a, avail_b, size=n_favs)
+                + self.config.fav_availability_features[0]
         )
 
         return contract_duration
@@ -934,9 +936,8 @@ class AmodNetworkHired(AmodNetwork):
             # Track summary decision for UCB
             # self.t_pos_count[(t, point, action, d)] += times
 
-            cars_with_attribute = a_cars_dict[
-                (point, battery, contract_duration, car_type, car_origin)
-            ]
+            state = (point, battery, contract_duration, car_type, car_origin)
+            cars_with_attribute = a_cars_dict[state]
 
             n = 0
 
@@ -949,9 +950,7 @@ class AmodNetworkHired(AmodNetwork):
                 car = cars_with_attribute.pop(0)
 
                 # Ignores last element (n. times decision was applied)
-                contribution_car = self.decision_info[decision[:-1]][0]
-
-                # print(decision, contribution_car)
+                contribution_car = self.decision_info[decision[:-1]].cost
 
                 # Start contract, if not started
                 if car_type == Car.TYPE_HIRED:
@@ -1591,82 +1590,53 @@ class AmodNetworkHired(AmodNetwork):
 
     def post_cost(self, t, decision):
 
-        # t1 = time.time()
-
-        # Target attribute if decision was taken
         post_state = self.preview_decision(t, decision)
-
-        # exe_times["preview"] += time.time() - t1
-
-        # t1 = time.time()
-        # decision_post[decision] = (post_state[0] - t, post_state[1:])
-        # exe_times["save_decision"] += time.time() - t1
-
-        # t1 = time.time()
 
         if post_state[du.CAR_TYPE] == Car.TYPE_VIRTUAL:
             edit_post = list(post_state)
             edit_post[du.CAR_TYPE] = Car.TYPE_FLEET
             post_state = tuple(edit_post)
 
-        if post_state[adp.adp.TIME] >= self.config.time_steps:
+        if self.post_time_greater_than_horizon(post_state):
             return 0, post_state
-
-        # t1 = time.time()
 
         # Get the post decision state estimate value based on
         # hierarchical aggregation
         estimate = self.adp.get_weighted_value(post_state)
 
-        # exe_times["post_cost"] += time.time() - t1
-        # exe_times["count"] += 1
+        if self.penalize_rebalancing_decision(decision):
+            cost_of_staying = self.get_opportunity_cost_of_staying(t, decision, post_state)
+            estimate = max(0, estimate - cost_of_staying)
 
-        # t1 = time.time()
-
-        # Penalize long rebalancing decisions
-        if (
-            decision[0] == du.REBALANCE_DECISION
-            and self.config.penalize_rebalance
-        ):
-
-            avg_busy_stay = 0
-
-            post_time = post_state[adp.adp.TIME]
-
-            # Rebalancing is longer than one time step
-            # t + 1 is allowed because the resource is guaranteed to
-            # be available in the next period
-            if post_time > t + 1:
-
-                for busy_reb_t in range(t + 1, post_state[adp.adp.TIME]):
-                    stay = (du.STAY_DECISION,) + decision[1:]
-
-                    # Target attribute if decision was taken
-                    stay_post_state = self.preview_decision(busy_reb_t, stay)
-
-                    estimate_stay = self.adp.get_weighted_value(
-                        stay_post_state
-                    )
-
-                    avg_busy_stay += estimate_stay
-
-                if avg_busy_stay > 0:
-                    # avg_stay = avg_busy_stay / (post_t - t + 1)
-                    # avg_stay = avg_busy_stay
-                    # print(
-                    #     f"t:{t} - post_t={post_t} - "
-                    #     f"Stay: {np.arange(t + 1, post_t+1)} = "
-                    #     f"{avg_busy_stay} (avg={avg_stay:6.2f}, "
-                    #     f"previous={estimate:6.2f}, "
-                    #     f"new={estimate-avg_stay:6.2f}"
-                    # )
-                    # Discount the average contribution that would have
-                    # been gained if the car stayed still instead of
-                    # rebalancing
-                    estimate = max(0, estimate - avg_busy_stay)
-
-        # exe_times["rebalance_pen"] += time.time() - t1
         return estimate, post_state
+
+    def post_time_greater_than_horizon(self, post_state):
+        return post_state[adp.adp.TIME] >= self.config.time_steps
+
+    def penalize_rebalancing_decision(self, decision):
+        return decision[du.ACTION] == du.REBALANCE_DECISION and self.config.penalize_rebalance
+
+    def get_opportunity_cost_of_staying(self, current_step, decision, post_state):
+        avg_busy_stay = 0
+        post_time = post_state[adp.adp.TIME]
+        # Rebalancing is longer than one time step
+        # t + 1 is allowed because the resource is guaranteed to
+        # be available in the next period
+        if post_time > current_step + 1:
+
+            for busy_reb_t in range(current_step + 1, post_state[adp.adp.TIME]):
+                stay = (du.STAY_DECISION,) + decision[1:]
+
+                # Target attribute if decision was taken
+                stay_post_state = self.preview_decision(busy_reb_t, stay)
+
+                estimate_stay = self.adp.get_weighted_value(
+                    stay_post_state
+                )
+
+                avg_busy_stay += estimate_stay
+
+        return avg_busy_stay
 
     def get_car_status_list(self, filter_status=[]):
 

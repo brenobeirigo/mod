@@ -93,6 +93,7 @@ class AmodNetworkHired(AmodNetwork):
         self.step_favs = self.get_hired_step()
         self.available_hired = []
         self.rebalancing_hired = []
+        self.busy_hired = []
         self.available_hired_ids = np.zeros(len(self.point_ids_level[0]))
         self.expired_contract_cars = []
 
@@ -227,6 +228,32 @@ class AmodNetworkHired(AmodNetwork):
         #         penalty,
         #     )
         # )
+        return penalty
+
+    def online_delay_penalty(self, car, trip):
+
+        # If tolerance is zero, there is no delay penalty
+        tolerance = self.config.trip_tolerance_delay[trip.sq_class]
+        if tolerance == 0:
+            return 0
+
+        if not self.car_can_pickup_trip(car, trip):
+            return None
+
+        max_pk_delay = self.get_max_pk_time_discounting_time_increment(trip)
+        pk_time = self.get_travel_time_od(car.point, trip.o, unit="min")
+
+        # Delay considering 1st tier service level
+        # 0 <= delay <= tolerance
+        delay = max(0, pk_time - max_pk_delay)
+
+        # Base fare is the upper bound for the penalty
+        base_fare = self.config.trip_base_fare[sq]
+
+        # Penalty is a function of the delay tolerance
+        # consumed
+        penalty = (base_fare / tolerance) * delay
+
         return penalty
 
     @property
@@ -400,6 +427,9 @@ class AmodNetworkHired(AmodNetwork):
     def get_all_available_vehicles(self):
         return itertools.chain(self.available, self.available_hired)
 
+    def get_all_busy_vehicles(self):
+        return itertools.chain(self.busy, self.busy_hired)
+
     def car_rebalancing_can_return_to_station_after_servicing_trip(self, car, trip):
         return self.can_move(
             car.middle_point.id,
@@ -410,17 +440,32 @@ class AmodNetworkHired(AmodNetwork):
             delay_offset=car.elapsed,  # Time to reach middle
         )
 
-    def car_can_return_to_station_after_servicing_trip(self, car, trip):
-        return self.can_move(car.point.id, trip.o.id, trip.d.id, car.depot.id, car.contract_duration)
+    def car_can_return_to_station_after_servicing_trip(self, car, trip, delay_offset=0):
+
+        duration_pickup = self.get_travel_time_od(car.point, trip.o, unit="min")
+        duration_trip = self.get_travel_time_od(trip.o, trip.d, unit="min")
+        duration_return = self.get_travel_time_od(trip.d, car.depot, unit="min")
+
+        total_duration = duration_pickup + duration_trip + duration_return
+
+        remaining_hiring_time = (
+                car.contract_duration * self.config.contract_duration_level
+        )
+
+        # TODO delay_offset is used when middle point is the current
+        # position (it corresponds to the time to reach the middle)
+        return remaining_hiring_time > total_duration + delay_offset
 
     def car_can_pickup_trip(self, car, trip):
 
         pk_time = self.get_travel_time_od(car.point, trip.o, unit="min")
-
         max_pk_time = self.get_max_pk_time_discounting_time_increment(trip)
 
         # Can the car reach the trip origin?
-        return pk_time <= max_pk_time + trip.tolerance
+        earliest_pickup = car.arrival_time + pk_time
+        latest_pickup = self.cur_step + max_pk_time + trip.tolerance
+
+        return earliest_pickup <= latest_pickup
 
     def get_max_pk_time_discounting_time_increment(self, trip):
         # Discount time increment because it covers the worst case
@@ -1141,6 +1186,7 @@ class AmodNetworkHired(AmodNetwork):
 
         # Idle company-owned cars
         available = []
+        busy = []
         rebalancing = []
         for car in self.cars:
             # print(" -1 ", car.__repr__())
@@ -1177,6 +1223,8 @@ class AmodNetworkHired(AmodNetwork):
                 if self.config.car_size_tabu > 0:
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
             else:
+                busy.append(car)
+
                 # Car is moving (rebalancing or servicing)
                 if use_rebalancing_cars and car.status == Car.REBALANCE:
                     # Find car's current position
@@ -1202,6 +1250,7 @@ class AmodNetworkHired(AmodNetwork):
                 ].append(car)
 
         # Idle hired cars
+        busy_hired = []
         available_hired = []
         rebalancing_hired = []
 
@@ -1256,6 +1305,8 @@ class AmodNetworkHired(AmodNetwork):
                     self.cars_location_tabu[car.point.id] |= set(car.tabu)
 
             else:
+                busy_hired.append(car)
+
                 # Only account for FAVs moving to positions different
                 # than their own stations
                 if car.point.id != car.origin.id:
@@ -1278,6 +1329,8 @@ class AmodNetworkHired(AmodNetwork):
 
         self.available = available
         self.available_hired = available_hired
+        self.busy = busy
+        self.busy_hired = busy_hired
         self.rebalancing = rebalancing
         self.rebalancing_hired = rebalancing_hired
 
@@ -1481,6 +1534,7 @@ class AmodNetworkHired(AmodNetwork):
         self.expired_contract_cars = []
         self.available_hired = []
         self.rebalancing_hired = []
+        self.busy_hired = []
         # self.post_cost.cache_clear()
         self.adp.weighted_values.clear()
         self.cur_step = 0

@@ -82,6 +82,7 @@ class Amod:
         self.last_trip_origins = []
 
         self.rebalancing = []
+        self.busy = []
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -764,6 +765,7 @@ class Amod:
         self.available = self.cars
 
         self.rebalancing = []
+        self.busy = []
 
     def car_neigh_stats(self):
         neigh_cars = []

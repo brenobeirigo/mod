@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from .decisions import *
 
 
@@ -16,6 +18,7 @@ class DecisionSet:
         self.from_location = defaultdict(int)
         self.states = defaultdict(int)
         self.gen_decisions_for_available_vehicles()
+        self.gen_decisions_for_busy_vehicles()
         self.gen_decisions_for_rebalancing_vehicles()
 
     def gen_decisions_for_available_vehicles(self):
@@ -30,6 +33,13 @@ class DecisionSet:
                 self.add_all_trip_decisions_car(car)
 
                 self.account_for_visited_state_from_car(car)
+
+    def gen_decisions_for_busy_vehicles(self):
+        d = deepcopy(self.all_decisions)
+        for car in self.env.get_all_busy_vehicles():
+            self.add_all_trip_decisions_car(car)
+            self.account_for_visited_state_from_car(car)
+        print(self.all_decisions - d)
 
     def state_already_visited(self, car):
         return self.states[car.attribute] > 0

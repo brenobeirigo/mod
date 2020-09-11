@@ -9,14 +9,6 @@ class Car:
     # Cars cannot visit the last tabu locations
     SIZE_TABU = 5
 
-    IDLE = 0
-    RECHARGING = 1
-    ASSIGN = 2
-    CRUISING = 3
-    REBALANCE = 4
-    RETURN = 5
-    SERVICING = 6
-
     COMPANY_OWNED_ORIGIN = "FREE"
     COMPANY_OWNED_CONTRACT_DURATION = "INF"
 
@@ -33,13 +25,13 @@ class Car:
     INFINITE_CONTRACT_DURATION = "Inf"  # - 2
 
     status_label_dict = {
-        IDLE: "Parked",
-        RECHARGING: "Recharging",
-        ASSIGN: "With passenger",
-        CRUISING: "Driving to pick up",
-        REBALANCE: "Repositioning",
-        RETURN: "Returning",
-        SERVICING: "Servicing passenger",
+        CarStatus.IDLE: "Parked",
+        CarStatus.RECHARGING: "Recharging",
+        CarStatus.ASSIGN: "With passenger",
+        CarStatus.CRUISING: "Driving to pick up",
+        CarStatus.REBALANCE: "Repositioning",
+        CarStatus.RETURN: "Returning",
+        CarStatus.SERVICING: "Servicing passenger",
     }
 
     type_label_dict = {TYPE_FLEET: "AV", TYPE_HIRED: "FV"}
@@ -207,6 +199,9 @@ class Car:
 
     def is_idle(self):
         return self.status == CarStatus.IDLE
+
+    def is_recharging(self):
+        return self.status == CarStatus.RECHARGING
 
     def is_rebalancing(self):
         return self.status == CarStatus.REBALANCE

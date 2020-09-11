@@ -1,5 +1,6 @@
 from mod.env.fleet.Car import Car
 from mod.util import log_util as log_util
+from mod.env.fleet.CarStatus import CarStatus
 
 
 class ElectricCar(Car):
@@ -170,7 +171,7 @@ class ElectricCar(Car):
 
         # Cars tahte are busy fulfilling trips or recharging are not considered
         # to be reassigned for a decision
-        self.status = Car.RECHARGING
+        self.status = CarStatus.RECHARGING
 
         # How many times has the car recharged?
         self.recharge_count += 1

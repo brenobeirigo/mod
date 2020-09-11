@@ -139,67 +139,67 @@ class PlotTrack:
         )
 
         self.source = {
-            Car.REBALANCE: self.p.triangle(
+            CarStatus.REBALANCE: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
-                color=self.config.color_fleet_status[Car.REBALANCE],
+                color=self.config.color_fleet_status[CarStatus.REBALANCE],
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.REBALANCE],
+                legend=Car.status_label_dict[CarStatus.REBALANCE],
             ),
-            Car.RETURN: self.p.triangle(
+            CarStatus.RETURN: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
-                color=self.config.color_fleet_status[Car.RETURN],
+                color=self.config.color_fleet_status[CarStatus.RETURN],
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.RETURN],
+                legend=Car.status_label_dict[CarStatus.RETURN],
             ),
-            Car.ASSIGN: self.p.triangle(
+            CarStatus.ASSIGN: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
-                color=self.config.color_fleet_status[Car.ASSIGN],
+                color=self.config.color_fleet_status[CarStatus.ASSIGN],
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 line_width=0,
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.ASSIGN],
+                legend=Car.status_label_dict[CarStatus.ASSIGN],
             ),
-            Car.CRUISING: self.p.triangle(
+            CarStatus.CRUISING: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
-                # color=self.config.color_fleet_status[Car.CRUISING],
-                line_color=self.config.color_fleet_status[Car.ASSIGN],
+                # color=self.config.color_fleet_status[CarStatus.CRUISING],
+                line_color=self.config.color_fleet_status[CarStatus.ASSIGN],
                 fill_alpha=0.0,
                 line_width=0.5,
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.CRUISING],
+                legend=Car.status_label_dict[CarStatus.CRUISING],
             ),
-            Car.IDLE: self.p.triangle(
+            CarStatus.IDLE: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
                 # color="navy",
                 fill_alpha=0.0,
                 line_width=0.5,
-                line_color=self.config.color_fleet_status[Car.IDLE],
+                line_color=self.config.color_fleet_status[CarStatus.IDLE],
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.IDLE],
+                legend=Car.status_label_dict[CarStatus.IDLE],
             ),
-            Car.RECHARGING: self.p.triangle(
+            CarStatus.RECHARGING: self.p.triangle(
                 x=[],
                 y=[],
                 size=PlotTrack.CAR_SIZE,
-                color=self.config.color_fleet_status[Car.RECHARGING],
+                color=self.config.color_fleet_status[CarStatus.RECHARGING],
                 line_width=0,
                 fill_alpha=PlotTrack.CAR_FILL_ALPHA,
                 muted_alpha=0.0,
-                legend=Car.status_label_dict[Car.RECHARGING],
+                legend=Car.status_label_dict[CarStatus.RECHARGING],
             ),
             "o": self.p.circle(
                 x=[],
@@ -707,7 +707,7 @@ class PlotTrack:
         # Get car paths
         for car in fleet:
 
-            # if car.status == Car.IDLE:
+            # if car.status == CarStatus.IDLE:
             #     continue
 
             # Car path was stored in previous step since its route

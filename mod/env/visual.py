@@ -12,6 +12,7 @@ import mod.env.config as conf
 import mod.env.network as nw
 from mod.env.fleet.Car import Car
 from mod.env.fleet.CarStatus import CarStatus
+from mod.env.fleet.CarType import CarType
 from mod.env.Point import Point
 
 sns.set(style="ticks")
@@ -353,7 +354,7 @@ class EpisodeLog:
         self.adp.service_rate.append(step_log.service_rate)
 
         if self.adp.weight_track is not None:
-            for car_type in Car.car_types:
+            for car_type in CarType:
                 self.adp.weights[car_type].append(
                     self.adp.weight_track[car_type]
                 )
@@ -844,11 +845,11 @@ class StepLog:
         sns.set_context(sns_context, font_scale=sns_font_scale)
 
         if omit_cruising:
-            car_statuses[Car.SERVICING] = np.array(
-                car_statuses[Car.CRUISING]
-            ) + np.array(car_statuses[Car.ASSIGN])
-            del car_statuses[Car.CRUISING]
-            del car_statuses[Car.ASSIGN]
+            car_statuses[CarStatus.SERVICING] = np.array(
+                car_statuses[CarStatus.CRUISING]
+            ) + np.array(car_statuses[CarStatus.ASSIGN])
+            del car_statuses[CarStatus.CRUISING]
+            del car_statuses[CarStatus.ASSIGN]
 
         xticks = np.linspace(x_min, x_max, x_num)
 

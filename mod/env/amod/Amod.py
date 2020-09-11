@@ -9,8 +9,10 @@ import numpy as np
 
 
 import mod.env.adp.decisions as du
-from mod.env.car import Car, HiredCar
-from mod.env.network import Point
+from mod.env.fleet.HiredCar import HiredCar
+from mod.env.fleet.Car import Car
+from mod.env.fleet.Car import CarStatus
+from mod.env.Point import Point
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -93,7 +95,7 @@ class Amod:
         """
 
         status_count = defaultdict(int)
-        for s in Car.status_list:
+        for s in CarStatus:
             status_count[Car.status_label_dict[s]] = 0
 
         total_battery_level = 0
@@ -108,7 +110,7 @@ class Amod:
         count_status = defaultdict(int)
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status[s] = 0
 
         # Count how many car per status
@@ -600,7 +602,7 @@ class Amod:
         count_status = dict()
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status[s] = 0
 
         # Count how many car per status

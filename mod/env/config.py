@@ -575,6 +575,9 @@ class Config:
     def trip_max_pickup_delay(self):
         return self.config[Config.TRIP_MAX_PICKUP_DELAY]
 
+    def get_max_pickup_delay_from_class_and_discount_increment(self, sq):
+        return self.trip_max_pickup_delay[sq] - self.time_increment
+
     @property
     def trip_distance_rate_km(self):
         return self.config[Config.TRIP_DISTANCE_RATE_KM]

@@ -1,7 +1,8 @@
 import itertools
 from collections import defaultdict, namedtuple
 
-from mod.env.car import HiredCar, VirtualCar
+from mod.env.fleet.VirtualCar import VirtualCar
+from mod.env.fleet.HiredCar import HiredCar
 
 # Decision codes
 

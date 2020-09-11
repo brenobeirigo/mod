@@ -9,7 +9,9 @@ from bokeh.document import without_document_lock
 from collections import defaultdict
 from bokeh.tile_providers import get_provider, Vendors
 
-from mod.env.car import Car, HiredCar
+from mod.env.fleet.HiredCar import HiredCar
+from mod.env.fleet.Car import Car
+from mod.env.fleet.CarStatus import CarStatus
 import mod.env.visual as vi
 import mod.env.network as nw
 import numpy as np
@@ -281,7 +283,7 @@ class PlotTrack:
 
             # Update the car paths in all car statuses (i.e., rebalancing,
             # parked, picking up user and recharging)
-            for status in Car.status_list:
+            for status in CarStatus:
                 car_paths_xy = status_movements.get(status, dict(x=[], y=[]))
                 self.source[status].data_source.data = car_paths_xy
 
@@ -728,6 +730,7 @@ class PlotTrack:
                 else:
                     # TODO should be current time?
                     dif = (car.step - car.previous_step) * 5
+                    # dif = dif * 10
 
                     segmented_sp = nw.query_sp_sliced(
                         car.previous,

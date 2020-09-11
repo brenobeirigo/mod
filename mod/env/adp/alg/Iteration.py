@@ -4,7 +4,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 import mod.env.config as conf
-import mod.env.trip as tp
+import mod.env.demand.trip_util as tp
 import mod.util.log_util as la
 from mod.env.adp.alg.Scenario import ScenarioUmbalanced, ScenarioNYC
 from mod.env.matching import optimal_rebalancing
@@ -174,7 +174,7 @@ class Iteration:
 
     def save_sampled_tripdata_from_iteration(self):
         if self.amod.config.save_trip_data:
-            df = tp.get_df(self.scenario.step_trip_list)
+            df = tp.get_df_from_sampled_trips(self.scenario.step_trip_list)
             df.to_csv(
                 f"{self.amod.config.sampled_tripdata_path}trips_{self.test_i:04}.csv",
                 index=False,
@@ -218,7 +218,7 @@ class Iteration:
 
     def save_trip_data(self):
         if self.amod.config.save_trip_data:
-            df = tp.get_df(
+            df = tp.get_df_from_sampled_trips(
                 self.it_step_trip_list,
                 show_service_data=True,
                 earliest_datetime=self.amod.config.demand_earliest_datetime,

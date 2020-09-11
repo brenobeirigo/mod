@@ -10,8 +10,9 @@ import seaborn as sns
 
 import mod.env.config as conf
 import mod.env.network as nw
-from mod.env.car import Car
-from mod.env.network import Point
+from mod.env.fleet.Car import Car
+from mod.env.fleet.CarStatus import CarStatus
+from mod.env.Point import Point
 
 sns.set(style="ticks")
 sns.set_context("paper")
@@ -627,7 +628,7 @@ class StepLog:
         self.total_battery.append(battery_level)
 
         # Number of vehicles per status
-        for k in Car.status_list:
+        for k in CarStatus:
             self.car_statuses[k].append(dict_status.get(k, 0))
             self.pav_statuses[k].append(pav_status.get(k, 0))
             self.fav_statuses[k].append(fav_status.get(k, 0))

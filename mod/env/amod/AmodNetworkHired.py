@@ -13,8 +13,10 @@ import mod.env.adp.AdpHired as adp
 import mod.env.adp.decisions as du
 import mod.env.network as nw
 from mod.env.amod.AmodNetwork import AmodNetwork
-from mod.env.car import Car, HiredCar
-from mod.env.network import Point
+from mod.env.fleet.HiredCar import HiredCar
+from mod.env.fleet.Car import Car
+from mod.env.fleet.CarStatus import CarStatus
+from mod.env.Point import Point
 
 # exe_times = defaultdict(float)
 # decision_post = dict()
@@ -192,13 +194,10 @@ class AmodNetworkHired(AmodNetwork):
 
         # Include time increment because it covers the worst case
         # scenario (user waiting since the beginning of the round)
-        max_pk_delay = (
-                self.config.trip_max_pickup_delay[sq] - self.config.time_increment
-        )
+        max_pk_delay = self.config.get_max_pickup_delay_from_class_and_discount_increment(sq)
 
         # Pickup travel time
-        distance = nw.get_distance(car_o, trip_o)
-        pk_time = self.get_travel_time(distance, unit="min")
+        pk_time = self.get_travel_time_od_ids(car_o, trip_o, unit="min")
 
         # If pickup travel time surpasses user max. waiting
         # 0 <= travel_time <= max_time + tolerance
@@ -215,20 +214,15 @@ class AmodNetworkHired(AmodNetwork):
         # Penalty is a function of the delay tolerance
         # consumed
         penalty = (base_fare / tolerance) * delay
-        # print(
-        #     "sq={}, distance={:6.2f}, travel_time={:6.2f}, max_time={:6.2f}, tolerance={:6.2f}, delay={:6.2f}, max_time + tolerance={:6.2f}, base_fare={:6.2f}, penalty={:6.2f}".format(
-        #         sq,
-        #         distance,
-        #         travel_time,
-        #         max_time,
-        #         tolerance,
-        #         delay,
-        #         max_time + tolerance,
-        #         base_fare,
-        #         penalty,
-        #     )
-        # )
+
         return penalty
+
+    def get_travel_time_od_ids(self, o_id, d_id, unit="min"):
+        """Travel time in minutes or steps between od"""
+        distance = nw.get_distance(o_id, d_id)
+        pk_time = self.get_travel_time(distance, unit=unit)
+
+        return pk_time
 
     def online_delay_penalty(self, car, trip):
 
@@ -240,7 +234,7 @@ class AmodNetworkHired(AmodNetwork):
         if not self.car_can_pickup_trip(car, trip):
             return None
 
-        max_pk_delay = self.get_max_pk_time_discounting_time_increment(trip)
+        max_pk_delay = self.get_max_pk_time_discounting_time_increment_and_backlog(trip)
         pk_time = self.get_travel_time_od(car.point, trip.o, unit="min")
 
         # Delay considering 1st tier service level
@@ -248,7 +242,7 @@ class AmodNetworkHired(AmodNetwork):
         delay = max(0, pk_time - max_pk_delay)
 
         # Base fare is the upper bound for the penalty
-        base_fare = self.config.trip_base_fare[sq]
+        base_fare = self.config.trip_base_fare[trip.sq_class]
 
         # Penalty is a function of the delay tolerance
         # consumed
@@ -459,7 +453,7 @@ class AmodNetworkHired(AmodNetwork):
     def car_can_pickup_trip(self, car, trip):
 
         pk_time = self.get_travel_time_od(car.point, trip.o, unit="min")
-        max_pk_time = self.get_max_pk_time_discounting_time_increment(trip)
+        max_pk_time = self.get_max_pk_time_discounting_time_increment_and_backlog(trip)
 
         # Can the car reach the trip origin?
         earliest_pickup = car.arrival_time + pk_time
@@ -467,7 +461,7 @@ class AmodNetworkHired(AmodNetwork):
 
         return earliest_pickup <= latest_pickup
 
-    def get_max_pk_time_discounting_time_increment(self, trip):
+    def get_max_pk_time_discounting_time_increment_and_backlog(self, trip):
         # Discount time increment because it covers the worst case
         # scenario (user waiting since the beginning of the round)
         max_pk_time = trip.max_delay - self.config.time_increment - trip.backlog_delay
@@ -1037,7 +1031,7 @@ class AmodNetworkHired(AmodNetwork):
                 elif action == du.STAY_DECISION:
                     # Car does nothing to alter its state ############ #
 
-                    if car.status == Car.IDLE:
+                    if car.is_idle():
                         car.idle_step_count += 1
 
                     # Notice that if a rebalancing vehicle cannot pick
@@ -1047,7 +1041,7 @@ class AmodNetworkHired(AmodNetwork):
                 elif action == du.TRIP_DECISION:
                     # Servicing ###################################### #
 
-                    if car.status == Car.REBALANCE:
+                    if car.is_rebalancing():
                         # Car was previously rebalancing. Thus, the
                         # rebalancing movement has to be interrupted.
                         car.interrupt_rebalance()
@@ -1226,7 +1220,7 @@ class AmodNetworkHired(AmodNetwork):
                 busy.append(car)
 
                 # Car is moving (rebalancing or servicing)
-                if use_rebalancing_cars and car.status == Car.REBALANCE:
+                if use_rebalancing_cars and car.is_rebalancing():
                     # Find car's current position
                     self.update_middle(car, time_step)
 
@@ -1312,7 +1306,7 @@ class AmodNetworkHired(AmodNetwork):
                 if car.point.id != car.origin.id:
                     self.cars_inbound_to[car.point.id].append(car)
 
-                if use_rebalancing_cars and car.status == Car.REBALANCE:
+                if use_rebalancing_cars and car.is_rebalancing():
                     self.update_middle(car, time_step)
 
                     # print(car.m_data())
@@ -1500,7 +1494,7 @@ class AmodNetworkHired(AmodNetwork):
         status_count = defaultdict(int)
         fav_status_count = defaultdict(int)
         pav_status_count = defaultdict(int)
-        for s in Car.status_list:
+        for s in CarStatus:
             status_count[s] = 0
             pav_status_count[s] = 0
             fav_status_count[s] = 0
@@ -1611,7 +1605,7 @@ class AmodNetworkHired(AmodNetwork):
         count_status_sec = defaultdict(int)
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status_sec[s] = 0
 
         # Count how many car per status
@@ -1699,7 +1693,7 @@ class AmodNetworkHired(AmodNetwork):
         car_status_list = list()
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status[s] = 0
 
         # Count how many car per status

@@ -11,23 +11,8 @@ import mod.env.adp.decisions as du
 import mod.util.log_util as la
 from mod.env.adp.DecisionSet import DecisionSet
 from mod.env.adp.DecisionSetReactive import DecisionSetReactive
-from mod.env.car import Car
-from mod.env.trip import ClassedTrip
-
-# Decisions are tuples following the format
-# (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION, SQ_CLASS)
-
-# Labels for decision tuples
-ACTION = 0
-POSITION = 1
-BATTERY = 2
-CONTRACT_DURATION = 3
-CAR_TYPE = 4
-CAR_ORIGIN = 5
-ORIGIN = 6
-DESTINATION = 7
-SQ_CLASS = 8
-N_DECISIONS = 9
+from mod.env.fleet.Car import Car
+from mod.env.demand.ClassedTrip import ClassedTrip
 
 DecisionOutcome = namedtuple("DecisionOutcome", "cost,post_cost,post_state")
 
@@ -1112,11 +1097,11 @@ def get_denied_ids(decisions, attribute_trips_dict):
     # Loop decisions and discount fulfilled trips
     for d in decisions:
 
-        if d[ACTION] == du.TRIP_DECISION:
-            trip_a = (d[ORIGIN], d[DESTINATION])
+        if d[du.ACTION] == du.TRIP_DECISION:
+            trip_a = (d[du.ORIGIN], d[du.DESTINATION])
 
             # Subtract trips fulfilled
-            denied_count_dict[trip_a] -= d[N_DECISIONS]
+            denied_count_dict[trip_a] -= d[du.N_DECISIONS]
 
     # Number of denied trips per origin
     for trip_a, n_denied in denied_count_dict.items():
@@ -1921,12 +1906,16 @@ class Matching:
 
             # d -> cost, post_cost, post_state
             # post_state -> (t, point, battery, contract, type, car_origin)
+            t1 = time.time()
             self.env.decision_info = {
                 d: DecisionOutcome(
                     self.env.cost_func(d),
                     *self.env.post_cost(self.time_step, d)
                 ) for d in self.x_var
             }
+
+
+            print(f"{self.time_step} = Decisions:{len(self.x_var)}, time = {time.time()-t1}")
 
             self.get_contribution_plus_vfs()
 

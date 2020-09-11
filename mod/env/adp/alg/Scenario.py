@@ -1,4 +1,4 @@
-import mod.env.trip as tp
+import mod.env.demand.trip_util as tp
 
 
 class Scenario:

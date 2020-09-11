@@ -3,6 +3,8 @@ import sys
 import time
 
 # Adding project folder to import modules
+import mod.env.Point
+
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 import mod.util.log_util as la
@@ -16,7 +18,7 @@ from mod.env.adp.alg.Step import Step
 import mod.env.visual as vi
 from mod.env.config import ConfigNetwork
 
-from mod.env.car import Car
+from mod.env.fleet.Car import Car
 import mod.env.network as nw
 from mod.env.simulator import PlotTrack
 
@@ -91,9 +93,9 @@ class ValueIteration:
         if self.plot_track:
             self.plot_track.plot_centers(
                 self.amod.points,
-                nw.Point.levels,
-                nw.Point.levels[self.config.demand_center_level],
-                nw.Point.levels[self.config.neighborhood_level],
+                mod.env.Point.Point.levels,
+                mod.env.Point.Point.levels[self.config.demand_center_level],
+                mod.env.Point.Point.levels[self.config.neighborhood_level],
                 show_sp_lines=PlotTrack.SHOW_SP_LINES,
                 show_lines=PlotTrack.SHOW_LINES,
             )

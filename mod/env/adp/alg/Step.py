@@ -1,7 +1,7 @@
 import time
 
 import mod.util.log_util as la
-from mod.env.car import Car
+from mod.env.fleet.Car import Car
 from mod.env.matching import (
     Matching,
     play_decisions,

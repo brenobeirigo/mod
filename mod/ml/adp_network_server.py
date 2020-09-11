@@ -3,12 +3,12 @@ import sys
 from copy import deepcopy
 import time
 import random
-from collections import defaultdict
-from pprint import pprint
 import numpy as np
 import itertools
 
 # Adding project folder to import modules
+import mod.env.Point
+
 root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
@@ -33,10 +33,9 @@ from mod.env.config import ConfigNetwork
 
 import mod.env.config as conf
 
-
-from mod.env.car import Car
-from mod.env.trip import get_trip_count_step, get_trips_random_ods
-import mod.env.trip as tp
+from mod.env.fleet.Car import Car
+from mod.env.demand.trip_util import get_trip_count_step, get_trips_random_ods
+import mod.env.demand.trip_util as tp
 import mod.env.network as nw
 
 from mod.env.simulator import PlotTrack
@@ -381,9 +380,9 @@ def alg_adp(
     if plot_track:
         plot_track.plot_centers(
             amod.points,
-            nw.Point.levels,
-            nw.Point.levels[config.demand_center_level],
-            nw.Point.levels[config.neighborhood_level],
+            mod.env.Point.Point.levels,
+            mod.env.Point.Point.levels[config.demand_center_level],
+            mod.env.Point.Point.levels[config.neighborhood_level],
             show_sp_lines=PlotTrack.SHOW_SP_LINES,
             show_lines=PlotTrack.SHOW_LINES,
         )
@@ -501,7 +500,7 @@ def alg_adp(
 
             # Save random data (trip samples)
             if amod.config.save_trip_data:
-                df = tp.get_df(step_trip_list)
+                df = tp.get_df_from_sampled_trips(step_trip_list)
                 df.to_csv(
                     f"{config.sampled_tripdata_path}trips_{test_i:04}.csv",
                     index=False,
@@ -883,7 +882,7 @@ def alg_adp(
         # Save random data (fleet and trips)
         if amod.config.save_trip_data:
 
-            df = tp.get_df(
+            df = tp.get_df_from_sampled_trips(
                 it_step_trip_list,
                 show_service_data=True,
                 earliest_datetime=config.demand_earliest_datetime,

@@ -355,8 +355,8 @@ class EpisodeLog:
 
         if self.adp.weight_track is not None:
             for car_type in CarType:
-                self.adp.weights[car_type].append(
-                    self.adp.weight_track[car_type]
+                self.adp.weights[car_type.value].append(
+                    self.adp.weight_track[car_type.value]
                 )
 
         # Save intermediate plots

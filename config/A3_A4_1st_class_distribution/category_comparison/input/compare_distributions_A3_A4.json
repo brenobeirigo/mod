@@ -1,0 +1,69 @@
+{
+  "id": "compare_distributions_A3_A4",
+  "output":"C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/config/A3_A4_1st_class_distribution/category_comparison/plots",
+    "source_list": [
+    "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/A20_B80_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.10_C=0.10_A_4.80_05_05_4.80_0.00_P_B_2.40_10_05_2.80_0.00_P/adp/train/overall_stats.csv",
+    "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/data/output/A10_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.10_C=0.10_A_4.80_05_05_4.80_0.00_P_B_2.40_10_05_2.80_0.00_P/adp/train/overall_stats.csv"
+  ],
+  "label_list": [
+    "A3 - Random 1st distribution",
+    "A4 - Stochastic 1st distribution"
+  ],
+  "category_comparison": {
+    "Total reward": {
+      "ticks": {
+        "start": 10000,
+        "stop": 20000,
+        "num": 11
+      },
+      "ticks_format": ",.0f",
+      "label": "Objective function"
+    },
+    "Service rate": {
+      "ticks": {
+        "start": 0.6,
+        "stop": 0.9,
+        "num": 7
+      },
+      "ticks_format": "3.0%",
+      "label": "Requests serviced"
+    },
+    "time": {
+      "ticks": {
+        "start": 0,
+        "stop": 10,
+        "num": 6
+      },
+      "ticks_format": "",
+      "label": "Time(s)"
+    }
+  },
+  "linewidth_list": [
+    1,
+    1,
+    1,
+    1
+  ],
+  "marker_list": [
+    null,
+    null,
+    null,
+    "x"
+  ],
+  "color_list": [
+    "k",
+    "g",
+    "r",
+    "b"
+  ],
+  "show_shadow": true,
+  "show_labels_on_right": true,
+  "figure_format": "pdf",
+  "iteration_limit": 500,
+  "x_label": "Iteration",
+  "mark_every": 25,
+  "window": 5,
+  "dpi": 1200,
+  "context": "paper",
+  "legend_position": "center right"
+}

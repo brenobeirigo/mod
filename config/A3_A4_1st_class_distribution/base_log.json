@@ -1,0 +1,20 @@
+{
+    "LOG_FLEET_ACTIVITY": false,
+    "LOG_STEP_SUMMARY": false,
+    "LOG_WEIGHTS": false,
+    "LOG_VALUE_UPDATE": false,
+    "LOG_DUALS": false,
+    "LOG_COSTS": false,
+    "LOG_SOLUTIONS": false,
+    "LOG_ATTRIBUTE_CARS": false,
+    "LOG_DECISION_INFO": false,
+    "log_mip": false,
+    "log_times": false,
+    "save_plots": true,
+    "save_df": true,
+    "level_file": "DEBUG",
+    "level_console": "INFO",
+    "formatter_file": "FORMATTER_TERSE",
+    "log_all": false,
+    "log_level": "INFO"
+}

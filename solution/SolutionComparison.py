@@ -7,7 +7,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from mod.util.file_util import read_json_file
-from tests.ml.data_util import movingaverage
+from solution.data_util import movingaverage
 from .Solution import Solution
 
 
@@ -49,7 +49,6 @@ class SolutionComparison:
         self.category_solutions = defaultdict(list)
         self.solution_stats_dict = dict()
         self.load_solutions()
-        self.plot_comparison()
 
     def create_dirs_recursevely(self):
         if not os.path.exists(self.output_path):
@@ -57,7 +56,7 @@ class SolutionComparison:
 
     def load_solutions(self):
 
-        for source, source_label in zip(self.sources, self.labels):
+        for source, source_label in self.get_source_label_pair_list():
 
             solution = Solution(source, source_label)
 
@@ -65,6 +64,9 @@ class SolutionComparison:
                 self.compute_category_solution_stats(category, solution)
                 self.configure_categoty_ticks(category)
                 self.category_solutions[category].append(solution)
+
+    def get_source_label_pair_list(self):
+        return zip(self.sources, self.labels)
 
     def configure_categoty_ticks(self, category):
         self.yticks[category] = np.linspace(**self.category_dict[category]["ticks"])
@@ -74,13 +76,14 @@ class SolutionComparison:
     def compute_category_solution_stats(self, category, solution):
         category_values = solution.get_values_from_category(category)
         category_values = self.get_sublist_until_max_interations(category_values)
-        self.solution_stats_dict[self.get_standard_label(category)] = category_values
+        self.solution_stats_dict[SolutionComparison.get_standard_label(category)] = category_values
 
     def get_sublist_until_max_interations(self, category_values):
         return category_values[:self.iteration_limit]
 
-    def get_standard_label(self, category):
-        return category.lower().replace(" ", "_")
+    @staticmethod
+    def get_standard_label(label):
+        return label.lower().replace("-", "").replace(" ", "_")
 
     def save_outcome(self):
         df_outcome = pd.DataFrame(self.solution_stats_dict)

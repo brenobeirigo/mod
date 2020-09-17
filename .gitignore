@@ -8,10 +8,14 @@
 # Episode track
 *.npy
 
+# Save user distributions
 !/data/input/rot/distr/**
 
 # Python Cache
 **/__pycache__
+
+# IPython
+.ipynb_checkpoints/
 
 # IDE
 .vscode/

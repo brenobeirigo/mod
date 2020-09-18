@@ -1,17 +1,18 @@
-from mod.env.car import Car, HiredCar
-from mod.env.trip import Trip
-from mod.env.network import Point
-import mod.env.decision_utils as du
 import itertools as it
-from collections import defaultdict
-import numpy as np
-import random
-from pprint import pprint
-from mod.env.config import FOLDER_EPISODE_TRACK
-import requests
-import functools
 import math
+import random
+from collections import defaultdict
 from copy import deepcopy
+from pprint import pprint
+
+import numpy as np
+
+
+import mod.env.adp.decisions as du
+from mod.env.fleet.HiredCar import HiredCar
+from mod.env.fleet.Car import Car
+from mod.env.fleet.Car import CarStatus
+from mod.env.Point import Point
 
 # Reproducibility of the experiments
 random.seed(1)
@@ -83,6 +84,7 @@ class Amod:
         self.last_trip_origins = []
 
         self.rebalancing = []
+        self.busy = []
 
     def get_fleet_status(self):
         """Number of cars per status and total battery level
@@ -93,7 +95,7 @@ class Amod:
         """
 
         status_count = defaultdict(int)
-        for s in Car.status_list:
+        for s in CarStatus:
             status_count[Car.status_label_dict[s]] = 0
 
         total_battery_level = 0
@@ -108,7 +110,7 @@ class Amod:
         count_status = defaultdict(int)
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status[s] = 0
 
         # Count how many car per status
@@ -556,8 +558,8 @@ class Amod:
 
                 # No neighbors found
                 if not new_reachable or (
-                    self.config.min_neighbors is not None
-                    and len(new_reachable) < self.config.min_neighbors
+                        self.config.min_neighbors is not None
+                        and len(new_reachable) < self.config.min_neighbors
                 ):
                     new_ureachable = True
                     unreachable_ods.add(n)
@@ -600,7 +602,7 @@ class Amod:
         count_status = dict()
 
         # Start all car statuses with 0
-        for s in Car.status_list:
+        for s in CarStatus:
             count_status[s] = 0
 
         # Count how many car per status
@@ -697,7 +699,7 @@ class Amod:
             ]
 
             # Add rejected to random
-            new_origins[0 : len(rejected_trip_origins)] = rejected_trip_origins
+            new_origins[0: len(rejected_trip_origins)] = rejected_trip_origins
 
         elif self.config.cars_start_from_last_trip_origins:
             # Start from rejected trip origins
@@ -723,7 +725,7 @@ class Amod:
             ]
 
             # Add rejected to random
-            new_origins[0 : len(last_trip_origins)] = last_trip_origins
+            new_origins[0: len(last_trip_origins)] = last_trip_origins
 
         elif self.config.cars_start_from_parking_lots:
             # Start from rejected trip origins
@@ -745,10 +747,9 @@ class Amod:
 
         # Cars start from centroids
         if (
-            self.config.centroid_level > 0
-            and not self.config.cars_start_from_parking_lots
+                self.config.centroid_level > 0
+                and not self.config.cars_start_from_parking_lots
         ):
-
             print(
                 f"{len(new_origins)} centroid origins "
                 f"(level={self.config.centroid_level})"
@@ -766,6 +767,7 @@ class Amod:
         self.available = self.cars
 
         self.rebalancing = []
+        self.busy = []
 
     def car_neigh_stats(self):
         neigh_cars = []

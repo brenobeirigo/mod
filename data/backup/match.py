@@ -5,19 +5,11 @@ import mod.util.log_util as la
 import logging
 
 import mod.env.network as nw
-from mod.env.amod.Amod import Amod
-from mod.env.trip import ClassedTrip
-from mod.env.car import Car, HiredCar
-import time
+from mod.env.demand.ClassedTrip import ClassedTrip
 import numpy as np
 import itertools
 import mod.env.decision_utils as du
 import os
-import sys
-
-from pprint import pprint
-
-
 
 # Decisions are tuples following the format
 # (ACTION, POSITION, BATTERY, ORIGIN, DESTINATION)
@@ -1155,7 +1147,7 @@ def adp_network_hired2(
     # ##################################################################
 
     if myopic:
-        # Get all decision tuples, and trip decision tuples per service 
+        # Get all decision tuples, and trip decision tuples per service
         # quality class. If max. battery level is defined, also includes
         # recharge decisions.
         decision_cars, decision_class = du.get_decision_set_classed4(
@@ -1444,7 +1436,7 @@ def adp_network_hired3(
     # VARIABLES ########################################################
     # ##################################################################
 
-    # Get all decision tuples, and trip decision tuples per service 
+    # Get all decision tuples, and trip decision tuples per service
     # quality class. If max. battery level is defined, also includes
     # recharge decisions.
     decision_cars, decision_class = du.get_decision_set_classed3(
@@ -1807,7 +1799,7 @@ def service_trips(
     # VARIABLES ########################################################
     # ##################################################################
 
-    # Get all decision tuples, and trip decision tuples per service 
+    # Get all decision tuples, and trip decision tuples per service
     # quality class. If max. battery level is defined, also includes
     # recharge decisions.
     decision_cars, decision_class = du.get_decisions(

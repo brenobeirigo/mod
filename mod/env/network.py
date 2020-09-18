@@ -1,73 +1,23 @@
-import numpy as np
 import random
-import functools
-import pprint
-
 import sys
 
-import sys
+import numpy as np
 
 # tenv_mod = "c:/Users/breno/Documents/phd/tenv"
+from mod.env.Point import Point
+
 tenv_mod = "C:\\Users\\LocalAdmin\\OneDrive\\leap_forward\\street_network_server\\tenv"
 
 sys.path.insert(0, tenv_mod)
 
 import tenv.util as tenv
 
-from tenv.util import get_distance
-
 # Reproducibility of the experiments
 random.seed(1)
 
 
-class Point:
-
-    point_dict = dict()
-
-    levels = []
-
-    level_count = []
-
-    def __init__(self, x, y, point_id, level_ids=None, level_ids_dic=None):
-        self.x = x
-        self.y = y
-        if level_ids:
-            self.level_ids = level_ids
-        else:
-            level_ids = (point_id,)
-
-        if level_ids_dic:
-            self.level_ids_dic = level_ids_dic
-        else:
-
-            self.level_ids_dic = {0: point_id}
-
-        # Add point to dictionary of all points
-        if point_id not in Point.point_dict:
-            Point.point_dict[point_id] = self
-
-    @property
-    def id(self):
-        return self.level_ids[0]
-
-    def __str__(self):
-        return str(self.id)
-        # return f"{self.level_ids}"
-
-    def __repr__(self):
-        return f"Point({self.id:02}, {self.x}, {self.y}, {self.level_ids})"
-
-    def __hash__(self):
-        # return hash((self.x, self.y))
-        return hash(self.level_ids[0])
-
-    def id_level(self, i):
-        try:
-            return self.level_ids[i]
-        except:
-            raise IndexError(
-                f'Point {self} has no level "{i}" ({self.level_ids}).'
-            )
+def get_distance(o, d):
+    return tenv.get_distance(o, d)
 
 
 ########################################################################
@@ -76,7 +26,6 @@ class Point:
 
 
 def get_point_list(rows, cols, levels=None):
-
     if levels:
         point_level_ids = get_cell_level_zone_ids(rows, cols, levels)
 
@@ -129,7 +78,7 @@ def get_neighbor_zones(center, max_range, zone_grid):
     # print("Y:", min_y, max_y)
 
     # Slice zone_grid to extract neighboring zones around center
-    neighbors = zone_grid[min_x : max_x + 1, min_y : max_y + 1]
+    neighbors = zone_grid[min_x: max_x + 1, min_y: max_y + 1]
 
     # Return list of neighbor zones
     return np.ravel(neighbors)
@@ -184,7 +133,6 @@ def get_aggregated_zones(rows, cols, n_levels):
         # Loop all areas
         for r in range(area_row_count):
             for c in range(area_col_count):
-
                 # Limits area and assign area id
                 from_x, to_x = area_dim * (r), min(rows, area_dim * (r + 1))
                 from_y, to_y = area_dim * (c), min(cols, area_dim * (c + 1))
@@ -259,9 +207,8 @@ url = f"http://localhost:{port}"
 
 
 def query_point_list(
-    max_levels=None, projection="GPS", step=60, level_dist_list=None
+        max_levels=None, projection="GPS", step=60, level_dist_list=None
 ):
-
     # Associate nodes to region center ids
     if max_levels or level_dist_list:
         # Dictionary of levels(distances from region centers) and
@@ -466,7 +413,7 @@ def query_aggregated_centers(n_levels=None, dist_list=None, step=60):
 
 
 def query_centers(points, n_centers, level):
-    """From a a list of points distributed in a grid area, choose a
+    """From a list of points distributed in a grid area, choose a
     number of centers to be the demand origins. Requests can also depart
     from nodes in the neighboring zones of each center.
 
@@ -493,7 +440,6 @@ def query_centers(points, n_centers, level):
 
 
 def query_info():
-
     info = tenv.get_info()
 
     center_count = info["centers"]
@@ -507,7 +453,6 @@ def query_info():
 
 
 def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):
-
     if not waypoint:
         waypoint = o
 
@@ -528,9 +473,8 @@ def query_sp_sliced(o, d, n_points, steps, projection="GPS", waypoint=None):
 
 
 def query_segmented_sp(
-    o, d, n_points, step_duration, projection="GPS", waypoint=None
+        o, d, n_points, step_duration, projection="GPS", waypoint=None
 ):
-
     if not waypoint:
         waypoint = o
 
@@ -549,7 +493,6 @@ def query_segmented_sp(
 
 # @functools.lru_cache(maxsize=None)
 def query_sp(o, d, projection="GPS", waypoint=None):
-
     if waypoint:
         # Get all ids for each level
         query_o_waypoint = f"{url}/sp/{o.id}/{waypoint.id}/{projection}"

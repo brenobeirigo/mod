@@ -1,8 +1,5 @@
 import os
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
 import random
 
 # Adding project folder to import modules
@@ -12,14 +9,12 @@ sys.path.append(root)
 from mod.env.amod.AmodGrid import AmodGrid
 from mod.env.visual import StepLog, EpisodeLog
 from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
-from mod.env.match import adp_grid, myopic, fcfs
-from mod.env.trip import (
-    get_random_trips,
+from mod.env.match import adp_grid
+from mod.env.demand.trip_util import (
     get_trip_count_step,
     get_trips_random_ods,
 )
 import mod.env.network as nw
-from pprint import pprint
 import mod.env.match as match
 
 # Reproducibility of the experiments

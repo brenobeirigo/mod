@@ -1,7 +1,5 @@
 import os
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
 from copy import deepcopy
 import time
 
@@ -10,10 +8,10 @@ root = os.getcwd().replace("\\", "/")
 sys.path.append(root)
 
 from mod.env.amod import Amod
-from mod.env.config import Config, ConfigStandard, NY_TRIPS_EXCERPT_DAY
+from mod.env.config import ConfigStandard, NY_TRIPS_EXCERPT_DAY
 from mod.env.match import fcfs, myopic, adp_grid
 import mod.env.network as nw
-from mod.env.trip import (
+from mod.env.demand.trip_util import (
     get_random_trips,
     get_trip_count_step,
     get_trips_random_ods,

@@ -1,18 +1,19 @@
+import itertools as it
 import os
 from collections import defaultdict
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
 from pprint import pprint
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import itertools as it
+import seaborn as sns
 
 import mod.env.config as conf
-from mod.env.car import Car
-from mod.env.network import Point
 import mod.env.network as nw
-import seaborn as sns
-import time
+from mod.env.fleet.Car import Car
+from mod.env.fleet.CarStatus import CarStatus
+from mod.env.fleet.CarType import CarType
+from mod.env.Point import Point
 
 sns.set(style="ticks")
 sns.set_context("paper")
@@ -31,47 +32,6 @@ PROGRESS_FILENAME = "progress.npy"
 
 
 class EpisodeLog:
-    def get_od_lists(self, amod):
-
-        # ---------------------------------------------------------------- #
-        # Trips ########################################################## #
-        # ---------------------------------------------------------------- #
-
-        try:
-            o_ids, d_ids = self.load_ods()
-            origins = [amod.points[o] for o in o_ids]
-            destinations = [amod.points[d] for d in d_ids]
-            print(
-                f"Loading {len(origins)} origins and "
-                f"{len(destinations)} destinations."
-            )
-
-        except Exception as e:
-
-            print(f"Error!{e}")
-
-            # Create random centers from where trips come from
-            # TODO choose level to query origins
-            origins = nw.query_centers(
-                amod.points,
-                amod.config.origin_centers,
-                amod.config.demand_center_level,
-            )
-
-            destinations = nw.query_centers(
-                amod.points,
-                amod.config.destination_centers,
-                amod.config.demand_center_level,
-            )
-
-            print(
-                f"\nSaving {len(origins)} origins and "
-                f"{len(destinations)} destinations."
-            )
-            self.save_ods(
-                [o.id for o in origins], [d.id for d in destinations]
-            )
-        return origins, destinations
 
     @property
     def output_path(self):
@@ -108,13 +68,13 @@ class EpisodeLog:
             self.output_folder_delay = self.config.output_path + FOLDER_TIME
             self.output_folder_fleet = self.config.output_path + FOLDER_FLEET
             self.output_folder_service = (
-                self.config.output_path + FOLDER_SERVICE
+                    self.config.output_path + FOLDER_SERVICE
             )
             self.output_folder_adp_logs = self.config.output_path + ADP_LOGS
             self.folder_delay_data = self.output_folder_delay + "data/"
             self.folder_fleet_status_data = self.output_folder_fleet + "data/"
             self.folder_demand_status_data = (
-                self.output_folder_service + "data/"
+                    self.output_folder_service + "data/"
             )
             # Creating folders to log MIP models
             self.config.folder_mip = self.config.output_path + "mip/"
@@ -148,18 +108,14 @@ class EpisodeLog:
             )
 
     def __init__(
-        self,
-        save_progress,
-        config=None,
-        n=0,
-        reward=list(),
-        service_rate=list(),
-        weights=list(),
-        adp=None,
+            self,
+            amod,
     ):
-        self.config = config
-        self.adp = adp
-        self.save_progress = save_progress
+
+        self.amod = amod
+        self.config = amod.config
+        self.adp = amod.adp
+        self.save_progress = amod.config.save_progress
         self.create_folders()
 
     @property
@@ -177,30 +133,6 @@ class EpisodeLog:
     @property
     def weights(self):
         return self.adp.weights
-
-    def save_ods(self, origin_ids, destination_ids):
-        """Save trip ods in .npy file. When method is restarted, same
-        ods can be used to guarantee consistency.
-
-        Parameters
-        ----------
-        origin_ids : list of ints
-            Origin ids
-        destination_ids : list of ints
-            Destination ids
-        """
-        ods = {"origin": origin_ids, "destination": destination_ids}
-        np.save(self.output_path + "/trip_od_ids.npy", ods)
-
-    def load_ods(self):
-        try:
-            path_od_ids = self.output_path + "/trip_od_ids.npy"
-            ods = np.load(path_od_ids, allow_pickle=True).item()
-            return ods["origin"], ods["destination"]
-
-        except Exception as e:
-            print(f'Origins at "{path_od_ids}" could not be find {e}.')
-            raise Exception
 
     def last_episode_stats(self):
         try:
@@ -272,7 +204,7 @@ class EpisodeLog:
         )
 
     def plot_trip_delays(
-        self, rejected, serviced, file_path=None, file_format="png", dpi=150,
+            self, rejected, serviced, file_path=None, file_format="png", dpi=150,
     ):
 
         sns.set_context("talk", font_scale=1.4)
@@ -286,7 +218,7 @@ class EpisodeLog:
 
             plt.hist(
                 delays,
-                label=f"{sq}(S={n_serviced:>5}, R={n_rejected:>5}) {n_serviced/total:6.2%}",
+                label=f"{sq}(S={n_serviced:>5}, R={n_rejected:>5}) {n_serviced / total:6.2%}",
             )
 
         plt.title(f"{total_trips}")
@@ -422,9 +354,9 @@ class EpisodeLog:
         self.adp.service_rate.append(step_log.service_rate)
 
         if self.adp.weight_track is not None:
-            for car_type in Car.car_types:
-                self.adp.weights[car_type].append(
-                    self.adp.weight_track[car_type]
+            for car_type in CarType:
+                self.adp.weights[car_type.value].append(
+                    self.adp.weight_track[car_type.value]
                 )
 
         # Save intermediate plots
@@ -451,7 +383,7 @@ class EpisodeLog:
                 step_log.plot_fleet_status(
                     step_log.pav_statuses,
                     file_path=self.output_folder_fleet
-                    + f"{self.adp.n:04}_pav",
+                              + f"{self.adp.n:04}_pav",
                     **step_log.env.config.fleet_plot_config,
                 )
             # step_log.plot_fleet_status_all(
@@ -464,7 +396,7 @@ class EpisodeLog:
                 step_log.plot_fleet_status(
                     step_log.fav_statuses,
                     file_path=self.output_folder_fleet
-                    + f"{self.adp.n:04}_fav",
+                              + f"{self.adp.n:04}_fav",
                     **step_log.env.config.fleet_plot_config,
                 )
 
@@ -492,10 +424,10 @@ class EpisodeLog:
 
             # Add user stats
             for sq, stats in sorted(
-                self.adp.pk_delay[-1].items(), key=lambda sq_stats: sq_stats[0]
+                    self.adp.pk_delay[-1].items(), key=lambda sq_stats: sq_stats[0]
             ):
                 for label, v in sorted(
-                    stats.items(), key=lambda label_v: label_v[0]
+                        stats.items(), key=lambda label_v: label_v[0]
                 ):
                     col = f"{sq}_{label}"
                     cols.append(col)
@@ -503,11 +435,11 @@ class EpisodeLog:
 
             # Add car stats
             for car_type, stats in sorted(
-                self.adp.car_time[-1].items(),
-                key=lambda car_type_stats: car_type_stats[0],
+                    self.adp.car_time[-1].items(),
+                    key=lambda car_type_stats: car_type_stats[0],
             ):
                 for label, v in sorted(
-                    stats.items(), key=lambda label_v: label_v[0]
+                        stats.items(), key=lambda label_v: label_v[0]
                 ):
                     col = f"{car_type}_{label}"
                     cols.append(col)
@@ -533,7 +465,6 @@ class EpisodeLog:
 
         # Save what was learned so far
         if save_learning and self.adp and self.adp.n % save_learning == 0:
-
             # t1 = time.time()
             # adp_data = self.adp.current_data
             # np.save("dic.npy", adp_data)
@@ -595,7 +526,7 @@ class EpisodeLog:
         # pprint(self.adp.values)
 
     def plot_weights(
-        self, file_path=None, file_format="png", dpi=150, scale="linear"
+            self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
 
         sns.set_context("paper")
@@ -633,7 +564,7 @@ class EpisodeLog:
         plt.close()
 
     def plot_reward(
-        self, file_path=None, file_format="png", dpi=150, scale="linear"
+            self, file_path=None, file_format="png", dpi=150, scale="linear"
     ):
         sns.set_context("paper")
         plt.plot(np.arange(self.adp.n), self.adp.reward, color="r")
@@ -698,26 +629,27 @@ class StepLog:
         self.total_battery.append(battery_level)
 
         # Number of vehicles per status
-        for k in Car.status_list:
+        for k in CarStatus:
             self.car_statuses[k].append(dict_status.get(k, 0))
             self.pav_statuses[k].append(pav_status.get(k, 0))
             self.fav_statuses[k].append(fav_status.get(k, 0))
 
-    def add_record(self, reward, serviced, rejected, outstanding, trips=[]):
+    def add_record(self, step):
+
         # Fleet step happens after trip step
         self.n += 1
-        self.reward_list.append(reward)
-        self.serviced_list.append(len(serviced))
-        self.outstanding_list.append(len(outstanding))
-        self.rejected_list.append(len(rejected))
-        total = len(serviced) + len(rejected)
+        self.reward_list.append(step.revenue)
+        self.serviced_list.append(len(step.serviced))
+        self.outstanding_list.append(len(step.outstanding))
+        self.rejected_list.append(len(step.rejected))
+        total = len(step.serviced) + len(step.rejected)
         self.total_list.append(total)
         self.sq_class_count.append(
             {
                 sq_class: count
                 for sq_class, count in zip(
-                    *np.unique([t.sq_class for t in trips], return_counts=True)
-                )
+                *np.unique([t.sq_class for t in step.trips], return_counts=True)
+            )
             }
         )
 
@@ -732,6 +664,13 @@ class StepLog:
     @property
     def rejected(self):
         return sum(self.rejected_list)
+
+    @property
+    def outstanding_last(self):
+        try:
+            return self.outstanding_list[-1]
+        except:
+            return 0
 
     @property
     def total(self):
@@ -797,6 +736,19 @@ class StepLog:
             else ""
         )
 
+        all_statuses = (
+
+            ", ".join(
+                [
+                    (
+                        f"{Car.status_label_dict[status_code]}= "
+                        f"{status_pav[status_code]:>4}/{status_fav[status_code]:>4}/{status[status_code]:>4}"
+                    )
+                    for status_code in status.keys()
+                ]
+            )
+        )
+
         try:
             sq_classes, sq_counts = list(zip(*sq_class_count.items()))
 
@@ -804,7 +756,7 @@ class StepLog:
             sq_classes, sq_counts = [], []
 
         sq_classes = ",".join(c for c in sq_classes)
-        sq_counts = ",".join(f"{c/sum(sq_counts):3.2f}" for c in sq_counts)
+        sq_counts = ",".join(f"{c / sum(sq_counts):3.2f}" for c in sq_counts)
 
         # Car neighborhood info
         n_neigh_cars_list, avg_reb_delay_list = self.env.car_neigh_stats()
@@ -826,8 +778,9 @@ class StepLog:
             f"  ###  trips={total:<4}"
             f" ({sr:>7.2%})"
             f" {sq_info:^19}"
-            f" - [s]{self.serviced:>4} + [r]{self.rejected:>4} + [o]{self.outstanding_list[-1]:>4} = {self.total:>4} - "
-            f"  ###  {statuses}{pav_statuses}{fav_statuses}"
+            f" - [s]{self.serviced:>4} + [r]{self.rejected:>4} + [o]{self.outstanding_last:>4} = {self.total:>4} - "
+            # f"  ###  {statuses}{pav_statuses}{fav_statuses}"
+            f"  ### PAV/FAV/TOTAL: {all_statuses}"
             f"  ### Car neighbors (mean, max, min): ({s_mean:>6.2f}, {s_max}, {s_min})"
             f"  ### Reb. delay (mean, max, min): ({reb_delay_mean:<6.2f}, {reb_delay_max:<6.2f}, {reb_delay_min:<6.2f})"
         )
@@ -856,47 +809,47 @@ class StepLog:
         )
 
     def plot_fleet_status(
-        self,
-        car_statuses,
-        file_path=None,
-        file_format="png",
-        dpi=150,
-        earliest_hour=0,
-        omit_cruising=True,
-        show_legend=True,
-        linewidth=2,
-        lenght_tick=6,
-        xticks_labels=[
-            "",
-            "5AM",
-            "",
-            "6AM",
-            "",
-            "7AM",
-            "",
-            "8AM",
-            "",
-            "9AM",
-            "",
-            "10AM",
-        ],
-        x_min=0,
-        x_max=330,
-        x_num=12,
-        sns_context="talk",
-        sns_font_scale=1.4,
-        fig_x_inches=10,
-        fig_y_inches=10,
+            self,
+            car_statuses,
+            file_path=None,
+            file_format="png",
+            dpi=150,
+            earliest_hour=0,
+            omit_cruising=True,
+            show_legend=True,
+            linewidth=2,
+            lenght_tick=6,
+            xticks_labels=[
+                "",
+                "5AM",
+                "",
+                "6AM",
+                "",
+                "7AM",
+                "",
+                "8AM",
+                "",
+                "9AM",
+                "",
+                "10AM",
+            ],
+            x_min=0,
+            x_max=330,
+            x_num=12,
+            sns_context="talk",
+            sns_font_scale=1.4,
+            fig_x_inches=10,
+            fig_y_inches=10,
     ):
 
         sns.set_context(sns_context, font_scale=sns_font_scale)
 
         if omit_cruising:
-            car_statuses[Car.SERVICING] = np.array(
-                car_statuses[Car.CRUISING]
-            ) + np.array(car_statuses[Car.ASSIGN])
-            del car_statuses[Car.CRUISING]
-            del car_statuses[Car.ASSIGN]
+            car_statuses[CarStatus.SERVICING] = np.array(
+                car_statuses[CarStatus.CRUISING]
+            ) + np.array(car_statuses[CarStatus.ASSIGN])
+            del car_statuses[CarStatus.CRUISING]
+            del car_statuses[CarStatus.ASSIGN]
 
         xticks = np.linspace(x_min, x_max, x_num)
 
@@ -1026,8 +979,8 @@ class StepLog:
         self.step_stats["Total reward"] = pd.Series([self.env.adp.reward[-1]])
 
         for car_type, weights in sorted(
-            self.env.adp.weights.items(),
-            key=lambda car_type_weights: car_type_weights[0],
+                self.env.adp.weights.items(),
+                key=lambda car_type_weights: car_type_weights[0],
         ):
             for i, w in enumerate(weights[-1]):
                 col = f"{car_type}_{i:02}"
@@ -1037,37 +990,37 @@ class StepLog:
         return columns, self.step_stats
 
     def plot_service_status(
-        self,
-        file_path=None,
-        file_format="png",
-        dpi=150,
-        show_legend=True,
-        linewidth=2,
-        lenght_tick=6,
-        xticks_labels=[
-            "",
-            "5AM",
-            "",
-            "6AM",
-            "",
-            "7AM",
-            "",
-            "8AM",
-            "",
-            "9AM",
-            "",
-            "10AM",
-        ],
-        x_min=0,
-        x_max=330,
-        y_min=0,
-        y_num=500,
-        y_max=4000,
-        x_num=12,
-        sns_context="talk",
-        sns_font_scale=1.4,
-        fig_x_inches=10,
-        fig_y_inches=10,
+            self,
+            file_path=None,
+            file_format="png",
+            dpi=150,
+            show_legend=True,
+            linewidth=2,
+            lenght_tick=6,
+            xticks_labels=[
+                "",
+                "5AM",
+                "",
+                "6AM",
+                "",
+                "7AM",
+                "",
+                "8AM",
+                "",
+                "9AM",
+                "",
+                "10AM",
+            ],
+            x_min=0,
+            x_max=330,
+            y_min=0,
+            y_num=500,
+            y_max=4000,
+            x_num=12,
+            sns_context="talk",
+            sns_font_scale=1.4,
+            fig_x_inches=10,
+            fig_y_inches=10,
     ):
 
         sns.set_context("talk", font_scale=1.4)
@@ -1099,8 +1052,8 @@ class StepLog:
         # Plot battery
         try:
             max_battery_level = len(self.env.cars) * (
-                self.env.cars[0].battery_level_miles_max
-                * self.env.config.battery_size_kwh_distance
+                    self.env.cars[0].battery_level_miles_max
+                    * self.env.config.battery_size_kwh_distance
             )
 
             # Closest power of 10
@@ -1109,8 +1062,8 @@ class StepLog:
             )
 
             list_battery_level_kwh = (
-                np.array(self.total_battery)
-                * self.env.config.battery_size_kwh_distance
+                    np.array(self.total_battery)
+                    * self.env.config.battery_size_kwh_distance
             )
 
             ax2 = ax1.twinx()
@@ -1247,14 +1200,13 @@ def compute_trips(trips):
 
 
 def plot_centers(
-    list_center_level,
-    levels,
-    level_demand,
-    level_fleet,
-    show_sp_lines=True,
-    show_lines=True,
+        list_center_level,
+        levels,
+        level_demand,
+        level_fleet,
+        show_sp_lines=True,
+        show_lines=True,
 ):
-
     print("-------- Plotting region centers --------")
 
     list_center_level = defaultdict(lambda: defaultdict(list))
@@ -1282,7 +1234,6 @@ def plot_centers(
             center_point = list_center_level[p.id_level(i)]
 
             if show_sp_lines and center_point.id != p.id:
-
                 xy_sp = nw.query_sp(center_point, p, projection="MERCATOR")
 
                 # Get list of x and y coordinates (e.g., [x1,x2,x3] and
@@ -1324,7 +1275,6 @@ SP_LINE = "SP"
 
 
 def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
-
     print("-------- Plotting region centers --------")
 
     # X,Y coordinates of points at each level
@@ -1361,7 +1311,6 @@ def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
 
                 # If shortest paths from centers
                 if sp_lines:
-
                     xy_sp = nw.query_sp(center_point, p, projection="MERCATOR")
 
                     # Get list of x and y coordinates (e.g., [x1,x2,x3] and
@@ -1383,7 +1332,6 @@ def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
 
                 # If straight lines from centers
                 if direct_lines:
-
                     lines[STRAIGHT_LINE][level]["xs"].append(
                         [center_point.x, p.x]
                     )
@@ -1395,7 +1343,6 @@ def get_center_elements(points, levels, direct_lines=True, sp_lines=False):
 
 
 def compute_movements(step, cars, step_car_path, n_points=30):
-
     # Get car paths
     for c in cars:
 
@@ -1447,7 +1394,6 @@ def compute_movements(step, cars, step_car_path, n_points=30):
 
 
 def get_next_frame(step_car_path, step):
-
     if step in step_car_path and step_car_path[step]:
 
         xy_status = defaultdict(lambda: dict(x=[], y=[]))

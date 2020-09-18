@@ -1,6 +1,7 @@
-import numpy as np
-from collections import defaultdict, namedtuple
 import functools
+from collections import defaultdict
+
+import numpy as np
 
 # State indexes
 TIME = 0
@@ -28,25 +29,21 @@ DISCARD = "-"
 DISAGGREGATE = 0
 
 adp_label_dict = {DISCARD: "-", DISAGGREGATE: "*"}
-AggLevel = namedtuple(
-    "AggregationLevel",
-    "temporal, spatial, battery, contract, car_type, car_origin",
-)
 
 
 class Adp:
     def __init__(
-        self,
-        points,
-        agregation_levels,
-        temporal_levels,
-        car_type_levels_dict,
-        contract_levels_dict,
-        car_origin_levels_dict,
-        stepsize,
-        stepsize_rule=STEPSIZE_CONSTANT,
-        stepsize_constant=0.1,
-        stepsize_harmonic=1,
+            self,
+            points,
+            agregation_levels,
+            temporal_levels,
+            car_type_levels_dict,
+            contract_levels_dict,
+            car_origin_levels_dict,
+            stepsize,
+            stepsize_rule=STEPSIZE_CONSTANT,
+            stepsize_constant=0.1,
+            stepsize_harmonic=1,
     ):
         self.aggregation_levels = agregation_levels
         self.temporal_levels = temporal_levels
@@ -154,8 +151,8 @@ class Adp:
     def update_weight_track(self, weight_vector, key="V"):
         # Update weight vector
         self.weight_track[key] = (
-            self.counts * self.weight_track[key] + weight_vector
-        ) / (self.counts + 1)
+                                         self.counts * self.weight_track[key] + weight_vector
+                                 ) / (self.counts + 1)
 
         self.counts += 1
 
@@ -219,7 +216,6 @@ class Adp:
             value_vector = np.zeros(self.aggregation_levels - 1)
 
             for g in range(1, self.aggregation_levels):
-
                 pos_g = point.id_level(g)
                 # Find attribute at level g
                 a_g = (pos_g, battery)
@@ -228,8 +224,8 @@ class Adp:
                 value_vector[g - 1] = (
                     self.values[t][g][a_g]
                     if t in self.values
-                    and 0 in self.values[t]
-                    and a_g in self.values[t][g]
+                       and 0 in self.values[t]
+                       and a_g in self.values[t][g]
                     else 0
                 )
 
@@ -239,7 +235,6 @@ class Adp:
             weight_sum = sum(weight_vector)
 
             if weight_sum > 0:
-
                 weight_vector = weight_vector / weight_sum
 
                 # Get weighted value function
@@ -253,7 +248,7 @@ class Adp:
         return value_estimation
 
     def get_total_variance(
-        self, total_variation, transient_bias, lambda_stepsize
+            self, total_variation, transient_bias, lambda_stepsize
     ):
         r = (total_variation - (transient_bias ** 2)) / (1 + lambda_stepsize)
 
@@ -267,7 +262,7 @@ class Adp:
         # to a).
 
         r = (1 - fixed_stepsize) * variance_tag + fixed_stepsize * (
-            dif_vfs ** 2
+                dif_vfs ** 2
         )
 
         return r
@@ -275,7 +270,7 @@ class Adp:
     def get_lambda_stepsize(self, current_stepsize, lambda_stepsize):
 
         r = (((1 - current_stepsize) ** 2) * lambda_stepsize) + (
-            current_stepsize ** 2
+                current_stepsize ** 2
         )
 
         return r
@@ -309,7 +304,7 @@ class Adp:
             # Generalized harmonic stepsize
             # Notice that a_stepsize is 1 when count is zero
             stepsize = self.stepsize_harmonic / (
-                self.stepsize_harmonic + max(1, self.n) - 1
+                    self.stepsize_harmonic + max(1, self.n) - 1
             )
 
         # Fixed value passed as parameter
@@ -320,7 +315,7 @@ class Adp:
         # McClain’s stepsize rule (stop at stepsize_constant)
         elif self.stepsize_rule == STEPSIZE_MCCLAIN:
             stepsize = previous_stepsize / (
-                1 + previous_stepsize - self.stepsize_constant
+                    1 + previous_stepsize - self.stepsize_constant
             )
         else:
             stepsize = 1 / self.n
@@ -381,8 +376,8 @@ class Adp:
 
             # Updating value function at disaggregate level
             self.values[t][0][a] = (
-                1 - self.step_size_func[t][0][a]
-            ) * v_ta + self.step_size_func[t][0][a] * v_ta
+                                           1 - self.step_size_func[t][0][a]
+                                   ) * v_ta + self.step_size_func[t][0][a] * v_ta
 
             # Update the number of times disaggregate state was accessed
             self.count[t][0][a] += 1
@@ -392,7 +387,6 @@ class Adp:
 
             # Append duals to all superior hierachical states
             for g in range(1, self.aggregation_levels):
-
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery)
 
@@ -400,7 +394,6 @@ class Adp:
                 level_update_list[(g, a_g)].append(v_ta)
 
         for state_g, value_list_g in level_update_list.items():
-
             g, a_g = state_g
 
             # Number of times state g was accessed
@@ -414,8 +407,8 @@ class Adp:
 
             # Updating value function at gth level with smoothing
             self.values[t][g][a_g] = (
-                (1 - self.step_size_func[t][g][a_g]) * self.values[t][g][a_g]
-                + self.step_size_func[t][g][a_g] * v_ta_g
+                    (1 - self.step_size_func[t][g][a_g]) * self.values[t][g][a_g]
+                    + self.step_size_func[t][g][a_g] * v_ta_g
             )
 
     ####################################################################
@@ -449,7 +442,6 @@ class Adp:
             point = self.points[pos]
 
             for g in range(self.aggregation_levels):
-
                 # Find attribute at level g
                 a_g = (point.id_level(g), battery)
 
@@ -501,11 +493,11 @@ class Adp:
 
         print(
             f"\n### Loading {self.n} episodes from '{path}'."
-            f"\n -       Last reward: {self.reward[self.n-1]:15.2f} "
+            f"\n -       Last reward: {self.reward[self.n - 1]:15.2f} "
             f"(max={max(self.reward):15,.2f})"
-            f"\n - Last service rate: {self.service_rate[self.n-1]:15.2%} "
+            f"\n - Last service rate: {self.service_rate[self.n - 1]:15.2%} "
             f"(max={max(self.service_rate):15.2%})\n"
-            f"\n - Last pickup delay: {self.pk_delay[self.n-1]}"
+            f"\n - Last pickup delay: {self.pk_delay[self.n - 1]}"
             # TODO
             # f"\n -    Last car times: {self.car_time[self.n-1]}"
         )

@@ -1,26 +1,24 @@
 {
-  "id": "compare_distributions_A3_A4",
-  "info": "Considers the best price configuration (rejection penalty = base fare, tolerance delay = 5min). The goal is to show that the system can harness more detailed user distribution patterns (i.e., where A users appear).",
+  "id": "compare_discount_factor",
+  "info": "Considers the best price configuration (rejection penalty = base fare, tolerance delay = 5min). The goal is to prove the bet dicount factor is 1.",
   "label_info": "casestudy_niterations-classpercentage-classpercentage-discountfactor. When percentage = P, it comes from the probability distribution.",
   "output":"d:/bb/mod/config/A3_A4_1st_class_distribution/category_comparison/plots",
     "source_list": [
-      "d:/bb/mod/data/output/2K-A2-B8-9_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.90_0.10_C=0.10_A_4.80_05_05_4.80_0.00_0.20_B_2.40_10_05_2.40_0.00_0.80/adp/train/overall_stats.csv",
+      "d:/bb/mod/data/output/2K-AP-BP-8_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.80_0.10_C=0.10_A_4.80_05_05_4.80_0.00_P_B_2.40_10_05_2.40_0.00_P/adp/train/overall_stats.csv",
       "d:/bb/mod/data/output/2K-AP-BP-9_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.90_0.10_C=0.10_A_4.80_05_05_4.80_0.00_P_B_2.40_10_05_2.40_0.00_P/adp/train/overall_stats.csv",
-      "d:/bb/mod/data/output/2K-A2-B8-1_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.10_C=0.10_A_4.80_05_05_4.80_0.00_0.20_B_2.40_10_05_2.40_0.00_0.80/adp/train/overall_stats.csv",
       "d:/bb/mod/data/output/2K-AP-BP-1_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.10_C=0.10_A_4.80_05_05_4.80_0.00_P_B_2.40_10_05_2.40_0.00_P/adp/train/overall_stats.csv"
   ],
   "label_list": [
-    "A3 - Random 1st distribution - 0.9",
-    "A4 - Stochastic 1st distribution - 0.9",
-    "A3 - Random 1st distribution - 1.0",
-    "A4 - Stochastic 1st distribution - 1.0"
+    "0.8",
+    "0.9",
+    "1.0"
   ],
   "category_comparison": {
     "Total reward": {
       "ticks": {
         "start": 10000,
-        "stop": 20000,
-        "num": 11
+        "stop": 18000,
+        "num": 9
       },
       "ticks_format": ",.0f",
       "label": "Objective function"
@@ -33,15 +31,6 @@
       },
       "ticks_format": "3.0%",
       "label": "Requests serviced"
-    },
-    "time": {
-      "ticks": {
-        "start": 0,
-        "stop": 10,
-        "num": 6
-      },
-      "ticks_format": "",
-      "label": "Time(s)"
     }
   },
   "linewidth_list": [
@@ -53,7 +42,7 @@
   "marker_list": [
     null,
     null,
-    "x",
+    null,
     "x"
   ],
   "marker_shadow_list": [
@@ -65,17 +54,17 @@
   "color_list": [
     "k",
     "g",
-    "k",
-    "g"
+    "r",
+    "b"
   ],
   "show_shadow": true,
   "show_labels_on_right": true,
-  "figure_format": "pdf",
+  "figure_format": "png",
   "iteration_limit": 500,
   "x_label": "Iteration",
   "mark_every": 25,
-  "window": 10,
-  "dpi": 1200,
+  "window": 5,
+  "dpi": 300,
   "context": "paper",
   "legend_position": "center right"
 }

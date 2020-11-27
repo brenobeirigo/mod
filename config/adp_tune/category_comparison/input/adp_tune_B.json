@@ -1,0 +1,88 @@
+{
+  "id": "adp_tune",
+  "info": "Considers the standard configuration (user base B, no rejection penalty, base fare = 2.4, waiting = 10, no tolerance delay). Goal: find the best discount factor and stepsize.",
+  "label_info": "casestudy_niterations-classpercentage-classpercentage-discountfactor",
+  "output":"d:/bb/mod/config/adp_tune/category_comparison/plots",
+    "source_list": [
+        "d:/bb/mod/data/output/2K-B-8-1_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.80_0.10_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv",
+        "d:/bb/mod/data/output/2K-B-8-2_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.80_0.20_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv",
+        "d:/bb/mod/data/output/2K-B-9-1_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.90_0.10_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv",
+        "d:/bb/mod/data/output/2K-B-9-2_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_0.90_0.20_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv",
+        "d:/bb/mod/data/output/2K-B-1-1_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.10_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv",
+        "d:/bb/mod/data/output/2K-B-1-2_TS_0.10(S)_[P]_LIN_R=[1-8][0-10]_V=0300_L[3]=(00-0-, 11-0-, 12-0-)_[L(05)]I=1_1.00_0.20_C=0.10_A_4.80_05_00_0.00_0.00_0.00_B_2.40_10_00_0.00_0.00_1.00/adp/train/overall_stats.csv"
+    ],
+    "label_list": [
+      "8-1","8-2","9-1","9-2","1-1","1-2"
+  ],
+  "category_comparison": {
+    "Total reward": {
+      "ticks": {
+        "start": 14000,
+        "stop": 18000,
+        "num": 9
+      },
+      "ticks_format": ",.0f",
+      "label": "Objective function"
+    },
+    "Service rate": {
+      "ticks": {
+        "start": 0.6,
+        "stop": 0.9,
+        "num": 7
+      },
+      "ticks_format": "3.0%",
+      "label": "Requests serviced"
+    },
+    "time": {
+      "ticks": {
+        "start": 0,
+        "stop": 10,
+        "num": 6
+      },
+      "ticks_format": "",
+      "label": "Time(s)"
+    }
+  },
+  "linewidth_list": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "marker_list": [
+    null,
+    "x",
+    null,
+    "x",
+    null,
+    "x"
+  ],
+  "marker_shadow_list": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "color_list": [
+    "k",
+    "k",
+    "r",
+    "r",
+    "b",
+    "b"
+  ],
+  "show_shadow": true,
+  "show_labels_on_right": true,
+  "figure_format": "pdf",
+  "iteration_limit": 500,
+  "x_label": "Iteration",
+  "mark_every": 25,
+  "window": 5,
+  "dpi": 1200,
+  "context": "paper",
+  "legend_position": "center right"
+}

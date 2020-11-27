@@ -1,17 +1,17 @@
 {
   "adp": {
-    "ITERATIONS": 500,
+    "ITERATIONS": 2000,
     "METHOD": "adp/train",
     "ADP_IGNORE_ZEROS": true,
     "LINEARIZE_INTEGER_MODEL": false,
     "USE_ARTIFICIAL_DUALS": false,
-    "DISCOUNT_FACTOR": 1.0,
+    "DISCOUNT_FACTOR": 0.9,
     "HARMONIC_STEPSIZE": 1,
     "STEPSIZE_FIXED": 0.1,
     "STEPSIZE_RULE": "MCCL"
   },
   "map_network": {
-    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": true,
+    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": false,
     "UNBOUND_MAX_CARS_TRIP_DECISIONS": true
   },
   "demand": {
@@ -19,7 +19,7 @@
     "SQ_GUARANTEE": false,
     "DEMAND_RESIZE_FACTOR": 0.1,
     "DEMAND_SAMPLING": true,
-    "USE_CLASS_PROB": true,
+    "USE_CLASS_PROB": false,
     "PATH_CLASS_PROB": null,
     "ORIGIN_CENTERS": 3,
     "DESTINATION_CENTERS": 3,
@@ -28,11 +28,11 @@
     "TRIP_REJECTION_PENALTY": [
       [
         "A",
-        4.8
+        0
       ],
       [
         "B",
-        2.8
+        0
       ]
     ],
     "TRIP_BASE_FARE": [
@@ -58,11 +58,11 @@
     "TRIP_TOLERANCE_DELAY_MIN": [
       [
         "A",
-        5
+        0
       ],
       [
         "B",
-        5
+        0
       ]
     ],
     "TRIP_MAX_PICKUP_DELAY": [
@@ -78,11 +78,11 @@
     "TRIP_CLASS_PROPORTION": [
       [
         "A",
-        0.2
+        0.0
       ],
       [
         "B",
-        0.8
+        1.0
       ]
     ],
     "TRIP_OUTSTANDING_PENALTY": [
@@ -98,7 +98,7 @@
     "MATCHING_DELAY": 15,
     "MAX_USER_BACKLOGGING_DELAY": 0,
     "RECHARGE_COST_DISTANCE": 0.1,
-    "APPLY_BACKLOG_REJECTION_PENALTY": true
+    "APPLY_BACKLOG_REJECTION_PENALTY": false
   },
   "hierarchical_levels": {
     "AGGREGATION_LEVELS": [
@@ -129,7 +129,6 @@
     ],
     "LEVEL_LIST": [
       0,
-      60,
       300,
       600
     ],
@@ -277,8 +276,8 @@
     "USE_SHORT_PATH": false,
     "SAVE_TRIP_DATA": false,
     "SAVE_FLEET_DATA": false,
-    "TEST_LABEL": "A20_B80",
-    "SAVE_PROGRESS": 1,
+    "TEST_LABEL": "2K-B-9-1",
+    "SAVE_PROGRESS": 10,
     "CASE_STUDY": "TS"
   },
   "time": {

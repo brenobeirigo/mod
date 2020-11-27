@@ -1,0 +1,290 @@
+{
+  "adp": {
+    "ITERATIONS": 1000,
+    "METHOD": "adp/train",
+    "ADP_IGNORE_ZEROS": true,
+    "LINEARIZE_INTEGER_MODEL": false,
+    "USE_ARTIFICIAL_DUALS": false,
+    "DISCOUNT_FACTOR": 0.8,
+    "HARMONIC_STEPSIZE": 1,
+    "STEPSIZE_FIXED": 0.1,
+    "STEPSIZE_RULE": "MCCL"
+  },
+  "map_network": {
+    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": false,
+    "UNBOUND_MAX_CARS_TRIP_DECISIONS": true
+  },
+  "demand": {
+    "UNIVERSAL_SERVICE": false,
+    "SQ_GUARANTEE": false,
+    "DEMAND_RESIZE_FACTOR": 0.1,
+    "DEMAND_SAMPLING": true,
+    "USE_CLASS_PROB": true,
+    "PATH_CLASS_PROB": "1st_class_prob_info.npy",
+    "ORIGIN_CENTERS": 3,
+    "DESTINATION_CENTERS": 3,
+    "DEMAND_CENTER_LEVEL": 0,
+    "DEMAND_SCENARIO": "NYC",
+    "TRIP_REJECTION_PENALTY": [
+      [
+        "A",
+        4.8
+      ],
+      [
+        "B",
+        2.4
+      ]
+    ],
+    "TRIP_BASE_FARE": [
+      [
+        "A",
+        4.8
+      ],
+      [
+        "B",
+        2.4
+      ]
+    ],
+    "TRIP_DISTANCE_RATE_KM": [
+      [
+        "A",
+        1
+      ],
+      [
+        "B",
+        1
+      ]
+    ],
+    "TRIP_TOLERANCE_DELAY_MIN": [
+      [
+        "A",
+        5
+      ],
+      [
+        "B",
+        5
+      ]
+    ],
+    "TRIP_MAX_PICKUP_DELAY": [
+      [
+        "A",
+        5
+      ],
+      [
+        "B",
+        10
+      ]
+    ],
+    "TRIP_CLASS_PROPORTION": [
+      [
+        "A",
+        0.2
+      ],
+      [
+        "B",
+        0.8
+      ]
+    ],
+    "TRIP_OUTSTANDING_PENALTY": [
+      [
+        "A",
+        0
+      ],
+      [
+        "B",
+        0
+      ]
+    ],
+    "MATCHING_DELAY": 15,
+    "MAX_USER_BACKLOGGING_DELAY": 0,
+    "RECHARGE_COST_DISTANCE": 0.1,
+    "APPLY_BACKLOG_REJECTION_PENALTY": true
+  },
+  "hierarchical_levels": {
+    "AGGREGATION_LEVELS": [
+      {
+        "temporal": 0,
+        "spatial": 0,
+        "battery": 0,
+        "contract": "-",
+        "car_type": 0,
+        "car_origin": "-"
+      },
+      {
+        "temporal": 1,
+        "spatial": 1,
+        "battery": 0,
+        "contract": "-",
+        "car_type": 0,
+        "car_origin": "-"
+      },
+      {
+        "temporal": 1,
+        "spatial": 2,
+        "battery": 0,
+        "contract": "-",
+        "car_type": 0,
+        "car_origin": "-"
+      }
+    ],
+    "LEVEL_LIST": [
+      0,
+      300,
+      600
+    ],
+    "LEVEL_TIME_LIST": [
+      1,
+      3
+    ],
+    "LEVEL_CAR_ORIGIN": {
+      "0": {
+        "-": "-"
+      },
+      "1": {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4
+      }
+    },
+    "LEVEL_CAR_TYPE": {
+      "0": {
+        "0": 0,
+        "-": 0
+      },
+      "1": {
+        "0": 1,
+        "-": 0
+      }
+    },
+    "LEVEL_CONTRACT_DURATION": {
+      "0": {
+        "-": "Inf"
+      },
+      "1": {
+        "0": 1,
+        "1": 5,
+        "2": 15,
+        "3": 60,
+        "-": "Inf"
+      }
+    },
+    "MATCHING_LEVELS": [
+      0,
+      0
+    ]
+  },
+  "mpc": {
+    "MPC_FORECASTING_HORIZON": 5,
+    "MPC_USE_PERFORMANCE_TO_GO": false,
+    "MPC_REBALANCE_TO_NEIGHBORS": false,
+    "MPC_USE_TRIP_ODS_ONLY": true
+  },
+  "exploration": {
+    "IDLE_ANNEALING": null,
+    "ACTIVATE_THOMPSON": false,
+    "MAX_TARGETS": 12,
+    "CAR_SIZE_TABU": 0
+  },
+  "rebalancing": {
+    "NEIGHBORHOOD_LEVEL": 0,
+    "PENALIZE_REBALANCE": true,
+    "N_CLOSEST_NEIGHBORS": [
+      [
+        1,
+        8
+      ]
+    ],
+    "N_CLOSEST_NEIGHBORS_EXPLORE": [
+      [
+        2,
+        16
+      ],
+      [
+        3,
+        16
+      ]
+    ],
+    "REBALANCE_MULTILEVEL": false,
+    "REBALANCING_TIME_RANGE_MIN": [
+      0,
+      10
+    ],
+    "REBALANACE_SUB_LEVEL": null,
+    "REBALANCE_MAX_TARGETS": null,
+    "MIN_NEIGHBORS": 1,
+    "REACHABLE_NEIGHBORS": false
+  },
+  "fleet": {
+    "FLEET_SIZE": 300,
+    "FLEET_START": "FLEET_START_RANDOM",
+    "MAX_CARS_LINK": 5,
+    "MAX_IDLE_STEP_COUNT": null,
+    "PARKING_RATE_MIN": 0,
+    "ENABLE_RECHARGING": false,
+    "SPEED": 20,
+    "BATTERY_LEVELS": 1,
+    "LEVEL_RC": 0,
+    "CENTROID_LEVEL": 0
+  },
+  "hiring": {
+    "CONTRACT_DURATION_LEVEL": 1,
+    "CONGESTION_PRICE": 0,
+    "MATCH_METHOD": "MATCH_DISTANCE",
+    "MATCH_LEVEL": 2,
+    "MAX_TARGETS": 1000,
+    "DEPOT_SHARE": 0.01,
+    "FAV_DEPOT_LEVEL": null,
+    "FAV_FLEET_SIZE": 0,
+    "SEPARATE_FLEETS": false,
+    "MAX_CONTRACT_DURATION": true
+  },
+  "plot": {
+    "PLOT_FLEET_FILE_FORMAT": "pdf",
+    "PLOT_FLEET_DPI": 150,
+    "PLOT_FLEET_OMIT_CRUISING": false,
+    "PLOT_FLEET_SHOW_LEGEND": false,
+    "PLOT_FLEET_LINEWIDTH": 2,
+    "PLOT_FLEET_LENGTH_TICK": 6,
+    "PLOT_FLEET_XTICKS_LABELS": [
+      "",
+      "5AM",
+      "",
+      "6AM",
+      "",
+      "7AM",
+      "",
+      "8AM",
+      "",
+      "9AM",
+      "",
+      "10AM"
+    ],
+    "PLOT_FLEET_X_MIN": 0,
+    "PLOT_FLEET_X_MAX": 330,
+    "PLOT_FLEET_X_NUM": 12,
+    "PLOT_DEMAND_Y_MIN": 0,
+    "PLOT_DEMAND_Y_MAX": 4000,
+    "PLOT_DEMAND_Y_NUM": 8,
+    "PLOT_FLEET_SNS_CONTEXT": "talk",
+    "PLOT_FLEET_SNS_FONT_SCALE": 1.4,
+    "PLOT_FLEET_FIG_X_INCHES": 10,
+    "PLOT_FLEET_FIG_Y_INCHES": 10
+  },
+  "save": {
+    "USE_SHORT_PATH": false,
+    "SAVE_TRIP_DATA": false,
+    "SAVE_FLEET_DATA": false,
+    "TEST_LABEL": "2K-AP-BP-8",
+    "SAVE_PROGRESS": 1,
+    "CASE_STUDY": "TS"
+  },
+  "time": {
+    "DEMAND_TOTAL_HOURS": 4,
+    "DEMAND_EARLIEST_HOUR": 5,
+    "OFFSET_TERMINATION_MIN": 60,
+    "OFFSET_REPOSITIONING_MIN": 30,
+    "TIME_INCREMENT": 1
+  }
+}

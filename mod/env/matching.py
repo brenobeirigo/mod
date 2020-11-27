@@ -1661,7 +1661,7 @@ class Matching:
 
         t1_setup_costs = time.time()
         self.setup_cost_function()
-        self.times["setup_costs"] = time.time() - t1_setup_costs
+        self.times["t_setup_costs"] = time.time() - t1_setup_costs
 
         t1_setup_penalties = time.time()
         penalty = self.setup_penalty()
@@ -1914,8 +1914,8 @@ class Matching:
                 ) for d in self.x_var
             }
 
-
-            print(f"{self.time_step} = Decisions:{len(self.x_var)}, time = {time.time()-t1}")
+            # TODO track number of decisions in log
+            # print(f"{self.time_step} = Decisions:{len(self.x_var)}, time = {time.time()-t1}")
 
             self.get_contribution_plus_vfs()
 

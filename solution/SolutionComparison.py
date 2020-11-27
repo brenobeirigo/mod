@@ -40,6 +40,7 @@ class SolutionComparison:
         self.iteration_limit = self.data["iteration_limit"]
         self.linewidths = self.data["linewidth_list"]
         self.markers = self.data.get("marker_list", [None] * len(self.sources))
+        self.markers_shadow = self.data.get("marker_shadow_list", [None] * len(self.sources))
         self.labels = self.data["label_list"]
         self.context = self.data["context"]
         self.dpi = self.data["dpi"]
@@ -62,21 +63,25 @@ class SolutionComparison:
 
             for category in self.category_dict:
                 self.compute_category_solution_stats(category, solution)
-                self.configure_categoty_ticks(category)
+                self.configure_category_ticks(category)
                 self.category_solutions[category].append(solution)
 
     def get_source_label_pair_list(self):
         return zip(self.sources, self.labels)
 
-    def configure_categoty_ticks(self, category):
+    def configure_category_ticks(self, category):
         self.yticks[category] = np.linspace(**self.category_dict[category]["ticks"])
         ticks_format = self.category_dict[category]['ticks_format']
         self.yticks_labels[category] = [f"{p:{ticks_format}}" for p in self.yticks[category]]
 
     def compute_category_solution_stats(self, category, solution):
+        category_values = self.get_values_bounded_by_max_iterations(category, solution)
+        self.solution_stats_dict[SolutionComparison.get_standard_label(category)] = category_values
+
+    def get_values_bounded_by_max_iterations(self, category, solution):
         category_values = solution.get_values_from_category(category)
         category_values = self.get_sublist_until_max_interations(category_values)
-        self.solution_stats_dict[SolutionComparison.get_standard_label(category)] = category_values
+        return category_values
 
     def get_sublist_until_max_interations(self, category_values):
         return category_values[:self.iteration_limit]
@@ -101,14 +106,14 @@ class SolutionComparison:
 
             for solution_index, solution in enumerate(self.category_solutions[category]):
 
-                solution_values = solution.get_values_from_category(category)
+                solution_values = self.get_values_bounded_by_max_iterations(category, solution)
 
                 if self.show_shadow:
                     axs[plot_index].plot(
                         solution_values,
                         color=self.colors[solution_index],
                         linewidth=self.linewidths[solution_index],
-                        marker=self.markers[solution_index],
+                        marker=self.markers_shadow[solution_index],
                         alpha=0.25,
                         label="",
                     )

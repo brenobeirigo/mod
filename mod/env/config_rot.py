@@ -49,11 +49,6 @@ for f in FOLDERS:
 # ## FILE PATHS####################################################### #
 # #################################################################### #
 
-# Spatiotemporal probability
-FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p5min_6h.npy"
-# FIST_CLASS_PROB = f"{FOLDER_INSTANCE}/class_prob_distribution_p10min_6h.npy"
-
-
 def get_file_paths(folder):
     return [f"{folder}{t}" for t in os.listdir(folder) if t.endswith(".csv")]
 

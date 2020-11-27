@@ -60,10 +60,20 @@ if __name__ == "__main__":
         print(f'Loading settings from "{instance_name}"')
         start_config = ConfigNetwork.load(instance_name)
 
+
     else:
-        folder = "C:/Users/LocalAdmin/OneDrive/leap_forward/phd_project/reb/code/mod/config/"
-        filename = "standard_adp_manhattan_TS.json"
-        # filename = "standard_mpc.json"
+        if sys.argv:
+            folder = sys.argv[1]
+            filename = sys.argv[2]
+    
+        else:
+            folder = "d:/bb/mod/config/A3_A4_1st_class_distribution/"
+            #filename = "TS_use_A20_B80_distribution1000it.json"
+            #filename = "TS_use_probability_distribution1000it.json"
+            filename = "TS_use_probability_distribution_90_1000it.json"
+            #filename = "TS_use_probability_distribution_90.json"
+            # filename = "standard_mpc.json"
+
         filepath_method_config = folder + filename
         filepath_log = folder + "base_log.json"
 

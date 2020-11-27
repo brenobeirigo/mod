@@ -217,3 +217,7 @@ Example:
 
     python tests\ml\tuning.py <TEST_LABEL> <N_PROCESSES>  <METHOD> <FOCUS>
     python tests\ml\tuning.py SH 9 -train hiring
+
+## Notebooks
+
+To compare the weight put in each level in the hierarchical aggregation process, use the file notebooks/

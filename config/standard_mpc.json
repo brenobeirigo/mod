@@ -1,6 +1,6 @@
 {
   "map_network": {
-    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": true,
+    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": false,
     "UNBOUND_MAX_CARS_TRIP_DECISIONS": true
   },
   "demand": {
@@ -152,7 +152,7 @@
     ]
   },
   "adp": {
-    "ITERATIONS": 500,
+    "ITERATIONS": 1000,
     "METHOD": "optimal",
     "ADP_IGNORE_ZEROS": true,
     "LINEARIZE_INTEGER_MODEL": false,

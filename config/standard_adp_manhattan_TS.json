@@ -1,21 +1,22 @@
 {
   "adp": {
-    "ITERATIONS": 500,
-    "METHOD": "reactive",
+    "ITERATIONS": 1000,
+    "METHOD": "adp/train",
     "ADP_IGNORE_ZEROS": true,
     "LINEARIZE_INTEGER_MODEL": false,
     "USE_ARTIFICIAL_DUALS": false,
-    "DISCOUNT_FACTOR": 1,
+    "DISCOUNT_FACTOR": 1.0,
     "HARMONIC_STEPSIZE": 1,
     "STEPSIZE_FIXED": 0.1,
     "STEPSIZE_RULE": "MCCL"
   },
   "map_network": {
-    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": true,
+    "UNBOUND_MAX_CARS_TRIP_DESTINATIONS": false,
     "UNBOUND_MAX_CARS_TRIP_DECISIONS": true
   },
   "demand": {
     "UNIVERSAL_SERVICE": false,
+    "SQ_GUARANTEE": false,
     "DEMAND_RESIZE_FACTOR": 0.1,
     "DEMAND_SAMPLING": true,
     "USE_CLASS_PROB": true,
@@ -27,11 +28,11 @@
     "TRIP_REJECTION_PENALTY": [
       [
         "A",
-        0
+        4.8
       ],
       [
         "B",
-        0
+        2.8
       ]
     ],
     "TRIP_BASE_FARE": [
@@ -83,23 +84,6 @@
         "B",
         1
       ]
-    ]
-  },
-  "service_quality": {
-    "MATCHING_DELAY": 15,
-    "MAX_USER_BACKLOGGING_DELAY": 5,
-    "SQ_GUARANTEE": false,
-    "RECHARGE_COST_DISTANCE": 0.1,
-    "APPLY_BACKLOG_REJECTION_PENALTY": true,
-    "TRIP_REJECTION_PENALTY": [
-      [
-        "A",
-        0
-      ],
-      [
-        "B",
-        0
-      ]
     ],
     "TRIP_OUTSTANDING_PENALTY": [
       [
@@ -111,64 +95,12 @@
         0
       ]
     ],
-    "TRIP_BASE_FARE": [
-      [
-        "A",
-        2.5
-      ],
-      [
-        "B",
-        2.5
-      ]
-    ],
-    "TRIP_DISTANCE_RATE_KM": [
-      [
-        "A",
-        1
-      ],
-      [
-        "B",
-        1
-      ]
-    ],
-    "TRIP_TOLERANCE_DELAY_MIN": [
-      [
-        "A",
-        0
-      ],
-      [
-        "B",
-        0
-      ]
-    ],
-    "TRIP_MAX_PICKUP_DELAY": [
-      [
-        "A",
-        10
-      ],
-      [
-        "B",
-        10
-      ]
-    ],
-    "TRIP_CLASS_PROPORTION": [
-      [
-        "A",
-        0
-      ],
-      [
-        "B",
-        1
-      ]
-    ]
+    "MATCHING_DELAY": 15,
+    "MAX_USER_BACKLOGGING_DELAY": 0,
+    "RECHARGE_COST_DISTANCE": 0.1,
+    "APPLY_BACKLOG_REJECTION_PENALTY": true
   },
   "hierarchical_levels": {
-    "LEVEL_LIST": [
-      0,
-      60,
-      300,
-      600
-    ],
     "AGGREGATION_LEVELS": [
       {
         "temporal": 0,
@@ -179,7 +111,7 @@
         "car_origin": "-"
       },
       {
-        "temporal": 0,
+        "temporal": 1,
         "spatial": 1,
         "battery": 0,
         "contract": "-",
@@ -187,7 +119,7 @@
         "car_origin": "-"
       },
       {
-        "temporal": 0,
+        "temporal": 1,
         "spatial": 2,
         "battery": 0,
         "contract": "-",
@@ -195,9 +127,13 @@
         "car_origin": "-"
       }
     ],
+    "LEVEL_LIST": [
+      0,
+      300,
+      600
+    ],
     "LEVEL_TIME_LIST": [
       1,
-      2,
       3
     ],
     "LEVEL_CAR_ORIGIN": {
@@ -253,7 +189,7 @@
   },
   "rebalancing": {
     "NEIGHBORHOOD_LEVEL": 0,
-    "PENALIZE_REBALANCE": false,
+    "PENALIZE_REBALANCE": true,
     "N_CLOSEST_NEIGHBORS": [
       [
         1,
@@ -340,15 +276,15 @@
     "USE_SHORT_PATH": false,
     "SAVE_TRIP_DATA": false,
     "SAVE_FLEET_DATA": false,
-    "TEST_LABEL": "A",
+    "TEST_LABEL": "STANDARD",
     "SAVE_PROGRESS": 1,
     "CASE_STUDY": "TS"
   },
   "time": {
     "DEMAND_TOTAL_HOURS": 4,
     "DEMAND_EARLIEST_HOUR": 5,
-    "OFFSET_TERMINATION_MIN": 30,
-    "OFFSET_REPOSITIONING_MIN": 60,
+    "OFFSET_TERMINATION_MIN": 60,
+    "OFFSET_REPOSITIONING_MIN": 30,
     "TIME_INCREMENT": 1
   }
 }

@@ -20,6 +20,26 @@ import mod.util.log_util as la
 from pprint import pprint
 import itertools as it
 
+def get_standard_config():
+    folder = "d:/bb/mod/config/"
+    filename = "standard_adp_manhattan_TS.json"
+    # filename = "standard_mpc.json"
+    filepath_method_config = folder + filename
+    filepath_log = folder + "base_log.json"
+
+    base_config = fileutil.read_json_file(filepath_method_config)
+    log_config = fileutil.read_json_file(filepath_log)
+
+    start_config_dict = fileutil.join_dictionary_keys(base_config)
+
+    start_config = ConfigNetwork()
+    start_config.update(start_config_dict)
+
+    config_network = get_network_configuration()
+    start_config.update(config_network)
+    start_config.make_int_keys(start_config)
+
+    return start_config
 
 def get_power_set(elements, keep_first=1, keep_last=2, n=None, max_size=None):
     if not n:
@@ -86,7 +106,7 @@ config_adp = {
 
 
 def test_all(
-    tuning_labels, tuning_params, update_dict, all_settings, exp_list
+    tuning_labels, tuning_params, update_dict, all_settings, exp_list, params=[]
 ):
 
     try:
@@ -105,23 +125,25 @@ def test_all(
             else:
                 update_dict = {**update_dict, **{param: e}}
 
+            updated_dict = deepcopy(update_dict)
             test_all(
                 tuning_labels,
                 tuning_params,
-                deepcopy(update_dict),
+                updated_dict,
                 all_settings,
                 exp_list,
+                params=params+[param]
             )
 
     except:
         updated = deepcopy(all_settings)
         updated.update(update_dict)
-        exp_list.append((all_settings.test_label, updated.label, updated))
+        exp_list.append((all_settings.test_label, updated.label, updated, params))
 
 
 def run_adp(exp):
 
-    exp_name, label, exp_setup = exp
+    exp_name, label, exp_setup, params = exp
 
     if (
         exp_setup.myopic
@@ -523,8 +545,8 @@ def main(test_labels, focus, N_PROCESSES, method):
     # TUNING ADP
     tuning_focus["adp"] = {
         Config.STEPSIZE_RULE: [adp.STEPSIZE_MCCLAIN],
-        Config.DISCOUNT_FACTOR: [0.7, 0.5, 0.3],
-        # Config.STEPSIZE_CONSTANT: [0.1],
+        Config.DISCOUNT_FACTOR: [0.8, 0.9, 1.0],
+        Config.STEPSIZE_CONSTANT: [0.1, 0.05, 0.2],
         # Config.HARMONIC_STEPSIZE: [1],
     }
 
@@ -696,6 +718,7 @@ def main(test_labels, focus, N_PROCESSES, method):
 
     # Setup shared by all experiments
     setup = alg.get_sim_config(shared_settings)
+    setup = get_standard_config()
 
     print("################ Initial setup")
     pprint(setup.config)

@@ -1,0 +1,7 @@
+start cmd.exe /k "cd C:/Users/brenobeirigo/Anaconda3/Scripts/ & activate env_slevels_new & title TS_2K-AP-BP-8 & python main.py d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-AP-BP-8.json >> d:/bb/mod/config/A3_A4_1st_class_distribution/log/TS_2K-AP-BP-8.log"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-AP-BP-8.json"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-AP-BP-9.json"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-AP-BP-1.json"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-A2-B8-8.json"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-A2-B8-9.json"
+start "" C:/Users/brenobeirigo/Anaconda3/Scripts/activate env_slevels_new & C:/Users/brenobeirigo/Anaconda3/envs/env_slevels_new/python.exe "main.py" "d:/bb/mod/config/A3_A4_1st_class_distribution/ TS_2K-A2-B8-1.json"

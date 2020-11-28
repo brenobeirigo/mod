@@ -90,13 +90,9 @@ If disabled, user membership to classes is defined at random according to the pr
 
 ## Execution
 
-Example to create a case study named "R" considering 300 vehicles. The method will run on the training instance (defined in the file `config.py`) for 500 iterations. Additionally, all plots will be saved (fleet usage, demand, and user delays).
+Configure the json and run it passing folder and file. For example:
 
-    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 -n 500 -train -save_plots
-
-Hiring:
-
-    python mod\ml\adp_network_server.py R -FLEET_SIZE 300 -n 500 -train -save_plots -FAV_FLEET_SIZE 200
+    main.py 'c:/tud/mod/config/adp_tune/' 'TS_2K-B-1-1.json'
 
 Batch file (`.bat`):
 

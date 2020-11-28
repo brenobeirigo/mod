@@ -1,7 +1,6 @@
 import os
 import random
 import sys
-from pprint import pprint
 
 # Adding project folder to import modules
 root = os.getcwd().replace("\\", "/")
@@ -55,24 +54,9 @@ def get_network_configuration():
 
 if __name__ == "__main__":
 
-    instance_name = None
-    if instance_name:
-        print(f'Loading settings from "{instance_name}"')
-        start_config = ConfigNetwork.load(instance_name)
-
-
-    else:
-        if sys.argv:
-            folder = sys.argv[1]
-            filename = sys.argv[2]
-    
-        else:
-            folder = "d:/bb/mod/config/A3_A4_1st_class_distribution/"
-            #filename = "TS_use_A20_B80_distribution1000it.json"
-            #filename = "TS_use_probability_distribution1000it.json"
-            filename = "TS_use_probability_distribution_90_1000it.json"
-            #filename = "TS_use_probability_distribution_90.json"
-            # filename = "standard_mpc.json"
+    try:
+        folder = sys.argv[1]
+        filename = sys.argv[2]
 
         filepath_method_config = folder + filename
         filepath_log = folder + "base_log.json"
@@ -89,5 +73,8 @@ if __name__ == "__main__":
         start_config.update(config_network)
         start_config.make_int_keys(start_config)
 
-    vi = alg.ValueIteration(None, start_config, log_config_dict=log_config)
-    vi.init()
+        vi = alg.ValueIteration(None, start_config, log_config_dict=log_config)
+        vi.init()
+
+    except Exception as e:
+        print("Exception: ", e)

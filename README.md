@@ -217,3 +217,199 @@ Example:
 ## Notebooks
 
 To compare the weight put in each level in the hierarchical aggregation process, use the file notebooks/
+
+# Data
+
+## Map
+
+The street network consists of a strongly connected directed graph G=(N,E) comprised of N=6,430 nodes and E=11,581 edges.
+
+### Distance matrix
+
+The distance matrix in meters (float):
+
+    dist_matrix_m.csv
+
+The distance matrix in seconds considering a 20km/h speed (integer):
+
+    dist_matrix_duration_s.csv
+
+### Node list
+
+The node list file `nodeset_gps.json` contains the following information:
+
+```json
+{
+    "nodes": [
+        {
+            "id": 0,
+            "x": -73.9600434,
+            "y": 40.7980486
+        },
+        ...
+        {
+            "id": 6429,
+            "x": -73.93256054530173,
+            "y": 40.860556269812896
+        }
+    ]
+}
+```
+### Node list and regional centers
+
+The node set file `nodeset_info.json` contains the following information:
+
+```json
+{
+    "nodes": [
+        {
+            "id": 0,
+            "step_center": {
+                "60": 1326,
+                "300": 2679,
+                "600": 6392
+            },
+            "x": -73.9600434,
+            "y": 40.7980486
+        },
+    ...
+        {
+            "id": 6429,
+            "step_center": {
+                "60": 1258,
+                "300": 4506,
+                "600": 6429
+            },
+            "x": -73.93256054530173,
+            "y": 40.860556269812896
+        }
+}
+```
+The `step_center` attribute stores the regional center of each node, reachable within 60, 300, and 600 seconds.
+
+## First class distrubution
+
+In order to assign service quality classes to the requests, we assume that the first-class user locations and request times coincide with the 20\% most generous tippers (among tipping users) of the Manhattan demand occurring between 5AM and 9AM.
+To make our sample more representative, we first aggregate all demand data from 2011 Tuesdays.
+Then, we assign first-class labels to all requests whose tip/fare ratio ranks over the 80<sup>th</sup> percentile (which is around  0.26).
+
+We aggregate probabilities in 5 min bins, such that 24h = 288 bins. Example:
+
+{
+0   [0:00 - 0:05),
+1   [0:05 - 0:10),
+...,
+59  [5:00 - 5:05),
+60  [5:05 - 5:10),
+...,
+107 [8:55 - 9:00),
+...,
+287 [23:55 - 00:00)
+}
+
+The 1<sup>st</sup> class probability file is `1st_class_prob_info.npy`. The structure is as follows:
+
+```json
+{
+    "time_bin": 5,
+    "start": "5:00:00",
+    "end": "9:00:00",
+    "data": {
+        0: {
+            67: 0.5,
+            74: 0.5,
+            82: 0.25,
+            83: 0.2,
+            88: 0.16,
+            89: 0.18,
+            90: 0.25,
+            91: 0.22, 
+            92: 0.2,
+            93: 0.16,
+            94: 0.2,
+            95: 0.16,
+            96: 0.16,
+            97: 0.11,
+            98: 0.08,
+            100: 0.12,
+            105: 0.22,
+            106: 0.2,
+            107: 0.2
+        }
+        ...
+    }
+}
+```
+The attribute `data` stores for each node id the probabilities associated with the appearance of 1<sup>st</sup> class probabilities at each time bin.
+When a pair (node id, time bin) does not exist, the probability is zero.
+
+## Pickup and delivery requests
+
+Excerpts from the Manhatan taxicab dataset where coordinates are approximated to the closest node in N within a 50-meter range.
+
+### Training data
+
+The ADP estimates value functions by randomly sampling 10\% of the request demand of a single day (Tuesday, 2011-04-12) in in the interval [5AM, 9AM).
+
+The training data correspond to file:
+    
+    tripdata_ids_2011-04-12_000000_2011-04-12_235959.csv
+
+### Testing data
+
+The quality of the value functions estimated using the training data is tested against the remaining 51 Tuesdays of the year.
+Again, a 10\% sample in the interval [5AM, 9AM) is used for comparison.
+
+The testing data correspond to  files:
+
+    tripdata_ids_2011-01-04_000000_2011-01-04_235959.csv
+    tripdata_ids_2011-01-11_000000_2011-01-11_235959.csv
+    tripdata_ids_2011-01-18_000000_2011-01-18_235959.csv
+    tripdata_ids_2011-01-25_000000_2011-01-25_235959.csv
+    tripdata_ids_2011-02-01_000000_2011-02-01_235959.csv
+    tripdata_ids_2011-02-08_000000_2011-02-08_235959.csv
+    tripdata_ids_2011-02-15_000000_2011-02-15_235959.csv
+    tripdata_ids_2011-02-22_000000_2011-02-22_235959.csv
+    tripdata_ids_2011-03-01_000000_2011-03-01_235959.csv
+    tripdata_ids_2011-03-08_000000_2011-03-08_235959.csv
+    tripdata_ids_2011-03-15_000000_2011-03-15_235959.csv
+    tripdata_ids_2011-03-22_000000_2011-03-22_235959.csv
+    tripdata_ids_2011-03-29_000000_2011-03-29_235959.csv
+    tripdata_ids_2011-04-05_000000_2011-04-05_235959.csv
+    tripdata_ids_2011-04-19_000000_2011-04-19_235959.csv
+    tripdata_ids_2011-04-26_000000_2011-04-26_235959.csv
+    tripdata_ids_2011-05-03_000000_2011-05-03_235959.csv
+    tripdata_ids_2011-05-10_000000_2011-05-10_235959.csv
+    tripdata_ids_2011-05-17_000000_2011-05-17_235959.csv
+    tripdata_ids_2011-05-24_000000_2011-05-24_235959.csv
+    tripdata_ids_2011-05-31_000000_2011-05-31_235959.csv
+    tripdata_ids_2011-06-07_000000_2011-06-07_235959.csv
+    tripdata_ids_2011-06-14_000000_2011-06-14_235959.csv
+    tripdata_ids_2011-06-21_000000_2011-06-21_235959.csv
+    tripdata_ids_2011-06-28_000000_2011-06-28_235959.csv
+    tripdata_ids_2011-07-05_000000_2011-07-05_235959.csv
+    tripdata_ids_2011-07-12_000000_2011-07-12_235959.csv
+    tripdata_ids_2011-07-19_000000_2011-07-19_235959.csv
+    tripdata_ids_2011-07-26_000000_2011-07-26_235959.csv
+    tripdata_ids_2011-08-02_000000_2011-08-02_235959.csv
+    tripdata_ids_2011-08-09_000000_2011-08-09_235959.csv
+    tripdata_ids_2011-08-16_000000_2011-08-16_235959.csv
+    tripdata_ids_2011-08-23_000000_2011-08-23_235959.csv
+    tripdata_ids_2011-08-30_000000_2011-08-30_235959.csv
+    tripdata_ids_2011-09-06_000000_2011-09-06_235959.csv
+    tripdata_ids_2011-09-13_000000_2011-09-13_235959.csv
+    tripdata_ids_2011-09-20_000000_2011-09-20_235959.csv
+    tripdata_ids_2011-09-27_000000_2011-09-27_235959.csv
+    tripdata_ids_2011-10-04_000000_2011-10-04_235959.csv
+    tripdata_ids_2011-10-11_000000_2011-10-11_235959.csv
+    tripdata_ids_2011-10-18_000000_2011-10-18_235959.csv
+    tripdata_ids_2011-10-25_000000_2011-10-25_235959.csv
+    tripdata_ids_2011-11-01_000000_2011-11-01_235959.csv
+    tripdata_ids_2011-11-08_000000_2011-11-08_235959.csv
+    tripdata_ids_2011-11-15_000000_2011-11-15_235959.csv
+    tripdata_ids_2011-11-22_000000_2011-11-22_235959.csv
+    tripdata_ids_2011-11-29_000000_2011-11-29_235959.csv
+    tripdata_ids_2011-12-06_000000_2011-12-06_235959.csv
+    tripdata_ids_2011-12-13_000000_2011-12-13_235959.csv
+    tripdata_ids_2011-12-20_000000_2011-12-20_235959.csv
+    tripdata_ids_2011-12-27_000000_2011-12-27_235959.csv

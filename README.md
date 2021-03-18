@@ -1,5 +1,11 @@
 # Mobility-on-demand fleet management application
 
+## Installation
+
+Locate the transportation environment module at file `tenv\network.py`:
+
+    tenv_mod = "C:\\Users\\LocalAdmin\\OneDrive\\leap_forward\\street_network_server\\tenv"
+
 ## ADP config
 
 state = TIME, LOCATION, BATTERY, CONTRACT, CARTYPE, CARORIGIN
